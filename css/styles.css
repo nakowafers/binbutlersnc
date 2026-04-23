@@ -833,12 +833,28 @@ section {
         display: none;
     }
     
+    .header .container {
+        justify-content: center;
+        position: relative;
+    }
+    
+    .logo-container .logo-img {
+        height: 160px;
+    }
+    
+    .header-actions {
+        position: absolute;
+        right: 2rem;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+    
     .mobile-menu-toggle {
         display: block;
     }
     
     .hero {
-        padding: 8rem 0 5rem;
+        padding: 14rem 0 5rem;
     }
     
     .hero h1 {
