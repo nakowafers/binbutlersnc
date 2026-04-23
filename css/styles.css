@@ -180,7 +180,7 @@ section {
     backdrop-filter: blur(10px);
     z-index: 1000;
     box-shadow: var(--shadow-sm);
-    padding: 1rem 0;
+    padding: 0.5rem 0;
     transition: var(--transition);
 }
 
@@ -191,7 +191,7 @@ section {
 }
 
 .logo-container .logo-img {
-    height: 80px;
+    height: 200px;
     object-fit: contain;
 }
 
@@ -316,32 +316,25 @@ section {
     position: relative;
     padding: 12rem 0 8rem;
     background-color: var(--color-bg-alt);
+    background-image: url('https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=2940&auto=format&fit=crop'); /* Cleaning image placeholder */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
+    min-height: 80vh;
 }
 
-.hero::before {
-    content: '';
+.hero-bg-overlay {
     position: absolute;
-    top: -50%;
-    left: -10%;
-    width: 60%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(122, 193, 66, 0.08) 0%, rgba(255,255,255,0) 70%);
-    z-index: 0;
-}
-
-.hero::after {
-    content: '';
-    position: absolute;
-    bottom: -20%;
-    right: -10%;
-    width: 50%;
+    top: 0;
+    left: 0;
+    width: 100%;
     height: 100%;
-    background: radial-gradient(circle, rgba(28, 61, 90, 0.05) 0%, rgba(255,255,255,0) 70%);
+    background-color: rgba(0, 0, 0, 0.6); /* Dark overlay for text readability */
     z-index: 0;
 }
 
@@ -367,11 +360,12 @@ section {
     font-size: 4rem;
     letter-spacing: -0.02em;
     margin-bottom: 1.5rem;
+    color: white;
 }
 
 .hero p {
     font-size: 1.25rem;
-    color: var(--color-text-light);
+    color: rgba(255, 255, 255, 0.9);
     max-width: 700px;
     margin: 0 auto 2.5rem;
 }
