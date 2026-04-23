@@ -48,9 +48,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.scrollY > 50) {
                 header.style.boxShadow = 'var(--shadow-md)';
                 header.style.padding = '0.5rem 0';
+                header.style.backgroundColor = 'rgba(255, 255, 255, 0.98)';
             } else {
                 header.style.boxShadow = 'var(--shadow-sm)';
                 header.style.padding = '1rem 0';
+                header.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
             }
         });
     }
