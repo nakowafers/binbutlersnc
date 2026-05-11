@@ -66,8 +66,8 @@ Column names in D1 must be generic to support the Adapter Pattern:
 
 ### 4.2. Checkout & Provisioning
 1.  **Stripe Integration:** Passes `quantity` based on Bin Count to the Stripe Checkout session.
-2.  **Service Day Logic:** The system automatically calculates `service_day = trash_day + 1` (wrapping Friday to Monday if applicable, though typically Saturday).
-3.  **Route Assignment:** Maps address to `service_route_id` based on the calculated `service_day`.
+2.  **Service Day Logic:** The system automatically assigns `service_day = trash_day`. Bins are cleaned on the same day as garbage collection.
+3.  **Route Assignment:** Maps address to `service_route_id` based on the assigned `service_day`.
 
 ### 4.3. Dispatch & Automation (Weekly Cron Strategy)
 1.  **Stop Management:** Instead of keeping all customers in the routing provider indefinitely, the system uses a **Weekly Dispatch Cron**.
@@ -113,7 +113,7 @@ Column names in D1 must be generic to support the Adapter Pattern:
 - `latitude` (Float)
 - `longitude` (Float)
 - `trash_day` (Enum: MON-FRI)
-- `service_day` (Enum: MON-SAT) -- Auto-calculated: Trash Day + 1.
+- `service_day` (Enum: MON-FRI) -- Assigned as the same day as Trash Day.
 - `provider_name` (String)
 
 ### Table: `service_routes`
