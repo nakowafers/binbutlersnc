@@ -39,6 +39,7 @@ Relational integrity is enforced via SQL constraints in D1.
 
 *   **Addresses Table:** Unique constrained by `raw_address` + `customer_id`.
 *   **Service History Table:** Indexed by `customer_id` and `service_date` for fast portal lookups.
+*   **ToS Acceptance:** `tos_accepted_at` timestamp persisted in `leads` and `customers` to track contract agreement.
 *   **Sales Rep Tracking:** `rep_id` string persisted across `customers` and `service_history` for performance querying.
 
 ## 4. Frontend Component Architecture

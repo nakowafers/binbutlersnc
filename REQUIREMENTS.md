@@ -78,7 +78,7 @@ Column names in D1 must be generic to support the Adapter Pattern:
 3.  **Abandoned Cart Recovery (Future):** The system will persist the customer's `email`, `address`, and `rep_id` to a `leads` table *before* redirecting to Stripe. If a successful `checkout.session.completed` webhook is not received within 24 hours, the system triggers an automated follow-up.
 
 ### 4.2. Checkout & Provisioning
-1.  **Dynamic Stripe Checkout:** The backend generates a dynamic session where the `Setup Fee` = $30 * Bin Quantity, followed by the recurring tier price.
+1.  **Dynamic Stripe Checkout:** The backend generates a dynamic session where the `Setup Fee` defaults to $100 flat regardless of bin count. This is the only fee due at signing. For subscriptions, a trial period is applied (28 days for monthly, 84 days for quarterly) so that the recurring flat rate starts only after the initial cleaning interval. D2D sales reps have the ability to manually edit this initial fee for on-the-spot sales, but the fee cannot be less than $0.
 2.  **Service Day Logic:** The system automatically assigns `service_day = trash_day`. Bins are cleaned on the same day as garbage collection.
 3.  **Route Assignment:** Maps address to `service_route_id` based on the assigned `service_day`.
 
@@ -114,7 +114,8 @@ Column names in D1 must be generic to support the Adapter Pattern:
     1. Capture `sales_rep_id` from metadata.
     2. Persist `bin_quantity` and `customer` details to D1.
     3. **D2D Fulfillment:** If `sales_rep_id` is present, immediately create a record in `service_history` with `dispatch_status = 'completed'` and `service_date = NOW()`.
-    4. Calculate the first scheduled cleaning date for the dispatch cron.
+    4. **Contract Delivery:** Trigger an automated email via Resend containing a copy of the agreed-upon Terms of Service.
+    5. Calculate the first scheduled cleaning date for the dispatch cron.
 - **Event:** `customer.subscription.deleted`
 - **Action:** Update `status = 'cancelled'` in D1. Note: Service continues until the `current_period_end` stored in D1/Stripe.
 
@@ -156,6 +157,7 @@ Column names in D1 must be generic to support the Adapter Pattern:
 - `address_id` (FK -> addresses.id)
 - `bin_quantity` (Integer)
 - `sales_rep_id` (String, Optional)
+- `tos_accepted_at` (Timestamp, Optional)
 - `external_routing_id` (String)
 
 ### Table: `subscriptions`
@@ -210,7 +212,7 @@ To initialize the project, the following external credentials must be provisione
 Every feature must be verified against the following SQA-grade testing matrix before being marked as "Complete."
 
 ### 9.1. Unit Testing (Core Logic)
-- **Pricing Engine:** Verify `# bins * rate` for initial cleans and flat-rate logic for recurring tiers.
+- **Pricing Engine:** Verify the $100 flat fee for initial cleans (including custom overrides for D2D reps) and that recurring charges are deferred by the appropriate interval (4 or 12 weeks).
 - **Scheduling Engine:** Validate 4-week and 12-week interval calculations.
 - **Date Offsets:** Verify "Trash Day = Service Day" logic and "Holiday Shift" (+24h) calculations.
 
@@ -237,3 +239,6 @@ Every feature must be verified against the following SQA-grade testing matrix be
 **Approval Signature:**  
 *Lead Architect: ____________________*  
 *QA Lead: __________________________*
+ad: __________________________*
+*QA Lead: __________________________*
+ad: __________________________*
