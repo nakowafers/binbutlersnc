@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:cf": "npx @cloudflare/next-on-pages --experimental-minify",
+    "build:cf": "npx @cloudflare/next-on-pages --experimental-minify && echo '_worker.js' > .vercel/output/static/.assetsignore",
     "preview": "npm run build:cf && npx wrangler pages dev",
     "start": "next start",
     "lint": "eslint"
