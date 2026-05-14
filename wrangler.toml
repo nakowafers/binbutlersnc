@@ -24,4 +24,4 @@ AUTH_SECRET = "..."
 [[d1_databases]]
 binding = "DB"
 database_name = "binbutlersnc-db"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "99e70f3e-e151-44e0-92d1-1cf52a1f5094"
