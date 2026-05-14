@@ -61,7 +61,6 @@ export interface ServiceHistory {
 
 export interface Env {
     DB: D1Database;
-    R2_ASSETS: R2Bucket;
     STRIPE_SECRET_KEY: string;
     STRIPE_WEBHOOK_SECRET: string;
     STRIPE_MONTHLY_PRICE_ID: string;

@@ -25,7 +25,3 @@ AUTH_SECRET = "..."
 binding = "DB"
 database_name = "binbutlersnc-db"
 database_id = "REPLACE_WITH_D1_ID"
-
-[[r2_buckets]]
-binding = "R2_ASSETS"
-bucket_name = "binbutlersnc-assets"

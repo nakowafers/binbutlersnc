@@ -6,7 +6,6 @@ The application is built on a high-performance, low-latency stack optimized for 
 *   **Framework:** Next.js 14+ (App Router).
 *   **Runtime:** **Cloudflare Pages (Edge Runtime)** via `@cloudflare/next-on-pages`.
 *   **Database:** **Cloudflare D1** (Serverless SQLite).
-*   **Storage:** **Cloudflare R2** (S3-Compatible) for images.
 *   **Payments:** **Stripe** (Checkout Sessions & Webhooks).
 *   **Routing:** **Routific API** (External).
 *   **Auth:** **Auth.js** (NextAuth) with Magic Link provider.

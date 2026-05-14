@@ -201,7 +201,7 @@ Column names in D1 must be generic to support the Adapter Pattern:
 
 ## 8. Implementation Prerequisites (API Keys Required)
 To initialize the project, the following external credentials must be provisioned:
-- **Cloudflare:** Account ID, D1 Database ID, and R2 Bucket name.
+- **Cloudflare:** Account ID and D1 Database ID.
 - **Stripe:** Secret Key, Webhook Secret, and Price IDs.
 - **Google Maps Platform:** API Key (Places Autocomplete & Geocoding).
 - **Routific:** API Key.
@@ -242,3 +242,6 @@ Every feature must be verified against the following SQA-grade testing matrix be
 ad: __________________________*
 *QA Lead: __________________________*
 ad: __________________________*
+oring service verification photos.
+*   **Service Verification (Photos):** Drivers capture proof-of-service photos which are uploaded to **Cloudflare R2** and linked in the customer portal.
+*   **Communications:** abandoned cart emails and advanced notifications.
