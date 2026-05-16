@@ -6,7 +6,6 @@ The application is built on a high-performance, low-latency stack optimized for 
 *   **Framework:** Next.js 14+ (App Router).
 *   **Runtime:** **Cloudflare Pages (Edge Runtime)** via `@cloudflare/next-on-pages`.
 *   **Database:** **Cloudflare D1** (Serverless SQLite).
-*   **Storage:** **Cloudflare R2** (S3-Compatible) for images.
 *   **Payments:** **Stripe** (Checkout Sessions & Webhooks).
 *   **Routing:** **Routific API** (External).
 *   **Auth:** **Auth.js** (NextAuth) with Magic Link provider.
@@ -39,6 +38,7 @@ Relational integrity is enforced via SQL constraints in D1.
 
 *   **Addresses Table:** Unique constrained by `raw_address` + `customer_id`.
 *   **Service History Table:** Indexed by `customer_id` and `service_date` for fast portal lookups.
+*   **ToS Acceptance:** `tos_accepted_at` timestamp persisted in `leads` and `customers` to track contract agreement.
 *   **Sales Rep Tracking:** `rep_id` string persisted across `customers` and `service_history` for performance querying.
 
 ## 4. Frontend Component Architecture

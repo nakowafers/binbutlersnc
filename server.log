@@ -1,0 +1,7 @@
+127.0.0.1 - - [15/May/2026 16:04:00] "HEAD /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [15/May/2026 16:04:08] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [15/May/2026 16:04:08] "GET /css/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [15/May/2026 16:04:08] "GET /assets/logo.png HTTP/1.1" 200 -
+127.0.0.1 - - [15/May/2026 16:04:08] "GET /js/script.js HTTP/1.1" 200 -
+127.0.0.1 - - [15/May/2026 16:04:08] "GET /assets/trash_bins_cleaning.png HTTP/1.1" 200 -
+127.0.0.1 - - [15/May/2026 16:05:08] "GET /contact.html HTTP/1.1" 200 -

@@ -1,0 +1,11 @@
+name = "binbutlersnc-retry-cron"
+main = "index.ts"
+compatibility_date = "2024-04-03"
+
+[triggers]
+crons = ["*/15 * * * *"] # Every 15 minutes
+
+[[d1_databases]]
+binding = "DB"
+database_name = "binbutlersnc-db"
+database_id = "REPLACE_WITH_D1_ID"
