@@ -85,24 +85,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const sections = document.querySelectorAll('section[id]');
     const navLinks = document.querySelectorAll('.desktop-nav a');
 
-    window.addEventListener('scroll', () => {
-        let current = '';
-        const scrollY = window.scrollY;
+    if (sections.length > 0) {
+        window.addEventListener('scroll', () => {
+            let current = '';
+            const scrollY = window.scrollY;
 
-        sections.forEach(section => {
-            const sectionTop = section.offsetTop - 100;
-            const sectionHeight = section.clientHeight;
-            
-            if (scrollY >= sectionTop && scrollY < sectionTop + sectionHeight) {
-                current = section.getAttribute('id');
-            }
-        });
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - 100;
+                const sectionHeight = section.clientHeight;
 
-        navLinks.forEach(link => {
-            link.classList.remove('active');
-            if (link.getAttribute('href') === `#${current}`) {
-                link.classList.add('active');
-            }
+                if (scrollY >= sectionTop && scrollY < sectionTop + sectionHeight) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && href.startsWith('#')) {
+                    link.classList.remove('active');
+                    if (href === `#${current}`) {
+                        link.classList.add('active');
+                    }
+                }
+            });
         });
-    });
+    }
 });
