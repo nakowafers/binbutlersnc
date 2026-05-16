@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    
+
     // --- Mobile Menu Toggle ---
     const mobileMenuToggle = document.querySelector('.mobile-menu-toggle');
     const mobileMenuClose = document.querySelector('.mobile-menu-close');
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Sticky Header with Shadow on Scroll ---
     const header = document.querySelector('.header');
-    
+
     if (header) {
         window.addEventListener('scroll', () => {
             if (window.scrollY > 50) {
@@ -81,33 +81,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- Active Link Highlighting on Scroll ---
+    // --- Active Link Highlighting with IntersectionObserver ---
     const sections = document.querySelectorAll('section[id]');
     const navLinks = document.querySelectorAll('.desktop-nav a');
 
-    if (sections.length > 0) {
-        window.addEventListener('scroll', () => {
-            let current = '';
-            const scrollY = window.scrollY;
+    const observerOptions = {
+        root: null,
+        rootMargin: '-100px 0px -70% 0px',
+        threshold: 0
+    };
 
-            sections.forEach(section => {
-                const sectionTop = section.offsetTop - 100;
-                const sectionHeight = section.clientHeight;
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const currentId = entry.target.getAttribute('id');
 
-                if (scrollY >= sectionTop && scrollY < sectionTop + sectionHeight) {
-                    current = section.getAttribute('id');
-                }
-            });
-
-            navLinks.forEach(link => {
-                const href = link.getAttribute('href');
-                if (href && href.startsWith('#')) {
+                navLinks.forEach(link => {
                     link.classList.remove('active');
-                    if (href === `#${current}`) {
+                    if (link.getAttribute('href') === `#${currentId}`) {
                         link.classList.add('active');
                     }
-                }
-            });
+                });
+            }
         });
-    }
+    }, observerOptions);
+
+    sections.forEach(section => {
+        observer.observe(section);
+    });
 });
