@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    
+
     // --- Mobile Menu Toggle ---
     const mobileMenuToggle = document.querySelector('.mobile-menu-toggle');
     const mobileMenuClose = document.querySelector('.mobile-menu-close');
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Sticky Header with Shadow on Scroll ---
     const header = document.querySelector('.header');
-    
+
     if (header) {
         window.addEventListener('scroll', () => {
             if (window.scrollY > 50) {
