@@ -85,28 +85,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const sections = document.querySelectorAll('section[id]');
     const navLinks = document.querySelectorAll('.desktop-nav a');
 
-    const observerOptions = {
-        root: null,
-        rootMargin: '-100px 0px -70% 0px',
-        threshold: 0
-    };
+    if (sections.length > 0) {
+        const observerOptions = {
+            root: null,
+            rootMargin: '-100px 0px -70% 0px',
+            threshold: 0
+        };
 
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const currentId = entry.target.getAttribute('id');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const currentId = entry.target.getAttribute('id');
 
-                navLinks.forEach(link => {
-                    link.classList.remove('active');
-                    if (link.getAttribute('href') === `#${currentId}`) {
-                        link.classList.add('active');
-                    }
-                });
-            }
+                    navLinks.forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (href && href.startsWith('#')) {
+                            link.classList.remove('active');
+                            if (href === `#${currentId}`) {
+                                link.classList.add('active');
+                            }
+                        }
+                    });
+                }
+            });
+        }, observerOptions);
+
+        sections.forEach(section => {
+            observer.observe(section);
         });
-    }, observerOptions);
-
-    sections.forEach(section => {
-        observer.observe(section);
-    });
+    }
 });
