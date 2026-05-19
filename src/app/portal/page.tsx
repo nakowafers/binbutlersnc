@@ -13,7 +13,7 @@ import {
     MapPin
 } from "lucide-react";
 import Link from 'next/link';
-import { PortalActions, UpdateDetailsTrigger } from "@/components/portal-actions";
+import { PortalActions, UpdateDetailsTrigger, SignOutButton } from "@/components/portal-actions";
 
 export const runtime = 'edge';
 
@@ -58,7 +58,7 @@ export default async function PortalPage() {
                     </Link>
                     <div className="flex items-center gap-4">
                         <span className="text-sm font-bold text-[#1C3D5A] hidden sm:block">{session.user.email}</span>
-                        <Button variant="ghost" className="text-slate-500">Sign Out</Button>
+                        <SignOutButton />
                     </div>
                 </div>
             </header>

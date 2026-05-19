@@ -2,73 +2,65 @@ import { IRoutingService, RoutingJob } from './types';
 
 export class RoutificAdapter implements IRoutingService {
     private apiKey: string;
-    private baseUrl = 'https://api.routific.com/v1';
+    private workspaceId?: string;
+    // New Platform API Base URL
+    private baseUrl = 'https://planning-service.beta.routific.com/v1';
 
-    constructor(apiKey: string) {
+    constructor(apiKey: string, workspaceId?: string) {
         this.apiKey = apiKey;
+        this.workspaceId = workspaceId;
     }
 
     async createJob(job: RoutingJob): Promise<string> {
-        // Routific V1 API expected format (simplified for this example)
-        // See https://dev.routific.com/docs/vrp-api
-        const payload = {
-            visits: job.stops.reduce((acc, stop) => {
-                acc[stop.id] = {
-                    location: {
-                        address: stop.address,
-                        lat: stop.lat,
-                        lng: stop.lng,
-                    },
-                    metadata: {
-                        customer_id: stop.customer_id,
-                        subscription_id: stop.subscription_id,
-                    }
-                };
-                return acc;
-            }, {} as Record<string, unknown>),
-            fleet: {
-                "driver_1": {
-                    start_location: { address: "Base Location, NC" }, // Example base
-                    shift_start: "08:00",
-                    shift_end: "17:00"
-                }
-            },
-            options: {
-                traffic: "fast"
-            }
-        };
+        if (!this.apiKey || this.apiKey.trim() === '' || this.apiKey.includes('your_routific_api_key')) {
+            throw new Error("Missing or invalid Routific API Key. Please check your .dev.vars file.");
+        }
 
-        const response = await fetch(`${this.baseUrl}/vrp`, {
+        const key = this.apiKey.trim();
+        const wsId = this.workspaceId;
+        
+        if (!wsId) {
+            throw new Error("Missing Routific Workspace ID. This is required for the Platform API.");
+        }
+
+        // The Platform API (Beta) uses the /orders endpoint to push jobs into the dashboard
+        // Ref: https://routific-platform.readme.io/reference/create-orders
+        const ordersPayload = job.stops.map(stop => ({
+            name: `Bin: ${stop.customer_id.substring(0, 8)}`,
+            locations: [{
+                address: stop.address,
+                lat: stop.lat,
+                lng: stop.lng,
+            }],
+            // Consolidate everything into instructions since notes/metadata are rejected
+            instructions: `Sub: ${stop.subscription_id} | Cust: ${stop.customer_id}`,
+            deliveryDate: job.date,
+            customerOrderNumber: stop.id
+        }));
+
+        const url = `${this.baseUrl}/orders?workspaceId=${wsId}`;
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${this.apiKey}`,
+                'Authorization': `Bearer ${key}`,
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(ordersPayload),
         });
 
         if (!response.ok) {
             const error = await response.text();
-            throw new Error(`Routific API error: ${error}`);
+            throw new Error(`Routific Orders API error: ${error}`);
         }
 
-        const data = await response.json() as { job_id: string };
-        return data.job_id;
+        // The orders API returns a success confirmation, not a project ID
+        // For our internal tracking, we return 'orders-synced'
+        return `synced-${job.date}`;
     }
 
     async getJobStatus(jobId: string): Promise<string> {
-        const response = await fetch(`${this.baseUrl}/jobs/${jobId}`, {
-            headers: {
-                'Authorization': `Bearer ${this.apiKey}`,
-            },
-        });
-
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`Routific API error: ${error}`);
-        }
-
-        const data = await response.json() as { status: string };
-        return data.status;
+        // In the orders-based flow, the status is checked per-order or via the dashboard
+        return 'synced';
     }
 }

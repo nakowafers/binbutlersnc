@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { CreditCard, Pause, Play, Loader2, Settings } from "lucide-react";
+import { createBillingPortalSession } from '@/app/portal/actions';
 
 interface PortalActionsProps {
     isPaused: boolean;
@@ -16,18 +17,12 @@ export function PortalActions({ isPaused: initialPaused }: PortalActionsProps) {
     const handleBilling = async () => {
         setIsBillingLoading(true);
         try {
-            const response = await fetch('/api/portal', { method: 'POST' });
-            const data = await response.json() as { url?: string };
-            if (data.url) {
-                window.location.href = data.url;
-            } else {
-                alert('Failed to load billing portal.');
-            }
+            // Call the Next.js Server Action
+            await createBillingPortalSession();
         } catch (error) {
             console.error('Billing error:', error);
-            alert('Something went wrong.');
-        } finally {
-            setIsBillingLoading(false);
+            alert('Something went wrong loading the billing portal.');
+            setIsBillingLoading(false); // Only unset if it fails (redirect never returns)
         }
     };
 
@@ -61,6 +56,20 @@ export function PortalActions({ isPaused: initialPaused }: PortalActionsProps) {
                 {isPaused ? 'Resume Service' : 'Vacation Mode'}
             </Button>
         </div>
+    );
+}
+
+import { signOut } from 'next-auth/react';
+
+export function SignOutButton() {
+    return (
+        <Button 
+            variant="ghost" 
+            className="text-slate-500 font-bold transition-all hover:bg-slate-100"
+            onClick={() => signOut({ callbackUrl: '/signin' })}
+        >
+            Sign Out
+        </Button>
     );
 }
 

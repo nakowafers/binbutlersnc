@@ -69,6 +69,7 @@ export interface Env {
     STRIPE_SETUP_FEE_PRICE_ID: string;
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
     ROUTIFIC_API_KEY: string;
+    ROUTIFIC_WORKSPACE_ID: string;
     RESEND_API_KEY: string;
     GOOGLE_MAPS_API_KEY: string;
     AUTH_SECRET: string;

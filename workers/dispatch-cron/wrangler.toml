@@ -8,4 +8,5 @@ crons = ["0 0 * * 0"] # Every Sunday at 00:00
 [[d1_databases]]
 binding = "DB"
 database_name = "binbutlersnc-db"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "99e70f3e-e151-44e0-92d1-1cf52a1f5094"
+migrations_dir = "../../migrations"

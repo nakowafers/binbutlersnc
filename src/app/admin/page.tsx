@@ -1,6 +1,7 @@
-'use client';
-
-import { useState } from 'react';
+import { auth } from '@/auth';
+import { getRequestContext } from '@cloudflare/next-on-pages';
+import { redirect } from 'next/navigation';
+import { Env } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -9,35 +10,59 @@ import {
     Truck,
     History,
     Settings,
-    LogOut,
-    AlertTriangle,
     CheckCircle2,
     Clock
 } from "lucide-react";
 import Link from 'next/link';
+import { HolidayShiftButton } from './holiday-shift-button';
+import { SignOutButton } from '@/components/portal-actions';
 
-export default function AdminDashboard() {
-    const [isShifting, setIsShifting] = useState(false);
+export const runtime = 'edge';
 
-    const handleHolidayShift = async () => {
-        setIsShifting(true);
-        try {
-            const response = await fetch('/api/admin/settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: 'holiday_offset_hours', value: '24' }),
-            });
-            if (response.ok) {
-                alert('Holiday shift applied! Next dispatch will be offset by 24 hours.');
-            } else {
-                alert('Failed to apply holiday shift.');
-            }
-        } catch (error) {
-            console.error('Holiday shift error:', error);
-        } finally {
-            setIsShifting(false);
-        }
-    };
+export default async function AdminDashboard() {
+    const session = await auth();
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!session || !session.user || (session.user as any).role !== 'ADMIN') {
+        // Redirect non-admins to portal
+        redirect('/portal');
+    }
+
+    const { env } = (getRequestContext() as unknown) as { env: Env };
+
+    // 1. Fetch Active Subscriptions
+    const { count: activeSubs } = await env.DB.prepare(
+        "SELECT COUNT(*) as count FROM subscriptions WHERE status = 'active'"
+    ).first<{ count: number }>() || { count: 0 };
+
+    // 2. Fetch Completed Stops (This Week)
+    const { count: completedStops } = await env.DB.prepare(
+        "SELECT COUNT(*) as count FROM service_history WHERE dispatch_status = 'Completed' AND service_date >= datetime('now', '-7 days')"
+    ).first<{ count: number }>() || { count: 0 };
+
+    // 3. Calculate Estimated Weekly Revenue (Simplification)
+    // Monthly = $30 (approx $7.50/week), Quarterly = $40 (approx $3.33/week)
+    const { total_revenue } = await env.DB.prepare(
+        "SELECT SUM(CASE WHEN frequency_days = 28 THEN 7.50 WHEN frequency_days = 84 THEN 3.33 ELSE 0 END) as total_revenue FROM subscriptions WHERE status = 'active'"
+    ).first<{ total_revenue: number }>() || { total_revenue: 0 };
+
+    // 4. Recent Activity
+    const { results: recentActivity } = await env.DB.prepare(
+        `SELECT 
+            c.email as customer, 
+            s.dispatch_status as status, 
+            s.service_date as time, 
+            a.raw_address as address 
+         FROM service_history s 
+         JOIN customers c ON s.customer_id = c.id 
+         JOIN addresses a ON c.address_id = a.id 
+         ORDER BY s.service_date DESC LIMIT 5`
+    ).all<{ customer: string; status: string; time: string; address: string }>();
+
+    // Calculate next Sunday for dispatch
+    const nextSunday = new Date();
+    nextSunday.setDate(nextSunday.getDate() + ((7 - nextSunday.getDay()) % 7));
+    nextSunday.setHours(0, 0, 0, 0);
 
     return (
         <div className="flex h-screen bg-[#F8FAFC]">
@@ -49,27 +74,27 @@ export default function AdminDashboard() {
                 </div>
 
                 <nav className="flex-grow space-y-2">
-                    <Link href="#" className="flex items-center gap-3 p-3 bg-[#7AC142] rounded-xl font-bold">
+                    <Link href="/admin" className="flex items-center gap-3 p-3 bg-[#7AC142] rounded-xl font-bold">
                         <Calendar size={20} /> Schedule
                     </Link>
-                    <Link href="#" className="flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl transition-all">
+                    <Link href="/admin" className="flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl transition-all">
                         <Users size={20} /> Customers
                     </Link>
-                    <Link href="#" className="flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl transition-all">
+                    <Link href="/admin" className="flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl transition-all">
                         <Truck size={20} /> Routes
                     </Link>
-                    <Link href="#" className="flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl transition-all">
+                    <Link href="/admin" className="flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl transition-all">
                         <History size={20} /> History
                     </Link>
                 </nav>
 
                 <div className="pt-6 border-t border-white/10">
-                    <Link href="#" className="flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl transition-all">
+                    <Link href="/admin" className="flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl transition-all">
                         <Settings size={20} /> Settings
                     </Link>
-                    <button className="w-full flex items-center gap-3 p-3 hover:text-[#EF4444] transition-all mt-2">
-                        <LogOut size={20} /> Logout
-                    </button>
+                    <div className="mt-2 w-full flex items-center justify-start text-white/70 hover:text-white">
+                        <SignOutButton />
+                    </div>
                 </div>
             </aside>
 
@@ -83,16 +108,9 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-4">
                         <div className="text-right">
                             <p className="font-bold text-[#1C3D5A]">Next Dispatch</p>
-                            <p className="text-sm text-[#7AC142]">Sunday, May 17 @ 00:00</p>
+                            <p className="text-sm text-[#7AC142]">{nextSunday.toLocaleDateString()} @ 00:00</p>
                         </div>
-                        <Button
-                            onClick={handleHolidayShift}
-                            disabled={isShifting}
-                            className="bg-[#EF4444] hover:bg-[#dc2626] text-white rounded-xl h-12 px-6 font-bold"
-                        >
-                            <AlertTriangle size={18} className="mr-2" />
-                            {isShifting ? 'Applying Shift...' : 'Holiday Shift (+24h)'}
-                        </Button>
+                        <HolidayShiftButton />
                     </div>
                 </header>
 
@@ -101,25 +119,25 @@ export default function AdminDashboard() {
                     <Card className="border-none shadow-sm rounded-2xl">
                         <CardContent className="p-6">
                             <p className="text-sm text-slate-500 mb-1">Active Subscriptions</p>
-                            <h3 className="text-2xl font-extrabold text-[#1C3D5A]">1,248</h3>
+                            <h3 className="text-2xl font-extrabold text-[#1C3D5A]">{activeSubs}</h3>
                         </CardContent>
                     </Card>
                     <Card className="border-none shadow-sm rounded-2xl">
                         <CardContent className="p-6">
-                            <p className="text-sm text-slate-500 mb-1">Pending Stops (Today)</p>
-                            <h3 className="text-2xl font-extrabold text-[#1C3D5A]">84</h3>
+                            <p className="text-sm text-slate-500 mb-1">Pending Stops (Est.)</p>
+                            <h3 className="text-2xl font-extrabold text-[#1C3D5A]">{Math.ceil(activeSubs / 4)}</h3>
                         </CardContent>
                     </Card>
                     <Card className="border-none shadow-sm rounded-2xl">
                         <CardContent className="p-6">
                             <p className="text-sm text-slate-500 mb-1">Completed (Week)</p>
-                            <h3 className="text-2xl font-extrabold text-[#1C3D5A]">412</h3>
+                            <h3 className="text-2xl font-extrabold text-[#1C3D5A]">{completedStops}</h3>
                         </CardContent>
                     </Card>
                     <Card className="border-none shadow-sm rounded-2xl">
                         <CardContent className="p-6">
-                            <p className="text-sm text-slate-500 mb-1">Weekly Revenue</p>
-                            <h3 className="text-2xl font-extrabold text-[#7AC142]">$12,360</h3>
+                            <p className="text-sm text-slate-500 mb-1">Est. Weekly Revenue</p>
+                            <h3 className="text-2xl font-extrabold text-[#7AC142]">${(total_revenue || 0).toFixed(2)}</h3>
                         </CardContent>
                     </Card>
                 </div>
@@ -132,12 +150,7 @@ export default function AdminDashboard() {
                         </CardHeader>
                         <CardContent className="p-0">
                             <div className="divide-y">
-                                {[
-                                    { customer: "John Doe", status: "Completed", time: "10:24 AM", address: "123 Oak St" },
-                                    { customer: "Jane Smith", status: "In Progress", time: "11:15 AM", address: "456 Pine Ave" },
-                                    { customer: "Mike Wilson", status: "Scheduled", time: "1:00 PM", address: "789 Elm Rd" },
-                                    { customer: "Sarah Brown", status: "Completed", time: "9:45 AM", address: "321 Birch Ln" },
-                                ].map((item, i) => (
+                                {recentActivity.length > 0 ? recentActivity.map((item, i) => (
                                     <div key={i} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
                                         <div className="flex items-center gap-4">
                                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
@@ -152,10 +165,14 @@ export default function AdminDashboard() {
                                         </div>
                                         <div className="text-right">
                                             <p className="text-sm font-bold text-[#1C3D5A]">{item.status}</p>
-                                            <p className="text-xs text-slate-400">{item.time}</p>
+                                            <p className="text-xs text-slate-400">{new Date(item.time).toLocaleDateString()}</p>
                                         </div>
                                     </div>
-                                ))}
+                                )) : (
+                                    <div className="p-12 text-center text-slate-400">
+                                        No recent service activity.
+                                    </div>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
@@ -169,19 +186,19 @@ export default function AdminDashboard() {
                             <div>
                                 <div className="flex justify-between mb-2">
                                     <span className="text-sm font-bold">Fuel Saved</span>
-                                    <span className="text-sm text-[#7AC142]">12%</span>
+                                    <span className="text-sm text-[#7AC142]">0%</span>
                                 </div>
                                 <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-[#7AC142] h-full w-[12%]" />
+                                    <div className="bg-[#7AC142] h-full w-[0%]" />
                                 </div>
                             </div>
                             <div>
                                 <div className="flex justify-between mb-2">
                                     <span className="text-sm font-bold">Stops per Hour</span>
-                                    <span className="text-sm text-[#7AC142]">8.4</span>
+                                    <span className="text-sm text-[#7AC142]">0.0</span>
                                 </div>
                                 <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-[#7AC142] h-full w-[70%]" />
+                                    <div className="bg-[#7AC142] h-full w-[0%]" />
                                 </div>
                             </div>
                             <div className="pt-4">

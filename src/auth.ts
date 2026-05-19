@@ -13,6 +13,44 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       Resend({
         apiKey: env.RESEND_API_KEY,
         from: "onboarding@resend.dev", // Default for testing
+        sendVerificationRequest: async (params) => {
+          const { identifier, url, provider } = params;
+          
+          // Since npm run preview does a production build, NODE_ENV is 'production'.
+          // We bypass Resend if the API key is missing or is just a placeholder (starts with "re_...")
+          if (!provider.apiKey || provider.apiKey === "re_..." || provider.apiKey.includes("...")) {
+            console.log("====================================================");
+            console.log("MAGIC LINK GENERATED (Fake API Key Mode):");
+            console.log(`Login for ${identifier}: \n${url}`);
+            console.log("====================================================");
+            return;
+          }
+
+          // Otherwise, proceed with normal Resend email logic
+          try {
+            const response = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${provider.apiKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from: provider.from,
+                to: identifier,
+                subject: "Sign in to Bin Butlers NC",
+                html: `<p>Click here to log in: <a href="${url}">${url}</a></p>`,
+              }),
+            });
+
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(`Resend error: ${JSON.stringify(error)}`);
+            }
+          } catch (error) {
+            console.error("Failed to send verification email:", error);
+            throw error;
+          }
+        },
       }),
     ],
     callbacks: {

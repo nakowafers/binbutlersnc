@@ -106,6 +106,7 @@ export async function POST(request: Request) {
             payment_method_types: ['card'],
             line_items: lineItems,
             mode: mode,
+            customer_creation: mode === 'payment' ? 'always' : undefined,
             subscription_data: mode === 'subscription' ? {
                 trial_period_days: validatedData.frequency === 'monthly' ? 28 : 84,
             } : undefined,

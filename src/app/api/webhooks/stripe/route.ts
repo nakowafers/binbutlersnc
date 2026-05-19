@@ -75,9 +75,19 @@ export async function POST(request: Request) {
                     'INSERT INTO addresses (id, raw_address, latitude, longitude, trash_day, service_day, provider_name) VALUES (?, ?, ?, ?, ?, ?, ?)'
                 ).bind(addressId, lead.address, lat, lng, trashDay, trashDay, providerName),
 
-                // Create customer
+                // Create or update customer (UPSERT)
+                // If the user already logged in via Magic Link, they exist in customers via the users view.
+                // We must UPDATE their stripe details instead of failing the INSERT.
                 env.DB.prepare(
-                    'INSERT INTO customers (id, email, stripe_customer_id, phone_number, address_id, bin_quantity, sales_rep_id, tos_accepted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                    `INSERT INTO customers (id, email, stripe_customer_id, phone_number, address_id, bin_quantity, sales_rep_id, tos_accepted_at) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     ON CONFLICT(email) DO UPDATE SET 
+                        stripe_customer_id = excluded.stripe_customer_id,
+                        phone_number = excluded.phone_number,
+                        address_id = excluded.address_id,
+                        bin_quantity = excluded.bin_quantity,
+                        sales_rep_id = excluded.sales_rep_id,
+                        tos_accepted_at = excluded.tos_accepted_at`
                 ).bind(customerId, lead.email, session.customer as string, phoneNumber, addressId, binQuantity, salesRepId || null, tosAcceptedAt),
 
                 // Create subscription or one-time record

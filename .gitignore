@@ -42,3 +42,5 @@ next-env.d.ts
 /.playwright-mcp
 /.vercel
 /.wrangler
+.dev.vars
+/workers/dispatch-cron/.wrangler

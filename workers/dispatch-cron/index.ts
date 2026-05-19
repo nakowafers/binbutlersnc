@@ -2,6 +2,10 @@ import { Env, Subscription, Address } from '../../src/lib/types';
 import { RoutificAdapter } from '../../src/lib/routing/RoutificAdapter';
 
 export default {
+    async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+        return new Response("Dispatch Cron Worker is running. Press 's' in the terminal to trigger the scheduled event.");
+    },
+
     async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
         ctx.waitUntil(this.handleDispatch(env));
     },
@@ -55,7 +59,7 @@ export default {
         const formattedDate = serviceDate.toISOString().split('T')[0];
 
         // 2. Prepare Routing Job
-        const routingService = new RoutificAdapter(env.ROUTIFIC_API_KEY);
+        const routingService = new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
         const stops = results.map(row => ({
             id: crypto.randomUUID(),
             address: row.raw_address,
