@@ -60,45 +60,76 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
             }
 
-            const customerId = crypto.randomUUID();
-            const addressId = crypto.randomUUID();
+            const existingCustomer = await env.DB.prepare('SELECT id, address_id FROM customers WHERE email = ?')
+                .bind(lead.email)
+                .first<{ id: string; address_id: string | null }>();
+
+            const customerId = existingCustomer?.id || crypto.randomUUID();
+            
+            // Try to find if this specific address already exists for this customer
+            const existingAddress = await env.DB.prepare('SELECT id FROM addresses WHERE raw_address = ? AND customer_id = ?')
+                .bind(lead.address, customerId)
+                .first<{ id: string }>();
+
+            const addressId = existingAddress?.id || crypto.randomUUID();
             const subscriptionId = crypto.randomUUID();
             const serviceHistoryId = crypto.randomUUID();
+
+            let currentPeriodEnd: string | null = null;
+            if (session.subscription) {
+                try {
+                    const sub = await stripe.subscriptions.retrieve(session.subscription as string) as unknown as { current_period_end: number };
+                    currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString();
+                } catch (e) {
+                    console.error('Failed to fetch subscription for period end', e);
+                }
+            }
 
             // 2. Perform Atomic Update in D1
             const batchStatements = [
                 // Mark lead as converted
                 env.DB.prepare('UPDATE leads SET converted = TRUE WHERE id = ?').bind(leadId),
 
-                // Create address
+                // Create or update customer (UPSERT) without address_id first to avoid foreign key circular constraints
                 env.DB.prepare(
-                    'INSERT INTO addresses (id, raw_address, latitude, longitude, trash_day, service_day, provider_name) VALUES (?, ?, ?, ?, ?, ?, ?)'
-                ).bind(addressId, lead.address, lat, lng, trashDay, trashDay, providerName),
-
-                // Create or update customer (UPSERT)
-                // If the user already logged in via Magic Link, they exist in customers via the users view.
-                // We must UPDATE their stripe details instead of failing the INSERT.
-                env.DB.prepare(
-                    `INSERT INTO customers (id, email, stripe_customer_id, phone_number, address_id, bin_quantity, sales_rep_id, tos_accepted_at) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    `INSERT INTO customers (id, email, stripe_customer_id, phone_number, bin_quantity, sales_rep_id, tos_accepted_at) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?)
                      ON CONFLICT(email) DO UPDATE SET 
                         stripe_customer_id = excluded.stripe_customer_id,
                         phone_number = excluded.phone_number,
-                        address_id = excluded.address_id,
                         bin_quantity = excluded.bin_quantity,
                         sales_rep_id = excluded.sales_rep_id,
                         tos_accepted_at = excluded.tos_accepted_at`
-                ).bind(customerId, lead.email, session.customer as string, phoneNumber, addressId, binQuantity, salesRepId || null, tosAcceptedAt),
+                ).bind(customerId, lead.email, session.customer as string, phoneNumber, binQuantity, salesRepId || null, tosAcceptedAt),
+
+                // UPSERT address 
+                env.DB.prepare(
+                    `INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day, provider_name) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     ON CONFLICT(raw_address, customer_id) DO UPDATE SET
+                        latitude = excluded.latitude,
+                        longitude = excluded.longitude,
+                        trash_day = excluded.trash_day,
+                        service_day = excluded.service_day,
+                        provider_name = excluded.provider_name`
+                ).bind(addressId, customerId, lead.address, lat, lng, trashDay, trashDay, providerName),
+
+                // Update customer to link the address_id
+                env.DB.prepare(
+                    'UPDATE customers SET address_id = ? WHERE id = ?'
+                ).bind(addressId, customerId),
 
                 // Create subscription or one-time record
                 env.DB.prepare(
-                    'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days) VALUES (?, ?, ?, ?, ?)'
+                    'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days, current_period_end, last_service_date) VALUES (?, ?, ?, ?, ?, ?, ?)'
                 ).bind(
                     subscriptionId,
                     customerId,
                     session.subscription as string || null,
                     frequency === 'one-time' ? 'one-time' : 'active',
-                    frequency === 'one-time' ? 0 : (frequency === 'quarterly' ? 84 : 28)
+                    frequency === 'one-time' ? 0 : (frequency === 'quarterly' ? 84 : 28),
+                    currentPeriodEnd,
+                    salesRepId ? new Date().toISOString() : null
                 )
             ];
 
@@ -151,6 +182,57 @@ export async function POST(request: Request) {
             }
 
             console.log(`Successfully converted lead ${leadId} to customer ${customerId}`);
+        } else if (event.type === 'customer.subscription.deleted') {
+            const subscription = event.data.object as unknown as { id: string };
+            const stripeSubscriptionId = subscription.id;
+            const now = new Date().toISOString();
+
+            await env.DB.prepare('UPDATE subscriptions SET status = ?, current_period_end = ? WHERE stripe_subscription_id = ?')
+                .bind('cancelled', now, stripeSubscriptionId)
+                .run();
+
+            console.log(`Successfully cancelled subscription immediately: ${stripeSubscriptionId}`);
+        } else if (event.type === 'customer.subscription.updated') {
+            const subscription = event.data.object as unknown as { id: string; current_period_end: number; cancel_at_period_end: boolean; status: string };
+            const stripeSubscriptionId = subscription.id;
+            const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+
+            if (subscription.cancel_at_period_end) {
+                await env.DB.prepare('UPDATE subscriptions SET status = ?, current_period_end = ? WHERE stripe_subscription_id = ?')
+                    .bind('cancelled', currentPeriodEnd, stripeSubscriptionId)
+                    .run();
+                console.log(`Successfully marked subscription as cancelled at period end: ${stripeSubscriptionId}`);
+            } else {
+                await env.DB.prepare('UPDATE subscriptions SET status = ?, current_period_end = ? WHERE stripe_subscription_id = ?')
+                    .bind(subscription.status, currentPeriodEnd, stripeSubscriptionId)
+                    .run();
+                console.log(`Successfully updated subscription: ${stripeSubscriptionId}`);
+            }
+        } else if (event.type === 'invoice.payment_succeeded') {
+            const invoice = event.data.object as unknown as { subscription: string | null };
+            const stripeSubscriptionId = invoice.subscription as string;
+
+            if (stripeSubscriptionId) {
+                const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId) as unknown as { current_period_end: number };
+                const currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString();
+
+                await env.DB.prepare('UPDATE subscriptions SET status = ?, current_period_end = ? WHERE stripe_subscription_id = ?')
+                    .bind('active', currentPeriodEnd, stripeSubscriptionId)
+                    .run();
+
+                console.log(`Successfully updated subscription to active on payment success: ${stripeSubscriptionId}`);
+            }
+        } else if (event.type === 'invoice.payment_failed') {
+            const invoice = event.data.object as unknown as { subscription: string | null };
+            const stripeSubscriptionId = invoice.subscription as string;
+
+            if (stripeSubscriptionId) {
+                await env.DB.prepare('UPDATE subscriptions SET status = ? WHERE stripe_subscription_id = ?')
+                    .bind('past_due', stripeSubscriptionId)
+                    .run();
+
+                console.log(`Successfully set subscription to past_due: ${stripeSubscriptionId}`);
+            }
         }
 
         return NextResponse.json({ received: true });

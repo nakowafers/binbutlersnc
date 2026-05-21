@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 
 export function HolidayShiftButton() {
     const [isShifting, setIsShifting] = useState(false);
@@ -16,9 +17,9 @@ export function HolidayShiftButton() {
                 body: JSON.stringify({ key: 'holiday_offset_hours', value: '24' }),
             });
             if (response.ok) {
-                alert('Holiday shift applied! Next dispatch will be offset by 24 hours.');
+                toast.success('Holiday shift applied! Next dispatch will be offset by 24 hours.');
             } else {
-                alert('Failed to apply holiday shift. You might not have Admin privileges.');
+                toast.error('Failed to apply holiday shift. You might not have Admin privileges.');
             }
         } catch (error) {
             console.error('Holiday shift error:', error);

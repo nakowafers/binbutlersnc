@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Mail } from "lucide-react";
 import Link from 'next/link';
+import { toast } from "sonner";
 
 export default function SignInPage() {
     const [email, setEmail] = useState('');
@@ -20,7 +21,7 @@ export default function SignInPage() {
             await signIn('resend', { email, callbackUrl: '/portal' });
         } catch (error) {
             console.error('Sign in error:', error);
-            alert('Failed to send magic link.');
+            toast.error('Failed to send magic link.');
         } finally {
             setIsLoading(false);
         }

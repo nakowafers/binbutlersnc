@@ -21,7 +21,8 @@ export default {
         const { results } = await env.DB.prepare(
             `SELECT p.*, a.raw_address, a.latitude, a.longitude
              FROM pending_dispatches p
-             JOIN addresses a ON p.customer_id = a.customer_id
+             JOIN customers c ON p.customer_id = c.id
+             JOIN addresses a ON c.address_id = a.id
              WHERE p.retry_count < 5`
         ).all<PendingDispatch & Address>();
 
@@ -37,7 +38,7 @@ export default {
         const offsetHours = parseInt(offsetRow?.value || '0', 10);
 
         // 2. Group by service_date to create batch jobs if possible,
-        const routingService = new RoutificAdapter(env.ROUTIFIC_API_KEY);
+        const routingService = new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
 
         for (const row of results) {
             try {
@@ -58,11 +59,14 @@ export default {
                     date: formattedDate
                 });
 
-                // 3. If successful, remove from pending
-                await env.DB.prepare('DELETE FROM pending_dispatches WHERE id = ?')
-                    .bind(row.id)
-                    .run();
-                console.log(`Successfully retried and removed dispatch ${row.id}`);
+                // 3. If successful, remove from pending and log as pending in service history
+                await env.DB.batch([
+                    env.DB.prepare('DELETE FROM pending_dispatches WHERE id = ?').bind(row.id),
+                    env.DB.prepare(
+                        'INSERT INTO service_history (id, customer_id, subscription_id, service_date, dispatch_status) VALUES (?, ?, ?, ?, ?)'
+                    ).bind(crypto.randomUUID(), row.customer_id, row.subscription_id, row.service_date, 'Pending')
+                ]);
+                console.log(`Successfully retried and removed dispatch ${row.id}, logged Pending service history.`);
             } catch (error: any) {
                 console.error(`Retry failed for ${row.id}:`, error);
                 // 4. Increment retry count

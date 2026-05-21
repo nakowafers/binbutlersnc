@@ -24,7 +24,6 @@ The application follows a **Serverless-First** philosophy for scalability and lo
 *   **UI Framework:** **Tailwind CSS** with **Shadcn UI** components.
 *   **Backend Logic:** Next.js Edge API Routes deployed via `@cloudflare/next-on-pages`.
 *   **Database:** **Cloudflare D1** (Serverless SQLite) for relational storage.
-*   **Asset Storage:** **Cloudflare R2** for storing service verification photos.
 *   **Payments & Subscriptions:** **Stripe** (Dynamic Checkout Sessions, Customer Portal, and Webhooks).
 *   **Authentication:** **Auth.js (NextAuth)** utilizing Passwordless Magic Links for the custom settings portal.
 *   **Route Optimization:** **Routific API** for fleet dispatch.
@@ -174,7 +173,6 @@ Column names in D1 must be generic to support the Adapter Pattern:
 - `customer_id` (FK)
 - `service_date` (Timestamp)
 - `dispatch_status` (String)
-- `photo_url` (String, Optional)
 - `sales_rep_id` (String)
 
 ---

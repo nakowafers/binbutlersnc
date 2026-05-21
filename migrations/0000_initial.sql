@@ -49,7 +49,6 @@ CREATE TABLE service_history (
     subscription_id TEXT NOT NULL,
     service_date DATETIME NOT NULL,
     status TEXT NOT NULL, -- 'Completed', 'Scheduled', 'Failed'
-    photo_url TEXT,
     rep_id TEXT, -- Sales rep or Driver ID
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id),

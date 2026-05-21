@@ -4,13 +4,15 @@
 When implementing UI, screens, or user flows, the agent MUST leverage the **Stitch (mcp_stitch)** tools to enhance design prompts and generate high-fidelity UI screens.
 
 ### Protocol:
-1.  **Iterative Design:** Use `mcp_stitch_generate_screen_from_text` to draft initial UI concepts based on the requirements.
-2.  **Design System Alignment:** Ensure all generated screens adhere to the specified tech stack (Next.js, Tailwind CSS, Shadcn UI).
-3.  **Refinement:** Use `mcp_stitch_edit_screens` or `mcp_stitch_generate_variants` to polish the UX based on feedback or reference architectures (Jobatory).
+1.  **Iterative Design:** Use `mcp_stitch_generate_screen_from_text` to draft concepts.
+2.  **Design System Alignment:** Adhere to Next.js, Tailwind CSS, and Shadcn UI. **Priority: Mobile-First Responsiveness.**
+3.  **Refinement:** Use Jobatory as the primary functional reference for all CRM features.
 
-## Tech Stack Enforcement
+## Tech Stack & Architecture Enforcement
 - **Frontend:** Next.js (App Router), Tailwind CSS, Shadcn UI.
-- **Backend:** Next.js Edge API (@cloudflare/next-on-pages).
-- **Database:** Cloudflare D1.
-- **Storage:** Cloudflare R2.
+- **Backend:** Next.js Edge API (@cloudflare/next-on-pages). Run local via `wrangler pages dev`.
+- **Database:** Cloudflare D1. Use `wrangler d1 migrations` for all schema changes.
+- **Routing:** Strict **Adapter Pattern**. Logic must live in `src/lib/routing/` using `IRoutingService`.
+- **Fulfillment:** D2D signups create immediate `service_history` records; Organic signups are dispatched via weekly cron.
 - **Auth:** Auth.js (Magic Links).
+

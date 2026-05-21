@@ -54,7 +54,6 @@ export interface ServiceHistory {
     subscription_id: string;
     service_date: string;
     dispatch_status: string;
-    photo_url?: string;
     sales_rep_id?: string;
     created_at: string;
 }

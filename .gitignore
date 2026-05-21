@@ -44,3 +44,6 @@ next-env.d.ts
 /.wrangler
 .dev.vars
 /workers/dispatch-cron/.wrangler
+/.antigravitycli
+/playwright-report
+/test-results

@@ -2,18 +2,16 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { Env, Customer, Subscription, Address, ServiceHistory } from "@/lib/types";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
     Calendar,
     History,
     CheckCircle2,
     Clock,
-    Camera,
     MapPin
 } from "lucide-react";
 import Link from 'next/link';
-import { PortalActions, UpdateDetailsTrigger, SignOutButton } from "@/components/portal-actions";
+import { PortalActions, UpdateDetailsTrigger, RescheduleButton, SignOutButton } from "@/components/portal-actions";
 
 export const runtime = 'edge';
 
@@ -107,13 +105,11 @@ export default async function PortalPage() {
                                         <div>
                                             <p className="text-sm text-slate-500 font-bold uppercase tracking-wider">Estimated Date</p>
                                             <p className="text-xl font-extrabold text-[#1C3D5A]">
-                                                {address?.service_day ? `${address.service_day}, May 18` : 'Pending'}
+                                                {address?.service_day ? `Next ${address.service_day}` : 'Pending'}
                                             </p>
                                         </div>
                                     </div>
-                                    <Button variant="outline" className="rounded-xl border-slate-200">
-                                        Reschedule
-                                    </Button>
+                                    <RescheduleButton address={address || undefined} />
                                 </div>
                             </CardContent>
                         </Card>
@@ -123,27 +119,24 @@ export default async function PortalPage() {
                             <h3 className="text-2xl font-extrabold text-[#1C3D5A] mb-6 flex items-center gap-3">
                                 <History className="text-[#7AC142]" /> Service History
                             </h3>
-                            <div className="grid md:grid-cols-2 gap-6">
+                            <div className="grid md:grid-cols-2 gap-4">
                                 {history && history.length > 0 ? history.map((item, i) => (
-                                    <Card key={i} className="border-none shadow-md rounded-[2rem] overflow-hidden group hover:shadow-xl transition-all">
-                                        <div className="aspect-[4/3] bg-slate-200 relative overflow-hidden">
-                                            {item.photo_url ? (
-                                                <img src={item.photo_url} alt="Service Proof" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-2">
-                                                    <Camera size={48} />
-                                                    <span className="font-bold">No Photo Available</span>
+                                    <Card key={i} className="border-none shadow-sm rounded-2xl overflow-hidden group hover:shadow-md transition-all">
+                                        <CardContent className="p-5 flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="bg-[#7AC142]/10 p-2.5 rounded-xl">
+                                                    <CheckCircle2 className="text-[#7AC142]" size={20} />
                                                 </div>
-                                            )}
-                                            <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-bold text-[#1C3D5A] uppercase tracking-widest">
+                                                <div>
+                                                    <p className="font-bold text-[#1C3D5A]">{new Date(item.service_date).toLocaleDateString()}</p>
+                                                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                                                        <MapPin size={10} /> {address?.raw_address}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="text-[10px] font-bold text-[#1C3D5A] bg-slate-100 px-3 py-1 rounded-full uppercase tracking-widest">
                                                 {item.dispatch_status}
                                             </div>
-                                        </div>
-                                        <CardContent className="p-6">
-                                            <p className="text-sm font-bold text-[#1C3D5A]">{new Date(item.service_date).toLocaleDateString()}</p>
-                                            <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                                                <MapPin size={12} /> {address?.raw_address}
-                                            </p>
                                         </CardContent>
                                     </Card>
                                 )) : (
@@ -170,7 +163,7 @@ export default async function PortalPage() {
                                     <div className="text-sm text-slate-400">Renews on {subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString() : 'N/A'}</div>
                                     </div>
 
-                                    <PortalActions isPaused={subscription?.is_paused || false} />
+                                    <PortalActions isPaused={subscription?.is_paused || false} subscriptionId={subscription?.id || ''} />
                                     </CardContent>
                         </Card>
 
@@ -193,7 +186,7 @@ export default async function PortalPage() {
                                         <p className="text-sm font-semibold text-[#1C3D5A]">{customer?.bin_quantity || 1}</p>
                                     </div>
                                 </div>
-                                <UpdateDetailsTrigger />
+                                <UpdateDetailsTrigger address={address || undefined} />
                             </CardContent>
                         </Card>
 

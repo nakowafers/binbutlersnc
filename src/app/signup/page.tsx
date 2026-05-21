@@ -13,6 +13,7 @@ import { CheckCircle2, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
+import { toast } from "sonner";
 
 const libraries: ("places")[] = ["places"];
 
@@ -85,11 +86,11 @@ function SignupForm() {
             if (result.url) {
                 window.location.href = result.url;
             } else {
-                alert('Something went wrong. Please try again.');
+                toast.error('Something went wrong. Please try again.');
             }
         } catch (error) {
             console.error('Signup error:', error);
-            alert('Failed to initiate checkout.');
+            toast.error('Failed to initiate checkout.');
         } finally {
             setIsLoading(false);
         }
@@ -183,7 +184,7 @@ function SignupForm() {
                                     {errors.address && <p className="text-red-500 text-sm">{errors.address.message}</p>}
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-3">
                                         <Label htmlFor="trash_day" className="text-[#1C3D5A] font-bold">Trash Day</Label>
                                         <select
