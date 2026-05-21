@@ -1,5 +1,4 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { NextResponse } from 'next/server';
 import { Env } from '@/lib/types';
 
 export const runtime = 'edge';

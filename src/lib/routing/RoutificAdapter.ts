@@ -59,7 +59,7 @@ export class RoutificAdapter implements IRoutingService {
         return `synced-${job.date}`;
     }
 
-    async getJobStatus(jobId: string): Promise<string> {
+    async getJobStatus(_jobId: string): Promise<string> {
         // In the orders-based flow, the status is checked per-order or via the dashboard
         return 'synced';
     }

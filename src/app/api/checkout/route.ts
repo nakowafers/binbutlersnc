@@ -1,5 +1,4 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { z } from 'zod';
 import { Env } from '@/lib/types';
@@ -25,7 +24,7 @@ export async function POST(request: Request) {
     try {
         let env: Env | undefined;
         try {
-            const context = getRequestContext() as any;
+            const context = getRequestContext() as unknown as { env: Env };
             env = context?.env;
         } catch (ctxError) {
             console.error('Context access failed:', ctxError);
@@ -39,10 +38,10 @@ export async function POST(request: Request) {
         }
 
         // Parse body safely
-        let body: any;
+        let body: unknown;
         try {
             body = await request.json();
-        } catch (e) {
+        } catch {
             return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), { 
                 status: 400, 
                 headers: { 'Content-Type': 'application/json' } 
@@ -189,10 +188,10 @@ export async function POST(request: Request) {
             status: 200, 
             headers: { 'Content-Type': 'application/json' } 
         });
-    } catch (error: any) {
+    } catch (error) {
         console.error('Checkout failure:', error);
         const status = error instanceof z.ZodError ? 400 : 500;
-        const msg = error instanceof z.ZodError ? error.issues : (error.message || 'Internal Server Error');
+        const msg = error instanceof z.ZodError ? error.issues : ((error as Error).message || 'Internal Server Error');
         return new Response(JSON.stringify({ error: msg }), { 
             status, 
             headers: { 'Content-Type': 'application/json' } 
