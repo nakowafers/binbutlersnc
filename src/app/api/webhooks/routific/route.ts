@@ -42,7 +42,10 @@ export async function POST(request: Request) {
         const secret = (env as Env & { ROUTIFIC_WEBHOOK_SECRET?: string }).ROUTIFIC_WEBHOOK_SECRET;
         if (secret) {
             if (!(await verifySignature(payloadStr, signature, secret))) {
-                return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+                return new Response(JSON.stringify({ error: 'Invalid signature' }), { 
+                    status: 401, 
+                    headers: { 'Content-Type': 'application/json' } 
+                });
             }
         } else {
             console.warn('ROUTIFIC_WEBHOOK_SECRET is not set. Skipping signature verification.');
@@ -101,9 +104,15 @@ export async function POST(request: Request) {
             console.log(`Logged service skip/failure for subscription ${data.subscription_id}`);
         }
 
-        return NextResponse.json({ received: true });
+        return new Response(JSON.stringify({ received: true }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json' } 
+        });
     } catch (error) {
         console.error('Routific webhook error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return new Response(JSON.stringify({ error: 'Internal Server Error' }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json' } 
+        });
     }
 }

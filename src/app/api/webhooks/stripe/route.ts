@@ -1,5 +1,4 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { Resend } from 'resend';
 import { Env, Lead } from '@/lib/types';
@@ -30,7 +29,10 @@ export async function POST(request: Request) {
         } catch (err) {
             const error = err as Error;
             console.error(`Webhook signature verification failed: ${error.message}`);
-            return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 });
+            return new Response(JSON.stringify({ error: 'Webhook signature verification failed' }), { 
+                status: 400, 
+                headers: { 'Content-Type': 'application/json' } 
+            });
         }
 
         if (event.type === 'checkout.session.completed') {
@@ -48,7 +50,10 @@ export async function POST(request: Request) {
             const tosAcceptedAt = metadata.tos_accepted_at || null;
 
             if (!leadId) {
-                return NextResponse.json({ error: 'Missing lead_id in metadata' }, { status: 400 });
+                return new Response(JSON.stringify({ error: 'Missing lead_id in metadata' }), { 
+                    status: 400, 
+                    headers: { 'Content-Type': 'application/json' } 
+                });
             }
 
             // 1. Fetch Lead
@@ -57,7 +62,10 @@ export async function POST(request: Request) {
                 .first<Lead>();
 
             if (!lead) {
-                return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+                return new Response(JSON.stringify({ error: 'Lead not found' }), { 
+                    status: 404, 
+                    headers: { 'Content-Type': 'application/json' } 
+                });
             }
 
             const existingCustomer = await env.DB.prepare('SELECT id, address_id FROM customers WHERE email = ?')
@@ -235,9 +243,15 @@ export async function POST(request: Request) {
             }
         }
 
-        return NextResponse.json({ received: true });
+        return new Response(JSON.stringify({ received: true }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json' } 
+        });
     } catch (error) {
         console.error('Webhook error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return new Response(JSON.stringify({ error: 'Internal Server Error' }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json' } 
+        });
     }
 }
