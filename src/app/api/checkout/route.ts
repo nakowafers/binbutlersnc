@@ -23,51 +23,68 @@ const checkoutSchema = z.object({
 
 export async function POST(request: Request) {
     try {
-        const context = getRequestContext() as unknown as { env: Env };
-        const env = context?.env;
+        let env: Env | undefined;
+        try {
+            const context = getRequestContext() as any;
+            env = context?.env;
+        } catch (ctxError) {
+            console.error('Context access failed:', ctxError);
+        }
 
         if (!env) {
-            console.error('Missing Cloudflare Environment Context');
-            return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+            return new Response(JSON.stringify({ error: 'Cloudflare environment not detected' }), { 
+                status: 500, 
+                headers: { 'Content-Type': 'application/json' } 
+            });
         }
 
-        if (!env.DB) {
-            console.error('Missing D1 Database Binding');
-            return NextResponse.json({ error: 'Database configuration error' }, { status: 500 });
+        // Parse body safely
+        let body: any;
+        try {
+            body = await request.json();
+        } catch (e) {
+            return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), { 
+                status: 400, 
+                headers: { 'Content-Type': 'application/json' } 
+            });
         }
 
-        const body = await request.json();
         const validatedData = checkoutSchema.parse(body);
 
         const leadId = crypto.randomUUID();
         const tosAcceptedAt = validatedData.tos_accepted ? new Date().toISOString() : null;
 
         // 1. Capture Lead in D1
-        try {
-            await env.DB.prepare(
-                'INSERT INTO leads (id, email, address, sales_rep_id, tos_accepted_at) VALUES (?, ?, ?, ?, ?)'
-            )
-            .bind(leadId, validatedData.email, validatedData.address, validatedData.sales_rep_id || null, tosAcceptedAt)
-            .run();
-        } catch (dbError) {
-            console.error('Failed to capture lead in D1:', dbError);
-            // We continue even if lead capture fails to not block checkout, 
-            // but in a production app we might want to know.
+        if (env.DB) {
+            try {
+                await env.DB.prepare(
+                    'INSERT INTO leads (id, email, address, sales_rep_id, tos_accepted_at) VALUES (?, ?, ?, ?, ?)'
+                )
+                .bind(leadId, validatedData.email, validatedData.address, validatedData.sales_rep_id || null, tosAcceptedAt)
+                .run();
+            } catch (dbError) {
+                console.error('Lead capture failed:', dbError);
+            }
+        } else {
+            console.warn('DB binding missing, skipping lead capture');
         }
 
         // 2. Initialize Stripe
-        if (!env.STRIPE_SECRET_KEY) {
-            console.error('Missing STRIPE_SECRET_KEY');
-            return NextResponse.json({ error: 'Stripe configuration error' }, { status: 500 });
+        const stripeKey = env.STRIPE_SECRET_KEY;
+        if (!stripeKey || stripeKey.includes('sk_test_...')) {
+            return new Response(JSON.stringify({ error: 'Stripe API key not configured' }), { 
+                status: 500, 
+                headers: { 'Content-Type': 'application/json' } 
+            });
         }
 
-        const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
+        const stripe = new Stripe(stripeKey, {
             // @ts-expect-error - Newer API version
             apiVersion: '2025-01-27.acacia',
         });
 
         // 3. Determine Price ID and Mode
-        let priceId = '';
+        let priceId: string | undefined;
         let mode: Stripe.Checkout.SessionCreateParams['mode'] = 'subscription';
         const lineItems: Stripe.Checkout.SessionCreateParams['line_items'] = [];
 
@@ -82,14 +99,15 @@ export async function POST(request: Request) {
             mode = 'payment';
         }
 
-        if (!priceId || priceId.includes('...')) {
-            console.error(`Missing or invalid Price ID for frequency: ${validatedData.frequency}`);
-            return NextResponse.json({ error: 'Pricing configuration error' }, { status: 500 });
+        if (!priceId || typeof priceId !== 'string' || priceId.includes('...')) {
+            return new Response(JSON.stringify({ error: `Price ID not configured for ${validatedData.frequency}` }), { 
+                status: 500, 
+                headers: { 'Content-Type': 'application/json' } 
+            });
         }
 
         // Add main service item
         if (mode === 'payment' && validatedData.setup_fee_override !== undefined) {
-            // Fetch product ID if we have a placeholder or need the underlying product
             let productId: string;
             if (priceId.startsWith('price_')) {
                 const price = await stripe.prices.retrieve(priceId);
@@ -116,13 +134,14 @@ export async function POST(request: Request) {
         // Add setup fee if it's a subscription
         if (mode === 'subscription') {
             const setupFeePriceId = env.STRIPE_SETUP_FEE_PRICE_ID;
-            if (!setupFeePriceId || setupFeePriceId.includes('...')) {
-                console.error('Missing or invalid STRIPE_SETUP_FEE_PRICE_ID');
-                return NextResponse.json({ error: 'Setup fee configuration error' }, { status: 500 });
+            if (!setupFeePriceId || typeof setupFeePriceId !== 'string' || setupFeePriceId.includes('...')) {
+                return new Response(JSON.stringify({ error: 'Setup fee price ID not configured' }), { 
+                    status: 500, 
+                    headers: { 'Content-Type': 'application/json' } 
+                });
             }
 
             if (validatedData.setup_fee_override !== undefined) {
-                // If override is provided, we use price_data to set a custom amount
                 const price = await stripe.prices.retrieve(setupFeePriceId);
                 lineItems.push({
                     price_data: {
@@ -166,12 +185,17 @@ export async function POST(request: Request) {
             },
         });
 
-        return NextResponse.json({ url: session.url });
-    } catch (error) {
-        console.error('Checkout error:', error);
-        if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: error.issues }, { status: 400 });
-        }
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return new Response(JSON.stringify({ url: session.url }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json' } 
+        });
+    } catch (error: any) {
+        console.error('Checkout failure:', error);
+        const status = error instanceof z.ZodError ? 400 : 500;
+        const msg = error instanceof z.ZodError ? error.issues : (error.message || 'Internal Server Error');
+        return new Response(JSON.stringify({ error: msg }), { 
+            status, 
+            headers: { 'Content-Type': 'application/json' } 
+        });
     }
 }
