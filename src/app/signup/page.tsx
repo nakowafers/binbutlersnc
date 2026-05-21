@@ -82,6 +82,19 @@ function SignupForm() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
             });
+
+            if (!response.ok) {
+                let errorMsg = 'Failed to initiate checkout.';
+                try {
+                    const errorData = await response.json() as { error?: string };
+                    errorMsg = errorData.error || errorMsg;
+                } catch (e) {
+                    console.error('Non-JSON error response:', e);
+                }
+                toast.error(errorMsg);
+                return;
+            }
+
             const result = await response.json() as { url?: string };
             if (result.url) {
                 window.location.href = result.url;
