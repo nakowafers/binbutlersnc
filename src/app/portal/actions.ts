@@ -2,8 +2,9 @@
 
 import { auth } from '@/auth';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import Stripe from 'stripe';
 import { Env, Customer } from '@/lib/types';
+import { StripeAdapter } from '@/lib/payment/StripeAdapter';
+import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { redirect } from 'next/navigation';
 
 export async function createBillingPortalSession() {
@@ -15,15 +16,18 @@ export async function createBillingPortalSession() {
 
     const { env } = (getRequestContext() as unknown) as { env: Env };
 
-    // 1. Fetch Stripe Customer ID from D1
-    const customer = await env.DB.prepare('SELECT id, stripe_customer_id FROM customers WHERE email = ?')
-        .bind(session.user.email)
-        .first<Customer>();
+    const db = new D1DatabaseAdapter(env.DB);
 
-    // 2. Initialize Stripe
-    const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
-        // @ts-expect-error - Newer API version
-        apiVersion: '2025-01-27.acacia',
+    // 1. Fetch Stripe Customer ID from DB via Adapter
+    const customer = await db.getCustomerByEmail(session.user.email);
+
+    // 2. Initialize Payment Service
+    const paymentService = new StripeAdapter({
+        secretKey: env.STRIPE_SECRET_KEY,
+        monthlyPriceId: env.STRIPE_MONTHLY_PRICE_ID,
+        quarterlyPriceId: env.STRIPE_QUARTERLY_PRICE_ID,
+        oneTimePriceId: env.STRIPE_ONETIME_PRICE_ID,
+        setupFeePriceId: env.STRIPE_SETUP_FEE_PRICE_ID,
     });
 
     let stripeCustomerId = customer?.stripe_customer_id;
@@ -31,19 +35,14 @@ export async function createBillingPortalSession() {
     // 3. Fallback: If webhook failed, try to find them directly in Stripe by email
     if (!stripeCustomerId) {
         console.log(`Stripe ID missing in DB for ${session.user.email}. Querying Stripe directly...`);
-        const stripeCustomers = await stripe.customers.list({
-            email: session.user.email,
-            limit: 1,
-        });
+        const customerId = await paymentService.getCustomerIdByEmail(session.user.email);
 
-        if (stripeCustomers.data.length > 0) {
-            stripeCustomerId = stripeCustomers.data[0].id;
+        if (customerId) {
+            stripeCustomerId = customerId;
             
-            // Auto-heal the database
+            // Auto-heal the database via Adapter
             if (customer?.id) {
-                await env.DB.prepare('UPDATE customers SET stripe_customer_id = ? WHERE id = ?')
-                    .bind(stripeCustomerId, customer.id)
-                    .run();
+                await db.updateCustomerStripeId(customer.id, stripeCustomerId);
                 console.log(`Auto-healed DB: Saved Stripe ID ${stripeCustomerId} for customer ${customer.id}`);
             }
         }
@@ -53,14 +52,15 @@ export async function createBillingPortalSession() {
         throw new Error('Customer record not found or missing Stripe ID');
     }
 
-    // 4. Create Portal Session
+    // 4. Create Portal Session via Adapter
     const baseUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:8788' : 'https://binbutlersnc.com';
     
-    const portalSession = await stripe.billingPortal.sessions.create({
-        customer: stripeCustomerId,
-        return_url: `${baseUrl}/portal`,
-    });
+    const { url } = await paymentService.createBillingPortalSession(stripeCustomerId, `${baseUrl}/portal`);
+
+    if (!url) {
+        throw new Error('Failed to create billing portal session URL');
+    }
 
     // Redirect the user directly to the Stripe portal
-    redirect(portalSession.url);
+    redirect(url);
 }

@@ -2,6 +2,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { Env } from '@/lib/types';
+import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 
 export const runtime = 'edge';
 
@@ -20,11 +21,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing key or value' }, { status: 400 });
         }
 
-        await env.DB.prepare(
-            'INSERT INTO global_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP'
-        )
-        .bind(body.key, body.value)
-        .run();
+        const db = new D1DatabaseAdapter(env.DB);
+        await db.setGlobalSetting(body.key, body.value);
 
         return NextResponse.json({ success: true });
     } catch (error) {

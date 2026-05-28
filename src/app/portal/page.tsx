@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { Env, Customer, Subscription, Address, ServiceHistory } from "@/lib/types";
+import { D1DatabaseAdapter } from "@/lib/db/D1DatabaseAdapter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
     Calendar,
@@ -17,34 +18,26 @@ export const runtime = 'edge';
 
 export default async function PortalPage() {
     const session = await auth();
-    if (!session || !session.user) {
+    if (!session || !session.user || !session.user.email) {
         redirect("/signin");
     }
 
     const { env } = (getRequestContext() as unknown) as { env: Env };
 
-    // 1. Fetch data from D1
-    const customer = await env.DB.prepare('SELECT * FROM customers WHERE email = ?')
-        .bind(session.user.email)
-        .first<Customer>();
+    const db = new D1DatabaseAdapter(env.DB);
+
+    // 1. Fetch data from DB via Adapter
+    const customer = await db.getCustomerByEmail(session.user.email);
 
     if (!customer) {
         return <div>Profile not found. Please contact support.</div>;
     }
 
-    const subscription = await env.DB.prepare('SELECT * FROM subscriptions WHERE customer_id = ?')
-        .bind(customer.id)
-        .first<Subscription>();
+    const subscription = await db.getSubscriptionByCustomerId(customer.id);
 
-    const address = await env.DB.prepare('SELECT * FROM addresses WHERE id = ?')
-        .bind(customer.address_id)
-        .first<Address>();
+    const address = customer.address_id ? await db.getAddressById(customer.address_id) : null;
 
-    const { results: history } = await env.DB.prepare(
-        'SELECT * FROM service_history WHERE customer_id = ? ORDER BY service_date DESC LIMIT 5'
-    )
-    .bind(customer.id)
-    .all<ServiceHistory>();
+    const history = await db.getServiceHistoryByCustomerId(customer.id, 5);
 
     return (
         <div className="min-h-screen bg-[#F8FAFC]">

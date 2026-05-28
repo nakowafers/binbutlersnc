@@ -12,10 +12,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { CheckCircle2, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
 import { toast } from "sonner";
-
-const libraries: ("places")[] = ["places"];
+import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 
 const signupSchema = z.object({
     address: z.string().min(5, "Please enter a valid address"),
@@ -48,13 +46,7 @@ function SignupForm() {
 
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
-    const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
 
-    const { isLoaded } = useJsApiLoader({
-        id: 'google-map-script',
-        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-        libraries
-    });
 
     const { register, handleSubmit, watch, setValue, trigger, formState: { errors } } = useForm<SignupFormValues>({
         resolver: zodResolver(signupSchema),
@@ -109,18 +101,7 @@ function SignupForm() {
         }
     };
 
-    const onPlaceChanged = () => {
-        if (autocomplete !== null) {
-            const place = autocomplete.getPlace();
-            if (place.formatted_address) {
-                setValue('address', place.formatted_address);
-            }
-            if (place.geometry?.location) {
-                setValue('lat', place.geometry.location.lat());
-                setValue('lng', place.geometry.location.lng());
-            }
-        }
-    };
+
 
     const nextStep = async () => {
         const fieldsToValidate = step === 1
@@ -173,27 +154,17 @@ function SignupForm() {
                             <CardContent className="p-8 space-y-8">
                                 <div className="space-y-3">
                                     <Label htmlFor="address" className="text-[#1C3D5A] font-bold">Service Address</Label>
-                                    {isLoaded ? (
-                                        <Autocomplete
-                                            onLoad={(auto) => setAutocomplete(auto)}
-                                            onPlaceChanged={onPlaceChanged}
-                                            options={{ componentRestrictions: { country: "us" } }}
-                                        >
-                                            <Input
-                                                id="address"
-                                                {...register('address')}
-                                                placeholder="123 Butler Ln, Charlotte, NC"
-                                                className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
-                                            />
-                                        </Autocomplete>
-                                    ) : (
-                                        <Input
-                                            id="address"
-                                            {...register('address')}
-                                            placeholder="123 Butler Ln, Charlotte, NC"
-                                            className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
-                                        />
-                                    )}
+                                    <AddressAutocomplete
+                                        id="address"
+                                        {...register('address')}
+                                        onAddressSelected={(formatted, lat, lng) => {
+                                            setValue('address', formatted, { shouldValidate: true });
+                                            if (lat !== undefined) setValue('lat', lat);
+                                            if (lng !== undefined) setValue('lng', lng);
+                                        }}
+                                        placeholder="123 Butler Ln, Charlotte, NC"
+                                        className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
+                                    />
                                     {errors.address && <p className="text-red-500 text-sm">{errors.address.message}</p>}
                                 </div>
 

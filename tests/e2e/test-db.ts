@@ -38,7 +38,7 @@ export function queryDb<T = any>(sql: string): T[] {
 export function runDb(sql: string): void {
     const dbPath = getDbPath();
     try {
-        execSync(`sqlite3 ${dbPath} ${JSON.stringify(sql)}`);
+        execSync(`sqlite3 ${dbPath} ${JSON.stringify('PRAGMA busy_timeout = 10000; ' + sql)}`);
     } catch (e) {
         console.error('SQL execution failed:', sql, e);
         throw e;
