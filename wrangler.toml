@@ -3,6 +3,11 @@ compatibility_date = "2025-01-27"
 compatibility_flags = ["nodejs_compat"]
 main = ".vercel/output/static/_worker.js/index.js"
 no_bundle = true
+find_additional_modules = true
+
+[[rules]]
+type = "ESModule"
+globs = ["**/*.js"]
 
 [assets]
 directory = ".vercel/output/static"
