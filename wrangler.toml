@@ -12,3 +12,7 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "binbutlersnc-db"
 database_id = "99e70f3e-e151-44e0-92d1-1cf52a1f5094"
+
+[[routes]]
+pattern = "binbutlersnc.com"
+custom_domain = true
