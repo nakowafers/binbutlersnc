@@ -2,6 +2,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { Env, Customer, Address } from '@/lib/types';
+import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 
 export const runtime = 'edge';
 
@@ -39,10 +40,10 @@ export async function POST(request: Request) {
             );
         }
 
+        const db = new D1DatabaseAdapter(env.DB);
+
         // 3. Fetch customer using session email
-        const customer = await env.DB.prepare('SELECT * FROM customers WHERE email = ?')
-            .bind(session.user.email)
-            .first<Customer>();
+        const customer = await db.getCustomerByEmail(session.user.email);
 
         if (!customer) {
             return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
@@ -53,28 +54,26 @@ export async function POST(request: Request) {
         }
 
         // 4. Fetch the existing address to verify
-        const address = await env.DB.prepare('SELECT * FROM addresses WHERE id = ?')
-            .bind(customer.address_id)
-            .first<Address>();
+        const address = await db.getAddressById(customer.address_id);
 
         if (!address) {
             return NextResponse.json({ error: 'Address record not found' }, { status: 404 });
         }
 
-        // 5. Update fields in D1. Keep existing values if not provided in request body.
+        // 5. Update fields via Adapter. Keep existing values if not provided in request body.
         const serviceDay = body.serviceDay !== undefined ? body.serviceDay.toUpperCase() : address.service_day;
         const trashDay = body.trashDay !== undefined ? body.trashDay.toUpperCase() : address.trash_day;
         const gateCode = body.gateCode !== undefined ? body.gateCode : address.gate_code;
         const hoaName = body.hoaName !== undefined ? body.hoaName : address.hoa_name;
         const accessNotes = body.accessNotes !== undefined ? body.accessNotes : address.access_notes;
 
-        await env.DB.prepare(
-            `UPDATE addresses 
-             SET service_day = ?, trash_day = ?, gate_code = ?, hoa_name = ?, access_notes = ?
-             WHERE id = ?`
-        )
-        .bind(serviceDay, trashDay, gateCode, hoaName, accessNotes, customer.address_id)
-        .run();
+        await db.updateAddressDetails(customer.address_id, {
+            serviceDay,
+            trashDay,
+            gateCode,
+            hoaName,
+            accessNotes
+        });
 
         return NextResponse.json({
             success: true,

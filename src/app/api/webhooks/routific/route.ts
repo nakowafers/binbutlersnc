@@ -1,5 +1,6 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { Env } from '@/lib/types';
+import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 
 export const runtime = 'edge';
 
@@ -62,28 +63,14 @@ export async function POST(request: Request) {
         }
         const body = JSON.parse(payloadStr) as RoutificEvent;
 
+        const db = new D1DatabaseAdapter(env.DB);
+
         if (body.event === 'stop.completed') {
             const { data } = body;
             const now = new Date().toISOString();
 
             // Webhook does an UPDATE instead of INSERT because dispatch-cron already creates a Pending row
-            await env.DB.batch([
-                // 1. Log completion in service_history by updating the pending record
-                env.DB.prepare(
-                    `UPDATE service_history 
-                     SET dispatch_status = ?, service_date = COALESCE(?, service_date) 
-                     WHERE subscription_id = ? AND dispatch_status = 'Pending'`
-                ).bind(
-                    'Completed',
-                    data.completed_at || null,
-                    data.subscription_id
-                ),
-
-                // 2. Update subscription last_service_date
-                env.DB.prepare(
-                    'UPDATE subscriptions SET last_service_date = ? WHERE id = ?'
-                ).bind(data.completed_at || now, data.subscription_id)
-            ]);
+            await db.updateServiceHistoryOnCompletion(data.subscription_id, data.completed_at || null, now);
 
             console.log(`Logged service completion for subscription ${data.subscription_id}`);
         } else if (body.event === 'stop.skipped') {
@@ -91,15 +78,7 @@ export async function POST(request: Request) {
 
             // Log as Skipped/Failed in service_history but DO NOT update last_service_date on the subscription
             // so they automatically reschedule for the following week
-            await env.DB.prepare(
-                `UPDATE service_history 
-                 SET dispatch_status = ?, service_date = COALESCE(?, service_date) 
-                 WHERE subscription_id = ? AND dispatch_status = 'Pending'`
-            ).bind(
-                'Skipped',
-                data.completed_at || null,
-                data.subscription_id
-            ).run();
+            await db.updateServiceHistoryOnSkipped(data.subscription_id, data.completed_at || null);
 
             console.log(`Logged service skip/failure for subscription ${data.subscription_id}`);
         }

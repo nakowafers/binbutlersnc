@@ -2,6 +2,8 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import Stripe from 'stripe';
 import { Resend } from 'resend';
 import { Env, Lead } from '@/lib/types';
+import { StripeAdapter } from '@/lib/payment/StripeAdapter';
+import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 
 export const runtime = 'edge';
 
@@ -11,9 +13,12 @@ export async function POST(request: Request) {
         const body = await request.text();
         const signature = request.headers.get('stripe-signature') || '';
 
-        const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
-            // @ts-expect-error - Newer API version
-            apiVersion: '2025-01-27.acacia',
+        const paymentService = new StripeAdapter({
+            secretKey: env.STRIPE_SECRET_KEY,
+            monthlyPriceId: env.STRIPE_MONTHLY_PRICE_ID,
+            quarterlyPriceId: env.STRIPE_QUARTERLY_PRICE_ID,
+            oneTimePriceId: env.STRIPE_ONETIME_PRICE_ID,
+            setupFeePriceId: env.STRIPE_SETUP_FEE_PRICE_ID,
         });
 
         const resend = new Resend(env.RESEND_API_KEY);
@@ -21,11 +26,11 @@ export async function POST(request: Request) {
         let event: Stripe.Event;
 
         try {
-            event = await stripe.webhooks.constructEventAsync(
+            event = await paymentService.verifyWebhookEvent(
                 body,
                 signature,
                 env.STRIPE_WEBHOOK_SECRET
-            );
+            ) as Stripe.Event;
         } catch (err) {
             const error = err as Error;
             console.error(`Webhook signature verification failed: ${error.message}`);
@@ -34,6 +39,8 @@ export async function POST(request: Request) {
                 headers: { 'Content-Type': 'application/json' } 
             });
         }
+
+        const db = new D1DatabaseAdapter(env.DB);
 
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object as Stripe.Checkout.Session;
@@ -57,9 +64,7 @@ export async function POST(request: Request) {
             }
 
             // 1. Fetch Lead
-            const lead = await env.DB.prepare('SELECT * FROM leads WHERE id = ?')
-                .bind(leadId)
-                .first<Lead>();
+            const lead = await db.getLeadById(leadId);
 
             if (!lead) {
                 return new Response(JSON.stringify({ error: 'Lead not found' }), { 
@@ -68,16 +73,12 @@ export async function POST(request: Request) {
                 });
             }
 
-            const existingCustomer = await env.DB.prepare('SELECT id, address_id FROM customers WHERE email = ?')
-                .bind(lead.email)
-                .first<{ id: string; address_id: string | null }>();
+            const existingCustomer = await db.getCustomerByEmail(lead.email);
 
             const customerId = existingCustomer?.id || crypto.randomUUID();
             
             // Try to find if this specific address already exists for this customer
-            const existingAddress = await env.DB.prepare('SELECT id FROM addresses WHERE raw_address = ? AND customer_id = ?')
-                .bind(lead.address, customerId)
-                .first<{ id: string }>();
+            const existingAddress = await db.getAddressByRawAndCustomer(lead.address, customerId);
 
             const addressId = existingAddress?.id || crypto.randomUUID();
             const subscriptionId = crypto.randomUUID();
@@ -86,78 +87,35 @@ export async function POST(request: Request) {
             let currentPeriodEnd: string | null = null;
             if (session.subscription) {
                 try {
-                    const sub = await stripe.subscriptions.retrieve(session.subscription as string) as unknown as { current_period_end: number };
-                    currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString();
+                    const currentPeriodEndSecs = await paymentService.retrieveSubscriptionPeriodEnd(session.subscription as string);
+                    currentPeriodEnd = new Date(currentPeriodEndSecs * 1000).toISOString();
                 } catch (e) {
                     console.error('Failed to fetch subscription for period end', e);
                 }
             }
 
-            // 2. Perform Atomic Update in D1
-            const batchStatements = [
-                // Mark lead as converted
-                env.DB.prepare('UPDATE leads SET converted = TRUE WHERE id = ?').bind(leadId),
-
-                // Create or update customer (UPSERT) without address_id first to avoid foreign key circular constraints
-                env.DB.prepare(
-                    `INSERT INTO customers (id, email, stripe_customer_id, phone_number, bin_quantity, sales_rep_id, tos_accepted_at) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                     ON CONFLICT(email) DO UPDATE SET 
-                        stripe_customer_id = excluded.stripe_customer_id,
-                        phone_number = excluded.phone_number,
-                        bin_quantity = excluded.bin_quantity,
-                        sales_rep_id = excluded.sales_rep_id,
-                        tos_accepted_at = excluded.tos_accepted_at`
-                ).bind(customerId, lead.email, session.customer as string, phoneNumber, binQuantity, salesRepId || null, tosAcceptedAt),
-
-                // UPSERT address 
-                env.DB.prepare(
-                    `INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day, provider_name) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                     ON CONFLICT(raw_address, customer_id) DO UPDATE SET
-                        latitude = excluded.latitude,
-                        longitude = excluded.longitude,
-                        trash_day = excluded.trash_day,
-                        service_day = excluded.service_day,
-                        provider_name = excluded.provider_name`
-                ).bind(addressId, customerId, lead.address, lat, lng, trashDay, trashDay, providerName),
-
-                // Update customer to link the address_id
-                env.DB.prepare(
-                    'UPDATE customers SET address_id = ? WHERE id = ?'
-                ).bind(addressId, customerId),
-
-                // Create subscription or one-time record
-                env.DB.prepare(
-                    'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days, current_period_end, last_service_date) VALUES (?, ?, ?, ?, ?, ?, ?)'
-                ).bind(
-                    subscriptionId,
-                    customerId,
-                    session.subscription as string || null,
-                    frequency === 'one-time' ? 'one-time' : 'active',
-                    frequency === 'one-time' ? 0 : (frequency === 'quarterly' ? 84 : 28),
-                    currentPeriodEnd,
-                    salesRepId ? new Date().toISOString() : null
-                )
-            ];
-
-            // 3. D2D Fulfillment: Initial 'Completed' record ONLY for D2D reps
-            if (salesRepId) {
-                batchStatements.push(
-                    env.DB.prepare(
-                        'INSERT INTO service_history (id, customer_id, subscription_id, service_date, dispatch_status, sales_rep_id) VALUES (?, ?, ?, ?, ?, ?)'
-                    ).bind(
-                        serviceHistoryId,
-                        customerId,
-                        subscriptionId,
-                        new Date().toISOString(),
-                        'Completed',
-                        salesRepId
-                    )
-                );
-            }
-
-            await env.DB.batch(batchStatements);
+            // 2. Perform Atomic Update in Database via Adapter
+            await db.convertLeadToCustomerTransaction({
+                leadId,
+                email: lead.email,
+                stripeCustomerId: session.customer as string,
+                stripeSubscriptionId: session.subscription as string || null,
+                phoneNumber: phoneNumber,
+                binQuantity: binQuantity,
+                salesRepId: salesRepId || null,
+                tosAcceptedAt,
+                rawAddress: lead.address,
+                latitude: lat,
+                longitude: lng,
+                trashDay,
+                serviceDay: trashDay,
+                providerName,
+                subscriptionId,
+                addressId,
+                customerId,
+                currentPeriodEnd,
+                serviceHistoryId
+            });
 
             // 3. Contract Delivery: Send ToS Copy via Resend
             if (frequency !== 'one-time') {
@@ -195,9 +153,7 @@ export async function POST(request: Request) {
             const stripeSubscriptionId = subscription.id;
             const now = new Date().toISOString();
 
-            await env.DB.prepare('UPDATE subscriptions SET status = ?, current_period_end = ? WHERE stripe_subscription_id = ?')
-                .bind('cancelled', now, stripeSubscriptionId)
-                .run();
+            await db.updateSubscriptionStatus(stripeSubscriptionId, 'cancelled', now);
 
             console.log(`Successfully cancelled subscription immediately: ${stripeSubscriptionId}`);
         } else if (event.type === 'customer.subscription.updated') {
@@ -206,14 +162,10 @@ export async function POST(request: Request) {
             const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
 
             if (subscription.cancel_at_period_end) {
-                await env.DB.prepare('UPDATE subscriptions SET status = ?, current_period_end = ? WHERE stripe_subscription_id = ?')
-                    .bind('cancelled', currentPeriodEnd, stripeSubscriptionId)
-                    .run();
+                await db.updateSubscriptionStatus(stripeSubscriptionId, 'cancelled', currentPeriodEnd);
                 console.log(`Successfully marked subscription as cancelled at period end: ${stripeSubscriptionId}`);
             } else {
-                await env.DB.prepare('UPDATE subscriptions SET status = ?, current_period_end = ? WHERE stripe_subscription_id = ?')
-                    .bind(subscription.status, currentPeriodEnd, stripeSubscriptionId)
-                    .run();
+                await db.updateSubscriptionStatus(stripeSubscriptionId, subscription.status, currentPeriodEnd);
                 console.log(`Successfully updated subscription: ${stripeSubscriptionId}`);
             }
         } else if (event.type === 'invoice.payment_succeeded') {
@@ -221,12 +173,10 @@ export async function POST(request: Request) {
             const stripeSubscriptionId = invoice.subscription as string;
 
             if (stripeSubscriptionId) {
-                const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId) as unknown as { current_period_end: number };
-                const currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString();
+                const currentPeriodEndSecs = await paymentService.retrieveSubscriptionPeriodEnd(stripeSubscriptionId);
+                const currentPeriodEnd = new Date(currentPeriodEndSecs * 1000).toISOString();
 
-                await env.DB.prepare('UPDATE subscriptions SET status = ?, current_period_end = ? WHERE stripe_subscription_id = ?')
-                    .bind('active', currentPeriodEnd, stripeSubscriptionId)
-                    .run();
+                await db.updateSubscriptionStatus(stripeSubscriptionId, 'active', currentPeriodEnd);
 
                 console.log(`Successfully updated subscription to active on payment success: ${stripeSubscriptionId}`);
             }
@@ -235,9 +185,7 @@ export async function POST(request: Request) {
             const stripeSubscriptionId = invoice.subscription as string;
 
             if (stripeSubscriptionId) {
-                await env.DB.prepare('UPDATE subscriptions SET status = ? WHERE stripe_subscription_id = ?')
-                    .bind('past_due', stripeSubscriptionId)
-                    .run();
+                await db.updateSubscriptionStatus(stripeSubscriptionId, 'past_due', null);
 
                 console.log(`Successfully set subscription to past_due: ${stripeSubscriptionId}`);
             }

@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { redirect } from 'next/navigation';
 import { Env } from '@/lib/types';
+import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -30,34 +31,19 @@ export default async function AdminDashboard() {
 
     const { env } = (getRequestContext() as unknown) as { env: Env };
 
+    const db = new D1DatabaseAdapter(env.DB);
+
     // 1. Fetch Active Subscriptions
-    const { count: activeSubs } = await env.DB.prepare(
-        "SELECT COUNT(*) as count FROM subscriptions WHERE status = 'active'"
-    ).first<{ count: number }>() || { count: 0 };
+    const activeSubs = await db.getActiveSubscriptionsCount();
 
     // 2. Fetch Completed Stops (This Week)
-    const { count: completedStops } = await env.DB.prepare(
-        "SELECT COUNT(*) as count FROM service_history WHERE dispatch_status = 'Completed' AND service_date >= datetime('now', '-7 days')"
-    ).first<{ count: number }>() || { count: 0 };
+    const completedStops = await db.getCompletedStopsCountLast7Days();
 
     // 3. Calculate Estimated Weekly Revenue (Simplification)
-    // Monthly = $30 (approx $7.50/week), Quarterly = $40 (approx $3.33/week)
-    const { total_revenue } = await env.DB.prepare(
-        "SELECT SUM(CASE WHEN frequency_days = 28 THEN 7.50 WHEN frequency_days = 84 THEN 3.33 ELSE 0 END) as total_revenue FROM subscriptions WHERE status = 'active'"
-    ).first<{ total_revenue: number }>() || { total_revenue: 0 };
+    const total_revenue = await db.calculateEstimatedWeeklyRevenue();
 
     // 4. Recent Activity
-    const { results: recentActivity } = await env.DB.prepare(
-        `SELECT 
-            c.email as customer, 
-            s.dispatch_status as status, 
-            s.service_date as time, 
-            a.raw_address as address 
-         FROM service_history s 
-         JOIN customers c ON s.customer_id = c.id 
-         JOIN addresses a ON c.address_id = a.id 
-         ORDER BY s.service_date DESC LIMIT 5`
-    ).all<{ customer: string; status: string; time: string; address: string }>();
+    const recentActivity = await db.getRecentActivity(5);
 
     // Calculate next Sunday for dispatch
     const nextSunday = new Date();
