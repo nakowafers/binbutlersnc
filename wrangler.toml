@@ -7,20 +7,6 @@ main = ".vercel/output/static/_worker.js/index.js"
 directory = ".vercel/output/static"
 binding = "ASSETS"
 
-[vars]
-STRIPE_SECRET_KEY = "sk_test_..."
-STRIPE_WEBHOOK_SECRET = "whsec_..."
-STRIPE_MONTHLY_PRICE_ID = "price_..."
-STRIPE_QUARTERLY_PRICE_ID = "price_..."
-STRIPE_ONETIME_PRICE_ID = "price_..."
-STRIPE_SETUP_FEE_PRICE_ID = "price_..."
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_test_..."
-ROUTIFIC_API_KEY = "..."
-RESEND_API_KEY = "re_..."
-GOOGLE_MAPS_API_KEY = "..."
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = "..."
-AUTH_SECRET = "..."
-
 [[d1_databases]]
 binding = "DB"
 database_name = "binbutlersnc-db"

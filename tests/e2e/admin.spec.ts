@@ -20,7 +20,7 @@ test.describe('Admin Dashboard E2E Tests', () => {
         
         // 3. Seed active subscription and some history for stats
         runDb(`INSERT OR IGNORE INTO addresses (id, customer_id, raw_address, trash_day) VALUES ('addr_1', 'cust_1', '123 Main St', 'MON')`);
-        runDb(`INSERT OR IGNORE INTO customers (id, email, address_id, first_name, last_name) VALUES ('cust_1', 'customer1@example.com', 'addr_1', 'Jane', 'Doe')`);
+        runDb(`INSERT OR IGNORE INTO customers (id, email, address_id, name) VALUES ('cust_1', 'customer1@example.com', 'addr_1', 'Jane Doe')`);
         runDb(`INSERT OR IGNORE INTO subscriptions (id, customer_id, status, frequency_days) VALUES ('sub_1', 'cust_1', 'active', 28)`);
         runDb(`INSERT OR IGNORE INTO service_history (id, subscription_id, customer_id, dispatch_status, service_date) VALUES ('srv_1', 'sub_1', 'cust_1', 'Completed', datetime('now', '-1 days'))`);
     });
@@ -65,7 +65,7 @@ test.describe('Admin Dashboard E2E Tests', () => {
         await expect(page.getByText('Active Subscriptions')).toBeVisible();
         
         // Verify seeded stats
-        await expect(page.getByText('1', { exact: true })).toBeVisible(); // Active Subscriptions count
+        await expect(page.locator('h3', { hasText: '1' }).first()).toBeVisible(); // Active Subscriptions count
     });
 
     test('Admin Dashboard should show recent activity', async ({ page }) => {
@@ -74,7 +74,7 @@ test.describe('Admin Dashboard E2E Tests', () => {
         await expect(page.getByText('Recent Activity')).toBeVisible();
         await expect(page.getByText('customer1@example.com')).toBeVisible();
         await expect(page.getByText('123 Main St')).toBeVisible();
-        await expect(page.getByText('Completed')).toBeVisible();
+        await expect(page.getByText('Completed', { exact: true })).toBeVisible();
     });
 
     test('Non-admins should be redirected to portal', async ({ context, page }) => {
@@ -103,6 +103,6 @@ test.describe('Admin Dashboard E2E Tests', () => {
 
         // Should be redirected to portal
         await page.waitForURL('**/portal');
-        await expect(page.getByText('My Subscriptions')).toBeVisible();
+        await expect(page.getByText('Service History')).toBeVisible();
     });
 });

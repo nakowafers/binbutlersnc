@@ -8,6 +8,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   const { env } = (getRequestContext() as unknown) as { env: Env };
 
   return {
+    secret: env.AUTH_SECRET,
     adapter: D1Adapter(env.DB),
     providers: [
       Resend({
