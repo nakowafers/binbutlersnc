@@ -2,6 +2,7 @@ name = "binbutlersnc"
 compatibility_date = "2025-01-27"
 compatibility_flags = ["nodejs_compat"]
 main = ".vercel/output/static/_worker.js/index.js"
+no_bundle = true
 
 [assets]
 directory = ".vercel/output/static"
