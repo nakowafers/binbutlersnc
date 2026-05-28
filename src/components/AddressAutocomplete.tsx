@@ -1,61 +1,90 @@
 'use client';
 
-import { useState } from 'react';
-import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
-import { Input } from "@/components/ui/input";
+import { useEffect, useRef } from 'react';
+import { GeoapifyContext, GeoapifyGeocoderAutocomplete } from '@geoapify/react-geocoder-autocomplete';
+import '@geoapify/geocoder-autocomplete/styles/minimal.css';
 
-const libraries: ("places")[] = ["places"];
-
-interface AddressAutocompleteProps extends React.ComponentProps<typeof Input> {
+interface AddressAutocompleteProps {
+    id?: string;
+    value?: string;
+    onChange?: unknown;
+    onBlur?: unknown;
+    name?: string;
+    ref?: unknown;
     onAddressSelected: (address: string, lat?: number, lng?: number) => void;
+    placeholder?: string;
+    className?: string;
 }
 
 export function AddressAutocomplete({
-    onAddressSelected,
+    id,
+    value,
     onChange,
-    ...props
+    name,
+    ref: forwardedRef,
+    onAddressSelected,
+    placeholder,
+    className
 }: AddressAutocompleteProps) {
-    const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
+    const apiKey = process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY || '';
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    const { isLoaded } = useJsApiLoader({
-        id: 'google-map-script',
-        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-        libraries
-    });
+    // Assign the id directly to the inner input element so label matching and E2E selectors work,
+    // and bind the forwarded React Hook Form ref to the input element for validation tracking.
+    useEffect(() => {
+        if (containerRef.current && id) {
+            const input = containerRef.current.querySelector('input');
+            if (input) {
+                input.id = id;
+                if (forwardedRef) {
+                    if (typeof forwardedRef === 'function') {
+                        (forwardedRef as (element: HTMLInputElement | null) => void)(input);
+                    } else {
+                        (forwardedRef as { current: HTMLInputElement | null }).current = input;
+                    }
+                }
+            }
+        }
+    }, [id, forwardedRef]);
 
-    const onPlaceChanged = () => {
-        if (autocomplete !== null) {
-            const place = autocomplete.getPlace();
-            const formatted = place.formatted_address || '';
-            const lat = place.geometry?.location?.lat();
-            const lng = place.geometry?.location?.lng();
+    // Handle selection from autocomplete suggestions dropdown
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handlePlaceSelect = (place: any) => {
+        if (place?.properties) {
+            const formatted = place.properties.formatted || '';
+            const lat = place.properties.lat;
+            const lng = place.properties.lon; // Geoapify returns longitude as 'lon'
             
             if (formatted) {
-                // Trigger react-hook-form onChange manually or update via setValue in parent
                 onAddressSelected(formatted, lat, lng);
             }
         }
     };
 
-    if (!isLoaded) {
-        return (
-            <Input
-                onChange={onChange}
-                {...props}
-            />
-        );
-    }
+    // Handle keystrokes to update react-hook-form state
+    const handleUserInput = (val: string) => {
+        if (onChange) {
+            (onChange as (event: { target: { name: string; value: string } }) => void)({
+                target: {
+                    name: name || 'address',
+                    value: val
+                }
+            });
+        }
+    };
 
     return (
-        <Autocomplete
-            onLoad={(auto) => setAutocomplete(auto)}
-            onPlaceChanged={onPlaceChanged}
-            options={{ componentRestrictions: { country: "us" } }}
-        >
-            <Input
-                onChange={onChange}
-                {...props}
-            />
-        </Autocomplete>
+        <div ref={containerRef} className={`relative w-full ${className || ''}`}>
+            <GeoapifyContext apiKey={apiKey}>
+                <GeoapifyGeocoderAutocomplete
+                    placeholder={placeholder || 'Search for an address'}
+                    value={value}
+                    placeSelect={handlePlaceSelect}
+                    onUserInput={handleUserInput}
+                    filterByCountryCode={['us']}
+                    limit={5}
+                />
+            </GeoapifyContext>
+        </div>
     );
 }
