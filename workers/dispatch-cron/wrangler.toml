@@ -1,6 +1,7 @@
 name = "binbutlersnc-dispatch-cron"
 main = "index.ts"
-compatibility_date = "2024-04-03"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
 
 [triggers]
 crons = ["0 0 * * 0"] # Every Sunday at 00:00

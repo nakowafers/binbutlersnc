@@ -17,8 +17,10 @@ const checkoutSchema = z.object({
     bin_quantity: z.number().min(1),
     frequency: z.enum(['monthly', 'quarterly', 'one-time']),
     sales_rep_id: z.string().optional(),
-    setup_fee_override: z.number().optional(),
+    setup_fee_override: z.number().min(1).optional(),
     tos_accepted: z.boolean().optional(),
+    age_confirmed: z.literal(true, { message: "You must confirm you are 18 or older" }),
+    contact_consent: z.literal(true, { message: "You must agree to be contacted" }),
 });
 
 export async function POST(request: Request) {

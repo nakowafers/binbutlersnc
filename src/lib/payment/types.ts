@@ -20,5 +20,6 @@ export interface IPaymentService {
     getCustomerIdByEmail(email: string): Promise<string | null>;
     createBillingPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }>;
     retrieveSubscriptionPeriodEnd(subscriptionId: string): Promise<number>;
+    retrieveCheckoutSession(sessionId: string): Promise<{ id: string; payment_status: string; customer_email: string | null; amount_total: number | null }>;
     verifyWebhookEvent(body: string, signature: string, secret: string): Promise<unknown>;
 }

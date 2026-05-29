@@ -26,8 +26,10 @@ const signupSchema = z.object({
     provider_name: z.string().min(2, "Please select or enter your provider"),
     bin_quantity: z.number().min(1, "Minimum 1 bin").max(10, "Maximum 10 bins"),
     sales_rep_id: z.string().optional(),
-    setup_fee_override: z.number().min(0, "Setup fee cannot be negative").optional(),
+    setup_fee_override: z.number().min(1, "Setup fee must be at least $1").optional(),
     tos_accepted: z.boolean().optional(),
+    age_confirmed: z.literal(true, { message: "You must confirm you are 18 or older" }),
+    contact_consent: z.literal(true, { message: "You must agree to be contacted" }),
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
@@ -56,6 +58,8 @@ function SignupForm() {
             trash_day: 'MON',
             setup_fee_override: 100,
             tos_accepted: false,
+            age_confirmed: false as unknown as true,
+            contact_consent: false as unknown as true,
         }
     });
 
@@ -65,6 +69,8 @@ function SignupForm() {
     const salesRepId = watch('sales_rep_id');
     const setupFeeOverride = watch('setup_fee_override') ?? 100;
     const tosAccepted = watch('tos_accepted');
+    const ageConfirmed = watch('age_confirmed');
+    const contactConsent = watch('contact_consent');
 
     const onSubmit = async (data: SignupFormValues) => {
         setIsLoading(true);
@@ -320,7 +326,7 @@ function SignupForm() {
                                         <Input
                                             id="setup_fee_override"
                                             type="number"
-                                            min={0}
+                                            min={1}
                                             {...register('setup_fee_override', { valueAsNumber: true })}
                                             className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
                                         />
@@ -414,6 +420,21 @@ function SignupForm() {
                                 <div className="flex items-start gap-3 p-4 bg-lime-50 rounded-xl border border-lime-100">
                                     <div className="flex items-center h-6">
                                         <input
+                                            id="age_confirmed"
+                                            type="checkbox"
+                                            {...register('age_confirmed')}
+                                            className="h-5 w-5 rounded border-slate-300 text-[#7AC142] focus:ring-[#7AC142] transition-all cursor-pointer"
+                                        />
+                                    </div>
+                                    <Label htmlFor="age_confirmed" className="text-sm text-slate-700 leading-snug cursor-pointer font-medium">
+                                        I confirm I am 18 years of age or older.
+                                    </Label>
+                                </div>
+                                {errors.age_confirmed && <p className="text-red-500 text-xs font-medium pl-1">{errors.age_confirmed.message}</p>}
+
+                                <div className="flex items-start gap-3 p-4 bg-lime-50 rounded-xl border border-lime-100">
+                                    <div className="flex items-center h-6">
+                                        <input
                                             id="tos_accepted"
                                             type="checkbox"
                                             {...register('tos_accepted')}
@@ -425,6 +446,21 @@ function SignupForm() {
                                     </Label>
                                 </div>
                                 {errors.tos_accepted && <p className="text-red-500 text-xs font-medium pl-1">{errors.tos_accepted.message}</p>}
+
+                                <div className="flex items-start gap-3 p-4 bg-lime-50 rounded-xl border border-lime-100">
+                                    <div className="flex items-center h-6">
+                                        <input
+                                            id="contact_consent"
+                                            type="checkbox"
+                                            {...register('contact_consent')}
+                                            className="h-5 w-5 rounded border-slate-300 text-[#7AC142] focus:ring-[#7AC142] transition-all cursor-pointer"
+                                        />
+                                    </div>
+                                    <Label htmlFor="contact_consent" className="text-sm text-slate-700 leading-snug cursor-pointer font-medium">
+                                        I consent to being contacted regarding my service and account.
+                                    </Label>
+                                </div>
+                                {errors.contact_consent && <p className="text-red-500 text-xs font-medium pl-1">{errors.contact_consent.message}</p>}
                             </CardContent>
                             <CardFooter className="p-8 bg-slate-50 border-t flex gap-4">
                                 <Button
@@ -437,7 +473,7 @@ function SignupForm() {
                                 </Button>
                                 <Button
                                     type="submit"
-                                    disabled={isLoading || !tosAccepted}
+                                    disabled={isLoading || !tosAccepted || !ageConfirmed || !contactConsent}
                                     className="flex-grow bg-[#7AC142] hover:bg-[#68a638] text-white h-14 rounded-xl text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                                 >
                                     {isLoading ? (

@@ -187,6 +187,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
         customerId: string;
         currentPeriodEnd: string | null;
         serviceHistoryId: string;
+        frequency: 'monthly' | 'quarterly' | 'one-time';
     }): Promise<void> {
         const batchStatements = [
             // 1. Mark lead as converted
@@ -245,7 +246,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
                 params.customerId,
                 params.stripeSubscriptionId,
                 params.stripeSubscriptionId ? 'active' : 'one-time',
-                params.stripeSubscriptionId ? (params.currentPeriodEnd ? 28 : 84) : 0, // Fallback logic based on webhook implementation
+                params.frequency === 'monthly' ? 28 : params.frequency === 'quarterly' ? 84 : 0,
                 params.currentPeriodEnd,
                 params.salesRepId ? new Date().toISOString() : null
             )
@@ -332,7 +333,8 @@ export class D1DatabaseAdapter implements IDatabaseService {
              FROM pending_dispatches p
              JOIN customers c ON p.customer_id = c.id
              JOIN addresses a ON c.address_id = a.id
-             WHERE p.retry_count < ?`
+             JOIN subscriptions s ON p.subscription_id = s.id
+             WHERE p.retry_count < ? AND s.is_paused = FALSE`
         )
         .bind(maxRetries)
         .all<PendingDispatchResult>();
@@ -384,5 +386,24 @@ export class D1DatabaseAdapter implements IDatabaseService {
         )
         .bind(errorMsg, id)
         .run();
+    }
+
+    async storeRoutificDispatch(id: string, subscriptionId: string, routificOrderId: string, serviceDate: string): Promise<void> {
+        await this.db.prepare(
+            'INSERT INTO routific_dispatches (id, subscription_id, routific_order_id, service_date) VALUES (?, ?, ?, ?)'
+        ).bind(id, subscriptionId, routificOrderId, serviceDate).run();
+    }
+
+    async getRoutificOrderIdsBySubscription(subscriptionId: string): Promise<string[]> {
+        const result = await this.db.prepare(
+            'SELECT routific_order_id FROM routific_dispatches WHERE subscription_id = ?'
+        ).bind(subscriptionId).all<{ routific_order_id: string }>();
+        return result.results?.map(r => r.routific_order_id) || [];
+    }
+
+    async deleteRoutificDispatch(id: string): Promise<void> {
+        await this.db.prepare(
+            'DELETE FROM routific_dispatches WHERE id = ?'
+        ).bind(id).run();
     }
 }

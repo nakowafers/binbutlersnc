@@ -80,6 +80,7 @@ export interface IDatabaseService {
         customerId: string;
         currentPeriodEnd: string | null;
         serviceHistoryId: string;
+        frequency: 'monthly' | 'quarterly' | 'one-time';
     }): Promise<void>;
 
     updateServiceHistoryOnCompletion(subscriptionId: string, completedAt: string | null, nowIso: string): Promise<void>;
@@ -94,4 +95,9 @@ export interface IDatabaseService {
     ): Promise<void>;
     deletePendingDispatchAndLogSuccess(id: string, historyId: string, customerId: string, subscriptionId: string, date: string): Promise<void>;
     incrementPendingDispatchRetryCount(id: string, errorMsg: string): Promise<void>;
+
+    // Routific Dispatch Tracking
+    storeRoutificDispatch(id: string, subscriptionId: string, routificOrderId: string, serviceDate: string): Promise<void>;
+    getRoutificOrderIdsBySubscription(subscriptionId: string): Promise<string[]>;
+    deleteRoutificDispatch(id: string): Promise<void>;
 }

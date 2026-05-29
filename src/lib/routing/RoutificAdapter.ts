@@ -60,7 +60,33 @@ export class RoutificAdapter implements IRoutingService {
     }
 
     async getJobStatus(_jobId: string): Promise<string> {
-        // In the orders-based flow, the status is checked per-order or via the dashboard
         return 'synced';
+    }
+
+    async deleteTarget(targetId: string): Promise<void> {
+        if (!this.apiKey || this.apiKey.trim() === '' || this.apiKey.includes('your_routific_api_key')) {
+            throw new Error("Missing or invalid Routific API Key.");
+        }
+
+        const key = this.apiKey.trim();
+        const wsId = this.workspaceId;
+        if (!wsId) {
+            throw new Error("Missing Routific Workspace ID.");
+        }
+
+        const url = `${this.baseUrl}/orders/${encodeURIComponent(targetId)}?workspaceId=${wsId}`;
+
+        const response = await fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${key}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok && response.status !== 404) {
+            const error = await response.text();
+            throw new Error(`Routific delete order API error: ${error}`);
+        }
     }
 }

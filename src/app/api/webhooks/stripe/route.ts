@@ -1,9 +1,10 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import Stripe from 'stripe';
 import { Resend } from 'resend';
-import { Env, Lead } from '@/lib/types';
+import { Env } from '@/lib/types';
 import { StripeAdapter } from '@/lib/payment/StripeAdapter';
 import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
+import { RoutificAdapter } from '@/lib/routing/RoutificAdapter';
 
 export const runtime = 'edge';
 
@@ -41,6 +42,23 @@ export async function POST(request: Request) {
         }
 
         const db = new D1DatabaseAdapter(env.DB);
+
+        // Idempotency check: skip if event already processed
+        const existingEvent = await env.DB.prepare(
+            'SELECT id FROM webhook_events WHERE id = ?'
+        ).bind(event.id).first();
+        if (existingEvent) {
+            console.log(`Skipping already-processed event: ${event.id}`);
+            return new Response(JSON.stringify({ received: true }), { 
+                status: 200, 
+                headers: { 'Content-Type': 'application/json' } 
+            });
+        }
+
+        // Record event as processing
+        await env.DB.prepare(
+            'INSERT OR IGNORE INTO webhook_events (id, event_type) VALUES (?, ?)'
+        ).bind(event.id, event.type).run();
 
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object as Stripe.Checkout.Session;
@@ -114,7 +132,8 @@ export async function POST(request: Request) {
                 addressId,
                 customerId,
                 currentPeriodEnd,
-                serviceHistoryId
+                serviceHistoryId,
+                frequency
             });
 
             // 3. Contract Delivery: Send ToS Copy via Resend
@@ -181,14 +200,39 @@ export async function POST(request: Request) {
                 console.log(`Successfully updated subscription to active on payment success: ${stripeSubscriptionId}`);
             }
         } else if (event.type === 'invoice.payment_failed') {
-            const invoice = event.data.object as unknown as { subscription: string | null };
+            const invoice = event.data.object as unknown as { subscription: string | null; customer: string };
             const stripeSubscriptionId = invoice.subscription as string;
 
             if (stripeSubscriptionId) {
                 await db.updateSubscriptionStatus(stripeSubscriptionId, 'past_due', null);
 
+                // Delete pending Routific orders for this subscription
+                try {
+                    const routingService = new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
+                    const routificOrderIds = await db.getRoutificOrderIdsBySubscription(stripeSubscriptionId);
+                    for (const orderId of routificOrderIds) {
+                        try {
+                            await routingService.deleteTarget(orderId);
+                            console.log(`Deleted Routific order ${orderId} for subscription: ${stripeSubscriptionId}`);
+                        } catch (orderError) {
+                            console.error(`Failed to delete Routific order ${orderId}:`, orderError);
+                        }
+                    }
+                } catch (routingError) {
+                    console.error(`Failed to query Routific orders for ${stripeSubscriptionId}:`, routingError);
+                }
+
                 console.log(`Successfully set subscription to past_due: ${stripeSubscriptionId}`);
             }
+        }
+
+        // Periodic cleanup: delete webhook_events older than 30 days
+        try {
+            await env.DB.prepare(
+                'DELETE FROM webhook_events WHERE created_at < unixepoch() - 2592000'
+            ).run();
+        } catch (cleanupError) {
+            console.error('Webhook events cleanup failed:', cleanupError);
         }
 
         return new Response(JSON.stringify({ received: true }), { 

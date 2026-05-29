@@ -63,6 +63,8 @@ describe('Checkout API - Integration Tests', () => {
             bin_quantity: 2,
             frequency: 'monthly',
             tos_accepted: true,
+            age_confirmed: true,
+            contact_consent: true,
         };
 
         const request = new Request('http://localhost/api/checkout', {
@@ -110,7 +112,9 @@ describe('Checkout API - Integration Tests', () => {
             provider_name: 'City Waste',
             bin_quantity: 1,
             frequency: 'one-time',
-            setup_fee_override: 50, // $50 instead of default
+            setup_fee_override: 50,
+            age_confirmed: true,
+            contact_consent: true,
         };
 
         const request = new Request('http://localhost/api/checkout', {

@@ -4,12 +4,30 @@ import { D1Adapter } from "@auth/d1-adapter";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { Env } from "./lib/types";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createD1AdapterWithRetry(db: D1Database): any {
+  const base = D1Adapter(db);
+  return {
+    ...base,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async createUser(user: any) {
+      try {
+        return await base.createUser!(user);
+      } catch {
+        const existing = await db.prepare('SELECT * FROM users WHERE email = ?').bind(user.email).first();
+        if (existing) return existing;
+        throw new Error('Failed to create user and no existing user found');
+      }
+    },
+  };
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   const { env } = (getRequestContext() as unknown) as { env: Env };
 
   return {
     secret: env.AUTH_SECRET,
-    adapter: D1Adapter(env.DB),
+    adapter: createD1AdapterWithRetry(env.DB),
     providers: [
       Resend({
         apiKey: env.RESEND_API_KEY,

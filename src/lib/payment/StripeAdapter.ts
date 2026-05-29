@@ -15,10 +15,7 @@ export class StripeAdapter implements IPaymentService {
 
     constructor(config: StripeConfig) {
         this.config = config;
-        this.stripe = new Stripe(config.secretKey, {
-            // @ts-expect-error - Newer API version
-            apiVersion: '2025-01-27.acacia',
-        });
+        this.stripe = new Stripe(config.secretKey);
     }
 
     async createCheckoutSession(params: CheckoutSessionParams): Promise<{ url: string | null }> {
@@ -91,11 +88,19 @@ export class StripeAdapter implements IPaymentService {
             }
         }
 
+        const customerEmail = params.email;
+        let existingCustomerId: string | null = null;
+        if (mode === 'payment') {
+            const customers = await this.stripe.customers.list({ email: customerEmail, limit: 1 });
+            existingCustomerId = customers.data[0]?.id || null;
+        }
+
         const session = await this.stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             line_items: lineItems,
             mode: mode,
-            customer_creation: mode === 'payment' ? 'always' : undefined,
+            customer: existingCustomerId || undefined,
+            customer_creation: existingCustomerId ? undefined : 'always',
             subscription_data: mode === 'subscription' ? {
                 trial_period_days: params.frequency === 'monthly' ? 28 : 84,
             } : undefined,
@@ -142,6 +147,16 @@ export class StripeAdapter implements IPaymentService {
     async retrieveSubscriptionPeriodEnd(subscriptionId: string): Promise<number> {
         const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as unknown as { current_period_end: number };
         return subscription.current_period_end;
+    }
+
+    async retrieveCheckoutSession(sessionId: string): Promise<{ id: string; payment_status: string; customer_email: string | null; amount_total: number | null }> {
+        const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+        return {
+            id: session.id,
+            payment_status: session.payment_status,
+            customer_email: session.customer_email || session.customer_details?.email || null,
+            amount_total: session.amount_total,
+        };
     }
 
     async verifyWebhookEvent(body: string, signature: string, secret: string): Promise<unknown> {

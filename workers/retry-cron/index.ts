@@ -10,6 +10,23 @@ export default {
     async handleRetries(env: Env) {
         console.log('Starting Retry Dispatch Cron...');
 
+        const lockKey = 'cron_lock_retry';
+        const existingLock = await env.DB.prepare(
+            "SELECT value FROM global_settings WHERE key = ?"
+        ).bind(lockKey).first<{ value: string }>();
+
+        if (existingLock) {
+            const parsed = JSON.parse(existingLock.value);
+            const now = Date.now();
+            if (now - parsed.acquired_at < 30 * 60 * 1000) {
+                console.log('Retry cron lock still held, skipping this run.');
+                return;
+            }
+        }
+        await env.DB.prepare(
+            'INSERT INTO global_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP'
+        ).bind(lockKey, JSON.stringify({ acquired_at: Date.now() })).run();
+
         const db = new D1DatabaseAdapter(env.DB);
 
         // 1. Fetch pending dispatches (max 5 retries)
@@ -22,23 +39,17 @@ export default {
 
         console.log(`Found ${results.length} pending dispatches. Retrying...`);
 
-        // 3. Fetch Holiday Offset
-        const offsetRowVal = await db.getGlobalSetting('holiday_offset_hours');
-        const offsetHours = parseInt(offsetRowVal || '0', 10);
-
-        // 2. Group by service_date to create batch jobs if possible
         const routingService = new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
 
         for (const row of results) {
             try {
-                const serviceDate = new Date(row.service_date);
-                serviceDate.setHours(serviceDate.getHours() + offsetHours);
-                const formattedDate = serviceDate.toISOString().split('T')[0];
+                const formattedDate = row.service_date.split('T')[0];
+                const routificOrderId = crypto.randomUUID();
 
                 await routingService.createJob({
                     id: crypto.randomUUID(),
                     stops: [{
-                        id: crypto.randomUUID(),
+                        id: routificOrderId,
                         address: row.raw_address,
                         lat: row.latitude || undefined,
                         lng: row.longitude || undefined,
@@ -48,7 +59,13 @@ export default {
                     date: formattedDate
                 });
 
-                // 3. If successful, remove from pending and log as pending in service history via Adapter
+                // 3. Store Routific order ID and log success
+                await db.storeRoutificDispatch(
+                    crypto.randomUUID(),
+                    row.subscription_id,
+                    routificOrderId,
+                    row.service_date
+                );
                 await db.deletePendingDispatchAndLogSuccess(
                     row.id,
                     crypto.randomUUID(),
