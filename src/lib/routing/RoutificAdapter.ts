@@ -1,4 +1,4 @@
-import { IRoutingService, RoutingJob } from './types';
+import { IRoutingService, RoutingJob, Stop } from './types';
 
 export class RoutificAdapter implements IRoutingService {
     private apiKey: string;
@@ -59,8 +59,72 @@ export class RoutificAdapter implements IRoutingService {
         return `synced-${job.date}`;
     }
 
-    async getJobStatus(_jobId: string): Promise<string> {
+    async getJobStatus(): Promise<string> {
         return 'synced';
+    }
+
+    async pushTarget(customerData: Stop): Promise<string> {
+        return this.createJob({
+            id: crypto.randomUUID(),
+            stops: [customerData],
+            date: new Date().toISOString().split('T')[0]
+        });
+    }
+
+    async updateTarget(customerData: Stop): Promise<void> {
+        if (!this.apiKey || this.apiKey.trim() === '' || this.apiKey.includes('your_routific_api_key')) {
+            throw new Error("Missing or invalid Routific API Key.");
+        }
+        const wsId = this.workspaceId;
+        if (!wsId) {
+            throw new Error("Missing Routific Workspace ID.");
+        }
+        const url = `${this.baseUrl}/orders/${encodeURIComponent(customerData.id)}?workspaceId=${wsId}`;
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${this.apiKey.trim()}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: `Bin: ${customerData.customer_id.substring(0, 8)}`,
+                locations: [{
+                    address: customerData.address,
+                    lat: customerData.lat,
+                    lng: customerData.lng,
+                }],
+                instructions: `Subscription ID: ${customerData.subscription_id}`,
+            }),
+        });
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Routific update order API error: ${error}`);
+        }
+    }
+
+    async getDispatchStatus(externalId: string): Promise<string> {
+        if (!this.apiKey || this.apiKey.trim() === '' || this.apiKey.includes('your_routific_api_key')) {
+            throw new Error("Missing or invalid Routific API Key.");
+        }
+        const wsId = this.workspaceId;
+        if (!wsId) {
+            throw new Error("Missing Routific Workspace ID.");
+        }
+        const url = `${this.baseUrl}/orders/${encodeURIComponent(externalId)}?workspaceId=${wsId}`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.apiKey.trim()}`,
+                'Content-Type': 'application/json',
+            },
+        });
+        if (!response.ok) {
+            if (response.status === 404) return 'not-found';
+            const error = await response.text();
+            throw new Error(`Routific get order status API error: ${error}`);
+        }
+        const order = await response.json() as { status?: string };
+        return order.status || 'synced';
     }
 
     async deleteTarget(targetId: string): Promise<void> {

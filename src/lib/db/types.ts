@@ -43,6 +43,7 @@ export interface IDatabaseService {
     // Subscription Operations
     getSubscriptionByCustomerId(customerId: string): Promise<Subscription | null>;
     getSubscriptionByIdAndCustomer(id: string, customerId: string): Promise<Subscription | null>;
+    getSubscriptionIdByStripeId(stripeSubscriptionId: string): Promise<string | null>;
     updateSubscriptionPauseStatus(id: string, isPaused: number): Promise<void>;
     updateSubscriptionStatus(stripeSubscriptionId: string, status: string, currentPeriodEnd: string | null): Promise<void>;
 
@@ -91,9 +92,10 @@ export interface IDatabaseService {
     getPendingDispatches(maxRetries: number): Promise<PendingDispatchResult[]>;
     logDispatchedJobs(
         historyInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; status: string }>,
-        retryInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; errorMsg: string }>
+        retryInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; errorMsg: string }>,
+        routificDispatches?: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }>
     ): Promise<void>;
-    deletePendingDispatchAndLogSuccess(id: string, historyId: string, customerId: string, subscriptionId: string, date: string): Promise<void>;
+    deletePendingDispatchAndLogSuccess(id: string, historyId: string, customerId: string, subscriptionId: string, date: string, routificDispatchId?: string, routificOrderId?: string): Promise<void>;
     incrementPendingDispatchRetryCount(id: string, errorMsg: string): Promise<void>;
 
     // Routific Dispatch Tracking

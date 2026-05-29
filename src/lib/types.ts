@@ -23,7 +23,9 @@ export interface Customer {
 
 export interface Address {
     id: string;
+    customer_id: string;
     raw_address: string;
+    standardized_address?: string;
     latitude?: number;
     longitude?: number;
     trash_day?: 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI';

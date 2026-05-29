@@ -38,18 +38,19 @@ export async function POST(request: Request) {
         const payloadStr = await request.text();
         const signature = request.headers.get('x-routific-signature') || '';
         
-        // Use a configured secret if available. If not, log a warning for security.
-        // In production, this should be mandatory.
         const secret = (env as Env & { ROUTIFIC_WEBHOOK_SECRET?: string }).ROUTIFIC_WEBHOOK_SECRET;
-        if (secret) {
-            if (!(await verifySignature(payloadStr, signature, secret))) {
-                return new Response(JSON.stringify({ error: 'Invalid signature' }), { 
-                    status: 401, 
-                    headers: { 'Content-Type': 'application/json' } 
-                });
-            }
-        } else {
-            console.warn('ROUTIFIC_WEBHOOK_SECRET is not set. Skipping signature verification.');
+        if (!secret) {
+            console.error('ROUTIFIC_WEBHOOK_SECRET is not configured.');
+            return new Response(JSON.stringify({ error: 'Webhook secret not configured' }), { 
+                status: 500, 
+                headers: { 'Content-Type': 'application/json' } 
+            });
+        }
+        if (!(await verifySignature(payloadStr, signature, secret))) {
+            return new Response(JSON.stringify({ error: 'Invalid signature' }), { 
+                status: 401, 
+                headers: { 'Content-Type': 'application/json' } 
+            });
         }
 
         interface RoutificEvent {

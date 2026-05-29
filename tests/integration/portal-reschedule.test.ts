@@ -50,7 +50,7 @@ describe('Portal Reschedule API Route', () => {
         const request = new Request('http://localhost/api/portal/reschedule', {
             method: 'POST',
             body: JSON.stringify({ serviceDay: 'TUE' }),
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
         });
 
         const response = await POST(request);
@@ -68,7 +68,7 @@ describe('Portal Reschedule API Route', () => {
         const request = new Request('http://localhost/api/portal/reschedule', {
             method: 'POST',
             body: JSON.stringify({ serviceDay: 'SATURDAY' }), // Invalid day
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
         });
 
         const response = await POST(request);
@@ -86,7 +86,7 @@ describe('Portal Reschedule API Route', () => {
         const request = new Request('http://localhost/api/portal/reschedule', {
             method: 'POST',
             body: JSON.stringify({ serviceDay: 'TUE' }),
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
         });
 
         const response = await POST(request);
@@ -112,7 +112,7 @@ describe('Portal Reschedule API Route', () => {
         const request = new Request('http://localhost/api/portal/reschedule', {
             method: 'POST',
             body: JSON.stringify(payload),
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
         });
 
         const response = await POST(request);

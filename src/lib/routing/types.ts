@@ -17,4 +17,7 @@ export interface IRoutingService {
     createJob(job: RoutingJob): Promise<string>;
     getJobStatus(jobId: string): Promise<string>;
     deleteTarget(targetId: string): Promise<void>;
+    pushTarget(customerData: Stop): Promise<string>;
+    updateTarget(customerData: Stop): Promise<void>;
+    getDispatchStatus(externalId: string): Promise<string>;
 }

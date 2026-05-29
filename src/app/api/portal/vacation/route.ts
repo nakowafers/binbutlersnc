@@ -1,13 +1,18 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { Env, Customer, Subscription } from '@/lib/types';
+import { Env } from '@/lib/types';
 import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
+import { validateOrigin } from '@/lib/csrf';
 
 export const runtime = 'edge';
 
 export async function POST(request: Request) {
     try {
+        if (!validateOrigin(request)) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
         const session = await auth();
         if (!session || !session.user || !session.user.email) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

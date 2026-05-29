@@ -8,6 +8,21 @@ vi.mock('@cloudflare/next-on-pages', () => ({
     getRequestContext: vi.fn(),
 }));
 
+async function computeHmac(payload: string, secret: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+    );
+    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
+    return Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+const WEBHOOK_SECRET = 'test-secret';
+
 describe('Routific Webhook - Integration Tests', () => {
     let simulator: DbSimulator;
     let mockEnv: any;
@@ -20,6 +35,7 @@ describe('Routific Webhook - Integration Tests', () => {
 
         mockEnv = {
             DB: simulator,
+            ROUTIFIC_WEBHOOK_SECRET: WEBHOOK_SECRET,
         };
 
         (getRequestContext as any).mockReturnValue({ env: mockEnv });
@@ -55,12 +71,15 @@ describe('Routific Webhook - Integration Tests', () => {
             }
         };
 
+        const bodyStr = JSON.stringify(payload);
+        const signature = await computeHmac(bodyStr, WEBHOOK_SECRET);
+
         const request = new Request('http://localhost/api/webhooks/routific', {
             method: 'POST',
-            body: JSON.stringify(payload),
+            body: bodyStr,
             headers: {
                 'Content-Type': 'application/json',
-                'x-routific-signature': 'mocked_signature'
+                'x-routific-signature': signature,
             },
         });
 
@@ -91,7 +110,7 @@ describe('Routific Webhook - Integration Tests', () => {
 
         simulator.db.prepare(
             'INSERT INTO service_history (id, subscription_id, customer_id, dispatch_status, service_date) VALUES (?, ?, ?, ?, ?)'
-        ).run('srv_456', subId, customerId, 'Pending', '2025-01-01T00:00:00Z');
+        )            .run('srv_456', subId, customerId, 'Pending', '2025-01-01T00:00:00Z');
 
         const payload = {
             event: 'stop.completed',
@@ -102,9 +121,16 @@ describe('Routific Webhook - Integration Tests', () => {
             }
         };
 
+        const bodyStr = JSON.stringify(payload);
+        const signature = await computeHmac(bodyStr, WEBHOOK_SECRET);
+
         const request = new Request('http://localhost/api/webhooks/routific', {
             method: 'POST',
-            body: JSON.stringify(payload),
+            body: bodyStr,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-routific-signature': signature,
+            },
         });
 
         const response = await POST(request);
@@ -132,7 +158,7 @@ describe('Routific Webhook - Integration Tests', () => {
 
         simulator.db.prepare(
             'INSERT INTO service_history (id, subscription_id, customer_id, dispatch_status, service_date) VALUES (?, ?, ?, ?, ?)'
-        ).run('srv_skipped', subId, customerId, 'Pending', '2025-01-01T00:00:00Z');
+        )            .run('srv_skipped', subId, customerId, 'Pending', '2025-01-01T00:00:00Z');
 
         const payload = {
             event: 'stop.skipped',
@@ -144,9 +170,16 @@ describe('Routific Webhook - Integration Tests', () => {
             }
         };
 
+        const bodyStr = JSON.stringify(payload);
+        const signature = await computeHmac(bodyStr, WEBHOOK_SECRET);
+
         const request = new Request('http://localhost/api/webhooks/routific', {
             method: 'POST',
-            body: JSON.stringify(payload),
+            body: bodyStr,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-routific-signature': signature,
+            },
         });
 
         const response = await POST(request);

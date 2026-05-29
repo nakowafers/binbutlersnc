@@ -2,8 +2,8 @@ import { Env } from '../../src/lib/types';
 import { RoutificAdapter } from '../../src/lib/routing/RoutificAdapter';
 import { D1DatabaseAdapter } from '../../src/lib/db/D1DatabaseAdapter';
 
-export default {
-    async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+const dispatchCron = {
+    async fetch() {
         return new Response("Dispatch Cron Worker is running. Press 's' in the terminal to trigger the scheduled event.");
     },
 
@@ -14,22 +14,28 @@ export default {
     async handleDispatch(env: Env, scheduledTime?: number) {
         console.log('Starting Weekly Dispatch Cron...');
 
+        // Atomic lock acquisition: INSERT ... ON CONFLICT with WHERE only updates expired locks
+        const acquiredAt = Date.now();
         const lockKey = 'cron_lock_dispatch';
-        const existingLock = await env.DB.prepare(
-            "SELECT value FROM global_settings WHERE key = ?"
+        const ttl = 30 * 60 * 1000;
+        const lockValue = JSON.stringify({ acquired_at: acquiredAt });
+
+        await env.DB.prepare(
+            `INSERT INTO global_settings (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET
+               value = EXCLUDED.value,
+               updated_at = CURRENT_TIMESTAMP
+             WHERE json_extract(value, '$.acquired_at') < ?`
+        ).bind(lockKey, lockValue, acquiredAt - ttl).run();
+
+        const lockRow = await env.DB.prepare(
+            'SELECT value FROM global_settings WHERE key = ?'
         ).bind(lockKey).first<{ value: string }>();
 
-        if (existingLock) {
-            const parsed = JSON.parse(existingLock.value);
-            const now = Date.now();
-            if (now - parsed.acquired_at < 30 * 60 * 1000) {
-                console.log('Dispatch cron lock still held, skipping this run.');
-                return;
-            }
+        if (!lockRow || JSON.parse(lockRow.value).acquired_at !== acquiredAt) {
+            console.log('Another worker holds the cron lock, skipping this run.');
+            return;
         }
-        await env.DB.prepare(
-            'INSERT INTO global_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP'
-        ).bind(lockKey, JSON.stringify({ acquired_at: Date.now() })).run();
 
         // Use scheduledTime to avoid drift from delayed cron execution
         const anchorMs = scheduledTime ?? Date.now();
@@ -53,7 +59,14 @@ export default {
 
         // Group by service_day
         const daysMap = { 'SUN': 0, 'MON': 1, 'TUE': 2, 'WED': 3, 'THU': 4, 'FRI': 5, 'SAT': 6 };
-        const jobsByDate: Record<string, any[]> = {};
+        const jobsByDate: Record<string, Array<{
+            id: string;
+            address: string;
+            lat?: number;
+            lng?: number;
+            customer_id: string;
+            subscription_id: string;
+        }>> = {};
 
         for (const row of results) {
             const isStillPaused = await env.DB.prepare(
@@ -65,7 +78,7 @@ export default {
             }
 
             const sDay = (row.service_day || 'MON').toUpperCase();
-            const target = (daysMap as any)[sDay] ?? 1;
+            const target = daysMap[sDay as keyof typeof daysMap] ?? 1;
             const today = now.getDay();
             let daysUntil = target - today;
             if (daysUntil <= 0) daysUntil += 7;
@@ -88,6 +101,7 @@ export default {
 
         const historyInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; status: string }> = [];
         const retryInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; errorMsg: string }> = [];
+        const routificDispatches: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }> = [];
 
         for (const [date, stops] of Object.entries(jobsByDate)) {
             try {
@@ -98,7 +112,7 @@ export default {
                 });
                 console.log(`Successfully created routing job: ${jobId} for date: ${date}`);
                 
-                // Add to service history as 'Pending' and store routific order IDs
+                // Add to service history as 'Pending' and collect routific order IDs for batched insert
                 for (const stop of stops) {
                     const historyId = crypto.randomUUID();
                     historyInserts.push({
@@ -108,14 +122,14 @@ export default {
                         date,
                         status: 'Pending'
                     });
-                    await db.storeRoutificDispatch(
-                        crypto.randomUUID(),
-                        stop.subscription_id,
-                        stop.id,
-                        date
-                    );
+                    routificDispatches.push({
+                        id: crypto.randomUUID(),
+                        subscriptionId: stop.subscription_id,
+                        routificOrderId: stop.id,
+                        serviceDate: date
+                    });
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
                 console.error(`Failed to create routing job for ${date}:`, error);
                 
                 for (const stop of stops) {
@@ -124,15 +138,20 @@ export default {
                         customerId: stop.customer_id,
                         subscriptionId: stop.subscription_id,
                         date,
-                        errorMsg: error.message || 'Unknown Error'
+                        errorMsg: error instanceof Error ? error.message : 'Unknown Error'
                     });
                 }
             }
         }
 
-        // Execute batch DB operations via Adapter
-        await db.logDispatchedJobs(historyInserts, retryInserts);
-        
-        console.log(`Logged ${historyInserts.length} to service_history, ${retryInserts.length} to pending_dispatches.`);
+        // Execute batch DB operations via Adapter (includes routific dispatch tracking)
+        try {
+            await db.logDispatchedJobs(historyInserts, retryInserts, routificDispatches);
+            console.log(`Logged ${historyInserts.length} to service_history, ${retryInserts.length} to pending_dispatches.`);
+        } catch (batchError) {
+            console.error('Failed to persist dispatch results:', batchError);
+        }
     }
 };
+
+export default dispatchCron;

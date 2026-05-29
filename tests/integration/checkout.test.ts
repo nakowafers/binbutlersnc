@@ -12,6 +12,7 @@ vi.mock('@cloudflare/next-on-pages', () => ({
 }));
 
 // Mock Stripe
+const mockCustomerList = vi.fn();
 vi.mock('stripe', () => {
     return {
         default: function() {
@@ -23,7 +24,10 @@ vi.mock('stripe', () => {
                 },
                 prices: {
                     retrieve: mockRetrievePrice,
-                }
+                },
+                customers: {
+                    list: mockCustomerList,
+                },
             };
         },
     };
@@ -35,6 +39,8 @@ describe('Checkout API - Integration Tests', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+
+        mockCustomerList.mockResolvedValue({ data: [] });
 
         simulator = new DbSimulator();
 
@@ -103,6 +109,7 @@ describe('Checkout API - Integration Tests', () => {
     it('should handle one-time frequency and custom setup fee override', async () => {
         mockCreateSession.mockResolvedValue({ url: 'https://stripe.com/checkout/session/456' });
         mockRetrievePrice.mockResolvedValue({ product: 'prod_onetime' });
+        mockCustomerList.mockResolvedValue({ data: [] });
 
         const body = {
             email: 'onetime@example.com',
@@ -113,8 +120,6 @@ describe('Checkout API - Integration Tests', () => {
             bin_quantity: 1,
             frequency: 'one-time',
             setup_fee_override: 50,
-            age_confirmed: true,
-            contact_consent: true,
         };
 
         const request = new Request('http://localhost/api/checkout', {

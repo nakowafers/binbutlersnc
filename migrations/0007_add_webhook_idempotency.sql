@@ -7,5 +7,5 @@ CREATE TABLE IF NOT EXISTS webhook_events (
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
--- Cleanup old entries (keep 30 days)
--- This is a soft-indexed approach; cleanup can be done periodically
+-- Index for periodic cleanup queries on created_at
+CREATE INDEX IF NOT EXISTS idx_webhook_events_created_at ON webhook_events(created_at);

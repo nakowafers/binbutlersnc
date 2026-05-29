@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getRequestContext } from "@cloudflare/next-on-pages";
-import { Env, Customer, Subscription, Address, ServiceHistory } from "@/lib/types";
+import { Env } from "@/lib/types";
 import { D1DatabaseAdapter } from "@/lib/db/D1DatabaseAdapter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -12,6 +12,7 @@ import {
     MapPin
 } from "lucide-react";
 import Link from 'next/link';
+import Image from 'next/image';
 import { PortalActions, UpdateDetailsTrigger, RescheduleButton, SignOutButton } from "@/components/portal-actions";
 
 export const runtime = 'edge';
@@ -45,7 +46,7 @@ export default async function PortalPage() {
             <header className="bg-white border-b h-20 flex items-center">
                 <div className="container mx-auto px-4 flex justify-between items-center">
                     <Link href="/">
-                        <img src="/assets/logo.png" alt="Logo" className="h-10 w-auto" />
+                        <Image src="/assets/logo.png" alt="Logo" width={1189} height={1251} className="h-10 w-auto" />
                     </Link>
                     <div className="flex items-center gap-4">
                         <span className="text-sm font-bold text-[#1C3D5A] hidden sm:block">{session.user.email}</span>

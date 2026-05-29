@@ -18,9 +18,37 @@ const checkoutSchema = z.object({
     frequency: z.enum(['monthly', 'quarterly', 'one-time']),
     sales_rep_id: z.string().optional(),
     setup_fee_override: z.number().min(1).optional(),
-    tos_accepted: z.boolean().optional(),
-    age_confirmed: z.literal(true, { message: "You must confirm you are 18 or older" }),
-    contact_consent: z.literal(true, { message: "You must agree to be contacted" }),
+    tos_accepted: z.boolean().optional().default(false),
+    age_confirmed: z.boolean().optional().default(false),
+    contact_consent: z.boolean().optional().default(false),
+}).superRefine((data, ctx) => {
+    if (data.frequency === 'one-time') {
+        return;
+    }
+
+    if (!data.tos_accepted) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['tos_accepted'],
+            message: 'You must accept the Terms of Service',
+        });
+    }
+
+    if (!data.age_confirmed) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['age_confirmed'],
+            message: 'You must confirm you are 18 or older',
+        });
+    }
+
+    if (!data.contact_consent) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['contact_consent'],
+            message: 'You must agree to be contacted',
+        });
+    }
 });
 
 export async function POST(request: Request) {

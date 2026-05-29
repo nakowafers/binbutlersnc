@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,8 +29,8 @@ const signupSchema = z.object({
     sales_rep_id: z.string().optional(),
     setup_fee_override: z.number().min(1, "Setup fee must be at least $1").optional(),
     tos_accepted: z.boolean().optional(),
-    age_confirmed: z.literal(true, { message: "You must confirm you are 18 or older" }),
-    contact_consent: z.literal(true, { message: "You must agree to be contacted" }),
+    age_confirmed: z.boolean().refine(v => v === true, { message: "You must confirm you are 18 or older" }),
+    contact_consent: z.boolean().refine(v => v === true, { message: "You must agree to be contacted" }),
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
@@ -50,7 +51,7 @@ function SignupForm() {
     const [isLoading, setIsLoading] = useState(false);
 
 
-    const { register, handleSubmit, watch, setValue, trigger, formState: { errors } } = useForm<SignupFormValues>({
+    const { register, handleSubmit, control, setValue, trigger, formState: { errors } } = useForm<SignupFormValues>({
         resolver: zodResolver(signupSchema),
         defaultValues: {
             frequency: (initialFrequency === 'monthly' || initialFrequency === 'quarterly' || initialFrequency === 'one-time') ? initialFrequency : 'monthly',
@@ -58,19 +59,20 @@ function SignupForm() {
             trash_day: 'MON',
             setup_fee_override: 100,
             tos_accepted: false,
-            age_confirmed: false as unknown as true,
-            contact_consent: false as unknown as true,
+            age_confirmed: false,
+            contact_consent: false,
         }
     });
 
-    const address = watch('address');
-    const frequency = watch('frequency');
-    const binQuantity = watch('bin_quantity');
-    const salesRepId = watch('sales_rep_id');
-    const setupFeeOverride = watch('setup_fee_override') ?? 100;
-    const tosAccepted = watch('tos_accepted');
-    const ageConfirmed = watch('age_confirmed');
-    const contactConsent = watch('contact_consent');
+    const address = useWatch({ control, name: 'address' });
+    const frequency = useWatch({ control, name: 'frequency' });
+    const binQuantity = useWatch({ control, name: 'bin_quantity' });
+    const salesRepId = useWatch({ control, name: 'sales_rep_id' });
+    const setupFeeOverride = useWatch({ control, name: 'setup_fee_override' }) ?? 100;
+    const tosAccepted = useWatch({ control, name: 'tos_accepted' });
+    const ageConfirmed = useWatch({ control, name: 'age_confirmed' });
+    const contactConsent = useWatch({ control, name: 'contact_consent' });
+    const trashDay = useWatch({ control, name: 'trash_day' });
 
     const onSubmit = async (data: SignupFormValues) => {
         setIsLoading(true);
@@ -95,7 +97,7 @@ function SignupForm() {
 
             const result = await response.json() as { url?: string };
             if (result.url) {
-                window.location.href = result.url;
+                window.location.assign(result.url);
             } else {
                 toast.error('Something went wrong. Please try again.');
             }
@@ -124,7 +126,7 @@ function SignupForm() {
     return (
         <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 flex flex-col items-center">
             <Link href="/" className="mb-8">
-                <img src="/assets/logo.png" alt="Bin Butlers NC" className="h-12 w-auto" />
+                <Image src="/assets/logo.png" alt="Bin Butlers NC" width={1189} height={1251} className="h-12 w-auto" />
             </Link>
 
             <div className="w-full max-w-xl">
@@ -403,7 +405,7 @@ function SignupForm() {
                                     <p>This agreement confirms your <span className="capitalize font-semibold">{frequency}</span> subscription for {binQuantity} trash bin{binQuantity > 1 ? 's' : ''} at the address listed above.</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">1. Service Scope</h4>
-                                    <p>Bin Butlers NC will provide professional cleaning, sanitizing, and deodorizing services for your specified trash bins. Service will occur on your municipal trash day ({watch('trash_day')}).</p>
+                                    <p>Bin Butlers NC will provide professional cleaning, sanitizing, and deodorizing services for your specified trash bins. Service will occur on your municipal trash day ({trashDay}).</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">2. Billing & Renewal</h4>
                                     <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of ${frequency === 'monthly' ? 30 : 40} will begin in {frequency === 'monthly' ? 4 : 12} weeks and will automatically renew until cancelled via the Stripe Customer Portal.</p>

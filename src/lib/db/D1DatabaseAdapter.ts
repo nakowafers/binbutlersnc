@@ -93,6 +93,13 @@ export class D1DatabaseAdapter implements IDatabaseService {
             .run();
     }
 
+    async getSubscriptionIdByStripeId(stripeSubscriptionId: string): Promise<string | null> {
+        const result = await this.db.prepare('SELECT id FROM subscriptions WHERE stripe_subscription_id = ?')
+            .bind(stripeSubscriptionId)
+            .first<{ id: string }>();
+        return result?.id || null;
+    }
+
     async updateSubscriptionStatus(stripeSubscriptionId: string, status: string, currentPeriodEnd: string | null): Promise<void> {
         if (currentPeriodEnd) {
             await this.db.prepare('UPDATE subscriptions SET status = ?, current_period_end = ? WHERE stripe_subscription_id = ?')
@@ -343,7 +350,8 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
     async logDispatchedJobs(
         historyInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; status: string }>,
-        retryInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; errorMsg: string }>
+        retryInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; errorMsg: string }>,
+        routificDispatches?: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }>
     ): Promise<void> {
         const batchStatements = [];
 
@@ -363,6 +371,16 @@ export class D1DatabaseAdapter implements IDatabaseService {
             );
         }
 
+        if (routificDispatches) {
+            for (const item of routificDispatches) {
+                batchStatements.push(
+                    this.db.prepare(
+                        'INSERT INTO routific_dispatches (id, subscription_id, routific_order_id, service_date) VALUES (?, ?, ?, ?)'
+                    ).bind(item.id, item.subscriptionId, item.routificOrderId, item.serviceDate)
+                );
+            }
+        }
+
         if (batchStatements.length > 0) {
             // Cloudflare D1 has a batch size limit of 100
             for (let i = 0; i < batchStatements.length; i += 100) {
@@ -371,13 +389,21 @@ export class D1DatabaseAdapter implements IDatabaseService {
         }
     }
 
-    async deletePendingDispatchAndLogSuccess(id: string, historyId: string, customerId: string, subscriptionId: string, date: string): Promise<void> {
-        await this.db.batch([
+    async deletePendingDispatchAndLogSuccess(id: string, historyId: string, customerId: string, subscriptionId: string, date: string, routificDispatchId?: string, routificOrderId?: string): Promise<void> {
+        const statements = [
             this.db.prepare('DELETE FROM pending_dispatches WHERE id = ?').bind(id),
             this.db.prepare(
                 'INSERT INTO service_history (id, customer_id, subscription_id, service_date, dispatch_status) VALUES (?, ?, ?, ?, ?)'
             ).bind(historyId, customerId, subscriptionId, date, 'Pending')
-        ]);
+        ];
+        if (routificDispatchId && routificOrderId) {
+            statements.push(
+                this.db.prepare(
+                    'INSERT OR IGNORE INTO routific_dispatches (id, subscription_id, routific_order_id, service_date) VALUES (?, ?, ?, ?)'
+                ).bind(routificDispatchId, subscriptionId, routificOrderId, date)
+            );
+        }
+        await this.db.batch(statements);
     }
 
     async incrementPendingDispatchRetryCount(id: string, errorMsg: string): Promise<void> {
@@ -395,9 +421,10 @@ export class D1DatabaseAdapter implements IDatabaseService {
     }
 
     async getRoutificOrderIdsBySubscription(subscriptionId: string): Promise<string[]> {
+        const today = new Date().toISOString().split('T')[0];
         const result = await this.db.prepare(
-            'SELECT routific_order_id FROM routific_dispatches WHERE subscription_id = ?'
-        ).bind(subscriptionId).all<{ routific_order_id: string }>();
+            'SELECT routific_order_id FROM routific_dispatches WHERE subscription_id = ? AND service_date >= ?'
+        ).bind(subscriptionId, today).all<{ routific_order_id: string }>();
         return result.results?.map(r => r.routific_order_id) || [];
     }
 

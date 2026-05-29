@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
+import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +31,7 @@ export default function SignInPage() {
     return (
         <div className="min-h-screen bg-[#F8FAFC] py-20 px-4 flex flex-col items-center justify-center">
             <Link href="/" className="mb-10">
-                <img src="/assets/logo.png" alt="Bin Butlers NC" className="h-16 w-auto" />
+                <Image src="/assets/logo.png" alt="Bin Butlers NC" width={1189} height={1251} className="h-16 w-auto" />
             </Link>
 
             <Card className="w-full max-w-md border-none shadow-2xl rounded-[2.5rem] overflow-hidden">

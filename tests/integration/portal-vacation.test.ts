@@ -49,7 +49,7 @@ describe('Portal Vacation API Route', () => {
         const request = new Request('http://localhost/api/portal/vacation', {
             method: 'POST',
             body: JSON.stringify({ subscriptionId: 'sub_123', isPaused: true }),
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
         });
 
         const response = await POST(request);
@@ -67,7 +67,7 @@ describe('Portal Vacation API Route', () => {
         const request = new Request('http://localhost/api/portal/vacation', {
             method: 'POST',
             body: JSON.stringify({ subscriptionId: 'sub_123' }), // isPaused missing
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
         });
 
         const response = await POST(request);
@@ -86,7 +86,7 @@ describe('Portal Vacation API Route', () => {
         const request = new Request('http://localhost/api/portal/vacation', {
             method: 'POST',
             body: JSON.stringify({ subscriptionId: 'sub_123', isPaused: true }),
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
         });
 
         const response = await POST(request);
@@ -105,7 +105,7 @@ describe('Portal Vacation API Route', () => {
         const request1 = new Request('http://localhost/api/portal/vacation', {
             method: 'POST',
             body: JSON.stringify({ subscriptionId: 'sub_123', isPaused: true }),
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
         });
 
         const response1 = await POST(request1);
@@ -122,7 +122,7 @@ describe('Portal Vacation API Route', () => {
         const request2 = new Request('http://localhost/api/portal/vacation', {
             method: 'POST',
             body: JSON.stringify({ subscriptionId: 'sub_123', isPaused: false }),
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' },
         });
 
         const response2 = await POST(request2);

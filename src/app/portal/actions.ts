@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { Env, Customer } from '@/lib/types';
+import { Env } from '@/lib/types';
 import { StripeAdapter } from '@/lib/payment/StripeAdapter';
 import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { redirect } from 'next/navigation';

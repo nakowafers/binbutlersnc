@@ -38,7 +38,14 @@ async function rateLimitedHandler(
             headers,
         });
     } catch {
-        return handler(request);
+        // Fail-closed: if rate limiting encounters an error, return 429
+        return new Response(JSON.stringify({ error: "Too many requests. Try again later." }), {
+            status: 429,
+            headers: {
+                "Content-Type": "application/json",
+                "Retry-After": "60",
+            },
+        });
     }
 }
 

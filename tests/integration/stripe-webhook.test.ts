@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../../src/app/api/webhooks/stripe/route';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import Stripe from 'stripe';
 import { DbSimulator } from './db-simulator';
 
 const mockConstructEventAsync = vi.fn();
@@ -31,17 +30,6 @@ vi.mock('stripe', () => {
     };
 });
 
-// Mock Resend
-vi.mock('resend', () => ({
-    Resend: function() {
-        return {
-            emails: {
-                send: vi.fn().mockResolvedValue({ id: 'test-email-id' }),
-            },
-        };
-    },
-}));
-
 describe('Stripe Webhook - Integration Tests with SQLite', () => {
     let simulator: DbSimulator;
     let mockEnv: any;
@@ -56,7 +44,6 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
             DB: simulator,
             STRIPE_SECRET_KEY: 'sk_test_123',
             STRIPE_WEBHOOK_SECRET: 'whsec_123',
-            RESEND_API_KEY: 're_123',
         };
 
         (getRequestContext as any).mockReturnValue({ env: mockEnv });
@@ -184,6 +171,100 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE customer_id = ?').get(customer.id) as any;
         expect(subscription.last_service_date).toBeDefined();
         expect(subscription.last_service_date).not.toBeNull();
+    });
+
+    it('should allow a failed checkout webhook to be retried after the missing lead is created', async () => {
+        const leadId = 'lead_retry';
+        const event = {
+            id: 'evt_retry_missing_lead',
+            type: 'checkout.session.completed',
+            data: {
+                object: {
+                    customer: 'cus_retry',
+                    subscription: 'sub_retry',
+                    metadata: {
+                        lead_id: leadId,
+                        phone_number: '555-1212',
+                        trash_day: 'THU',
+                        provider_name: 'Waste Co',
+                        bin_quantity: '1',
+                        frequency: 'monthly',
+                    },
+                },
+            },
+        };
+
+        mockConstructEventAsync.mockResolvedValue(event);
+
+        const firstResponse = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        }));
+        expect(firstResponse.status).toBe(404);
+
+        let customer = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').get('retry@example.com') as any;
+        expect(customer).toBeUndefined();
+
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'retry@example.com', '321 Retry Ln', null, 0);
+
+        const secondResponse = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        }));
+        expect(secondResponse.status).toBe(200);
+
+        customer = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').get('retry@example.com') as any;
+        expect(customer).toBeDefined();
+        expect(customer.stripe_customer_id).toBe('cus_retry');
+    });
+
+    it('should fail checkout webhook processing if subscription period lookup fails instead of writing a null end date', async () => {
+        const leadId = 'lead_period_end';
+
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'period@example.com', '654 Period Ln', null, 0);
+
+        mockRetrieve.mockRejectedValueOnce(new Error('Stripe unavailable'));
+
+        const event = {
+            id: 'evt_period_end_fail',
+            type: 'checkout.session.completed',
+            data: {
+                object: {
+                    customer: 'cus_period',
+                    subscription: 'sub_period',
+                    metadata: {
+                        lead_id: leadId,
+                        phone_number: '555-3434',
+                        trash_day: 'MON',
+                        provider_name: 'Waste Co',
+                        bin_quantity: '2',
+                        frequency: 'monthly',
+                    },
+                },
+            },
+        };
+
+        mockConstructEventAsync.mockResolvedValue(event);
+
+        const response = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        }));
+
+        expect(response.status).toBe(502);
+
+        const customer = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').get('period@example.com');
+        expect(customer).toBeUndefined();
+
+        const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE stripe_subscription_id = ?').get('sub_period');
+        expect(subscription).toBeUndefined();
     });
 
     it('should correctly capture and persist tos_accepted_at from metadata', async () => {
@@ -314,6 +395,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
             data: {
                 object: {
                     id: stripeSubId,
+                    current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
                 },
             },
         };

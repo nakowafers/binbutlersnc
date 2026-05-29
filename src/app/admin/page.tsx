@@ -15,6 +15,7 @@ import {
     Clock
 } from "lucide-react";
 import Link from 'next/link';
+import Image from 'next/image';
 import { HolidayShiftButton } from './holiday-shift-button';
 import { SignOutButton } from '@/components/portal-actions';
 
@@ -23,8 +24,7 @@ export const runtime = 'edge';
 export default async function AdminDashboard() {
     const session = await auth();
     
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (!session || !session.user || (session.user as any).role !== 'ADMIN') {
+    if (!session || !session.user || (session.user as { role?: string }).role !== 'ADMIN') {
         // Redirect non-admins to portal
         redirect('/portal');
     }
@@ -55,7 +55,7 @@ export default async function AdminDashboard() {
             {/* Sidebar */}
             <aside className="w-64 bg-[#1C3D5A] text-white p-6 flex flex-col">
                 <div className="flex items-center gap-3 mb-10">
-                    <img src="/assets/logo.png" alt="Logo" className="h-8 w-auto brightness-0 invert" />
+                    <Image src="/assets/logo.png" alt="Logo" width={1189} height={1251} className="h-8 w-auto brightness-0 invert" />
                     <span className="font-bold text-xl">Admin</span>
                 </div>
 

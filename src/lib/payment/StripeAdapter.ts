@@ -90,9 +90,11 @@ export class StripeAdapter implements IPaymentService {
 
         const customerEmail = params.email;
         let existingCustomerId: string | null = null;
-        if (mode === 'payment') {
+        try {
             const customers = await this.stripe.customers.list({ email: customerEmail, limit: 1 });
             existingCustomerId = customers.data[0]?.id || null;
+        } catch (err) {
+            console.error('Failed to look up customer by email in Stripe:', err);
         }
 
         const session = await this.stripe.checkout.sessions.create({
@@ -106,7 +108,7 @@ export class StripeAdapter implements IPaymentService {
             } : undefined,
             success_url: params.successUrl,
             cancel_url: params.cancelUrl,
-            customer_email: params.email,
+            customer_email: existingCustomerId ? undefined : params.email,
             metadata: {
                 lead_id: params.leadId,
                 sales_rep_id: params.salesRepId || '',
