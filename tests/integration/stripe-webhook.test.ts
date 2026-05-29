@@ -4,6 +4,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { DbSimulator } from './db-simulator';
 
 const mockConstructEventAsync = vi.fn();
+const mockCustomerUpdate = vi.fn();
 
 // Mock Cloudflare context
 vi.mock('@cloudflare/next-on-pages', () => ({
@@ -25,6 +26,9 @@ vi.mock('stripe', () => {
                 subscriptions: {
                     retrieve: mockRetrieve,
                 },
+                customers: {
+                    update: mockCustomerUpdate,
+                },
             };
         },
     };
@@ -36,6 +40,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        mockCustomerUpdate.mockResolvedValue({});
 
         // Use the real SQLite-backed database simulator
         simulator = new DbSimulator();
@@ -107,6 +112,15 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         expect(address.service_day).toBe('MON');
         expect(address.provider_name).toBe('Waste Co');
 
+        expect(mockCustomerUpdate).toHaveBeenCalledWith('cus_123', {
+            metadata: expect.objectContaining({
+                service_address: '123 Organic St',
+                trash_day: 'MON',
+                provider_name: 'Waste Co',
+                phone_number: '555-5555',
+            }),
+        });
+
         // 5. Query and verify subscription insertion
         const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE customer_id = ?').get(customer.id) as any;
         expect(subscription).toBeDefined();
@@ -171,6 +185,51 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE customer_id = ?').get(customer.id) as any;
         expect(subscription.last_service_date).toBeDefined();
         expect(subscription.last_service_date).not.toBeNull();
+    });
+
+    it('should fail checkout webhook processing if Stripe customer service details cannot be mirrored', async () => {
+        const leadId = 'lead_customer_update';
+
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'customer-update@example.com', '987 Metadata Ave', null, 0);
+
+        mockCustomerUpdate.mockRejectedValueOnce(new Error('Stripe customer update failed'));
+
+        const event = {
+            id: 'evt_customer_update_fail',
+            type: 'checkout.session.completed',
+            data: {
+                object: {
+                    customer: 'cus_customer_update',
+                    subscription: 'sub_customer_update',
+                    metadata: {
+                        lead_id: leadId,
+                        phone_number: '555-8989',
+                        trash_day: 'FRI',
+                        provider_name: 'Waste Co',
+                        bin_quantity: '1',
+                        frequency: 'monthly',
+                    },
+                },
+            },
+        };
+
+        mockConstructEventAsync.mockResolvedValue(event);
+
+        const response = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        }));
+
+        expect(response.status).toBe(502);
+
+        const customer = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').get('customer-update@example.com');
+        expect(customer).toBeUndefined();
+
+        const lead = simulator.db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId) as any;
+        expect(lead.converted).toBe(0);
     });
 
     it('should allow a failed checkout webhook to be retried after the missing lead is created', async () => {

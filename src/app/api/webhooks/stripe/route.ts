@@ -66,6 +66,19 @@ async function processStripeEvent(
             throw new WebhookHttpError(502, `Failed to fetch subscription period end: ${(error as Error).message}`);
         }
 
+        try {
+            await paymentService.updateCustomerServiceDetails(session.customer as string, {
+                address: lead.address,
+                trashDay,
+                providerName,
+                phoneNumber,
+                lat,
+                lng,
+            });
+        } catch (error) {
+            throw new WebhookHttpError(502, `Failed to update Stripe customer service details: ${(error as Error).message}`);
+        }
+
         await db.convertLeadToCustomerTransaction({
             leadId,
             email: lead.email,

@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { IPaymentService, CheckoutSessionParams } from './types';
+import { IPaymentService, CheckoutSessionParams, CustomerServiceDetails } from './types';
 
 export interface StripeConfig {
     secretKey: string;
@@ -136,6 +136,19 @@ export class StripeAdapter implements IPaymentService {
             return stripeCustomers.data[0].id;
         }
         return null;
+    }
+
+    async updateCustomerServiceDetails(customerId: string, details: CustomerServiceDetails): Promise<void> {
+        await this.stripe.customers.update(customerId, {
+            metadata: {
+                service_address: details.address,
+                trash_day: details.trashDay,
+                provider_name: details.providerName || '',
+                phone_number: details.phoneNumber || '',
+                service_lat: details.lat?.toString() || '',
+                service_lng: details.lng?.toString() || '',
+            },
+        });
     }
 
     async createBillingPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }> {
