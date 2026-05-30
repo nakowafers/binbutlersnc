@@ -19,7 +19,7 @@ export default function SignInPage() {
         e.preventDefault();
         setIsLoading(true);
         try {
-            await signIn('resend', { email, callbackUrl: '/portal' });
+            await signIn('resend', { email, callbackUrl: '/' });
         } catch (error) {
             console.error('Sign in error:', error);
             toast.error('Failed to send magic link.');

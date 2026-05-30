@@ -1,8 +1,7 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { Env } from "@/lib/types";
 import { StripeAdapter } from "@/lib/payment/StripeAdapter";
+import { ManageBillingButton } from "@/components/manage-billing-button";
 
 export const runtime = 'edge';
 
@@ -14,7 +13,7 @@ export default async function SuccessPage({
     const params = await searchParams;
     const sessionId = params.session_id;
 
-    let verification: { id: string; payment_status: string; customer_email: string | null; amount_total: number | null } | null = null;
+    let verification: { id: string; payment_status: string; customer_email: string | null; amount_total: number | null; customer: string | null } | null = null;
     let error: string | null = null;
 
     if (sessionId) {
@@ -66,13 +65,11 @@ export default async function SuccessPage({
                         </>
                     )}
                 </div>
-                <div className="mt-8">
-                    <Link href="/portal">
-                        <Button className="w-full">
-                            Go to Customer Portal
-                        </Button>
-                    </Link>
-                </div>
+                {sessionId && !error && (
+                    <div className="mt-8">
+                        <ManageBillingButton sessionId={sessionId} />
+                    </div>
+                )}
             </div>
         </div>
     );

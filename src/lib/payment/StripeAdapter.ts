@@ -173,13 +173,14 @@ export class StripeAdapter implements IPaymentService {
         return subscription.current_period_end;
     }
 
-    async retrieveCheckoutSession(sessionId: string): Promise<{ id: string; payment_status: string; customer_email: string | null; amount_total: number | null }> {
+    async retrieveCheckoutSession(sessionId: string): Promise<{ id: string; payment_status: string; customer_email: string | null; amount_total: number | null; customer: string | null }> {
         const session = await this.stripe.checkout.sessions.retrieve(sessionId);
         return {
             id: session.id,
             payment_status: session.payment_status,
             customer_email: session.customer_email || session.customer_details?.email || null,
             amount_total: session.amount_total,
+            customer: (session.customer as string) || null,
         };
     }
 

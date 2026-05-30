@@ -89,8 +89,8 @@ Column names in D1 must be generic to support the Adapter Pattern:
 3.  **Holiday Rescheduling (Manual Offset):** The Admin Dashboard will include a "Shift Routes" feature to manually offset a week's service dates (e.g., shifting all Tuesday stops to Wednesday) to accommodate municipal holiday schedules.
 
 ### 4.4. Client & Admin Management
-1.  **Stripe Portal:** Self-service billing management.
-2.  **Authenticated Settings Page:** Magic-Link login for users to update address/day or toggle "Vacation Mode."
+1.  **Stripe Billing Portal:** Post-checkout, users are redirected directly to Stripe's hosted Billing Portal for self-service payment management, invoices, and plan changes — no custom auth required.
+2.  **Authenticated Settings Page (Future):** Magic-Link login for users to update address/day, toggle "Vacation Mode," view service history, and manage property access details.
 3.  **Bin Identification:** Service relies on physical "Service Stickers" applied during the initial D2D clean. Drivers clean all bins marked with active stickers.
 4.  **Admin Dashboard (Single User):** A secure administrative view for:
     - Reviewing new signups and mapping them to routes.
@@ -234,12 +234,29 @@ Every feature must be verified against the following SQA-grade testing matrix be
 
 ---
 
+## 10. Future Features
+
+### 10.1. Custom Customer Portal
+Replace the Stripe Billing Portal redirect with an authenticated, self-hosted portal featuring:
+
+- **Service History:** Display past cleanings with dates, addresses, and dispatch status, linked to proof-of-service photos from Cloudflare R2.
+- **Service Details Management:** Self-serve updates to gate code, HOA name, and access notes.
+- **Reschedule:** Allow customers to change their service day.
+- **Vacation Mode (Pause/Resume):** Temporarily pause subscription service.
+- **Stripe Billing Actions:** Manage payment methods, invoices, and plan changes (via embedded or linked Stripe components).
+
+### 10.2. Notifications & Communications
+- **Transactional Emails:** Service reminders, confirmations, and receipts via Resend.
+- **Abandoned Cart Recovery:** Automated follow-up for leads that don't complete checkout within 24 hours.
+- **SMS Reminders:** Day-before service alerts with provider details.
+
+### 10.3. Admin Dashboard Enhancements
+- **Route Shifting:** Holiday schedule offset tool to shift a week's stops (e.g., Tuesday → Wednesday).
+- **Manual Re-mapping:** Reassign a customer to a different service route without breaking the Stripe connection.
+- **Refund Flow:** Trigger refunds via Stripe redirect from the admin panel.
+
+---
+
 **Approval Signature:**  
 *Lead Architect: ____________________*  
 *QA Lead: __________________________*
-ad: __________________________*
-*QA Lead: __________________________*
-ad: __________________________*
-oring service verification photos.
-*   **Service Verification (Photos):** Drivers capture proof-of-service photos which are uploaded to **Cloudflare R2** and linked in the customer portal.
-*   **Communications:** abandoned cart emails and advanced notifications.

@@ -17,7 +17,7 @@ import {
 import Link from 'next/link';
 import Image from 'next/image';
 import { HolidayShiftButton } from './holiday-shift-button';
-import { SignOutButton } from '@/components/portal-actions';
+import { SignOutButton } from './sign-out-button';
 
 export const runtime = 'edge';
 
@@ -25,8 +25,7 @@ export default async function AdminDashboard() {
     const session = await auth();
     
     if (!session || !session.user || (session.user as { role?: string }).role !== 'ADMIN') {
-        // Redirect non-admins to portal
-        redirect('/portal');
+        redirect('/');
     }
 
     const { env } = (getRequestContext() as unknown) as { env: Env };
