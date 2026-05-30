@@ -110,13 +110,18 @@ async function processStripeEvent(
     }
 
     if (event.type === 'customer.subscription.deleted') {
-        const subscription = event.data.object as unknown as { id: string; current_period_end: number };
-        if (!subscription.current_period_end) {
+        const sub = event.data.object as unknown as {
+            id: string;
+            current_period_end?: number;
+            items?: { data: Array<{ current_period_end?: number | null }> };
+        };
+        const periodEnd = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? undefined;
+        if (!periodEnd) {
             throw new WebhookHttpError(500, 'Missing current period end on deleted subscription');
         }
 
-        const stripeSubscriptionId = subscription.id;
-        const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+        const stripeSubscriptionId = sub.id;
+        const currentPeriodEnd = new Date(periodEnd * 1000).toISOString();
 
         await db.updateSubscriptionStatus(stripeSubscriptionId, 'cancelled', currentPeriodEnd);
         console.log(`Successfully cancelled subscription immediately: ${stripeSubscriptionId}`);
@@ -124,19 +129,26 @@ async function processStripeEvent(
     }
 
     if (event.type === 'customer.subscription.updated') {
-        const subscription = event.data.object as unknown as { id: string; current_period_end: number; cancel_at_period_end: boolean; status: string };
-        if (!subscription.current_period_end) {
+        const sub = event.data.object as unknown as {
+            id: string;
+            current_period_end?: number;
+            cancel_at_period_end: boolean;
+            status: string;
+            items?: { data: Array<{ current_period_end?: number | null }> };
+        };
+        const periodEnd = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? undefined;
+        if (!periodEnd) {
             throw new WebhookHttpError(500, 'Missing current period end on updated subscription');
         }
 
-        const stripeSubscriptionId = subscription.id;
-        const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+        const stripeSubscriptionId = sub.id;
+        const currentPeriodEnd = new Date(periodEnd * 1000).toISOString();
 
-        if (subscription.cancel_at_period_end) {
+        if (sub.cancel_at_period_end) {
             await db.updateSubscriptionStatus(stripeSubscriptionId, 'cancelled', currentPeriodEnd);
             console.log(`Successfully marked subscription as cancelled at period end: ${stripeSubscriptionId}`);
         } else {
-            await db.updateSubscriptionStatus(stripeSubscriptionId, subscription.status, currentPeriodEnd);
+            await db.updateSubscriptionStatus(stripeSubscriptionId, sub.status, currentPeriodEnd);
             console.log(`Successfully updated subscription: ${stripeSubscriptionId}`);
         }
         return;

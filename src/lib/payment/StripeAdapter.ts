@@ -162,15 +162,15 @@ export class StripeAdapter implements IPaymentService {
     }
 
     async retrieveSubscriptionPeriodEnd(subscriptionId: string): Promise<number> {
-        const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as unknown as {
-            current_period_end?: unknown;
-        };
+        const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
 
-        if (typeof subscription.current_period_end !== 'number' || !Number.isFinite(subscription.current_period_end)) {
+        const periodEnd = subscription.items?.data?.[0]?.current_period_end;
+
+        if (typeof periodEnd !== 'number' || !Number.isFinite(periodEnd)) {
             throw new Error(`Stripe subscription ${subscriptionId} did not return a valid current_period_end`);
         }
 
-        return subscription.current_period_end;
+        return periodEnd;
     }
 
     async retrieveCheckoutSession(sessionId: string): Promise<{ id: string; payment_status: string; customer_email: string | null; amount_total: number | null; customer: string | null }> {

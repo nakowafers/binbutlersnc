@@ -12,7 +12,13 @@ vi.mock('@cloudflare/next-on-pages', () => ({
 }));
 
 const mockRetrieve = vi.fn().mockResolvedValue({
-    current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+    items: {
+        data: [
+            {
+                current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+            },
+        ],
+    },
 });
 
 vi.mock('stripe', () => {
@@ -337,7 +343,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
             'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
         ).run(leadId, 'invalid-period@example.com', '999 Invalid Ln', null, 0);
 
-        mockRetrieve.mockResolvedValueOnce({ current_period_end: undefined as unknown as number });
+        mockRetrieve.mockResolvedValueOnce({ items: { data: [{ current_period_end: undefined as unknown as number }] } });
 
         const event = {
             id: 'evt_invalid_period_end',
@@ -500,7 +506,13 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
             data: {
                 object: {
                     id: stripeSubId,
-                    current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+                    items: {
+                        data: [
+                            {
+                                current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+                            },
+                        ],
+                    },
                 },
             },
         };
