@@ -14,23 +14,26 @@ vi.mock('@cloudflare/next-on-pages', () => ({
 // Mock Stripe
 const mockCustomerList = vi.fn();
 vi.mock('stripe', () => {
-    return {
-        default: function() {
-            return {
-                checkout: {
-                    sessions: {
-                        create: mockCreateSession,
-                    },
+    const StripeMock = function() {
+        return {
+            checkout: {
+                sessions: {
+                    create: mockCreateSession,
                 },
-                prices: {
-                    retrieve: mockRetrievePrice,
-                },
-                customers: {
-                    list: mockCustomerList,
-                },
-            };
-        },
+            },
+            prices: {
+                retrieve: mockRetrievePrice,
+            },
+            customers: {
+                list: mockCustomerList,
+            },
+        };
     };
+    StripeMock.createSubtleCryptoProvider = () => ({
+        computeHMACSignature: vi.fn(),
+        computeHMACSignatureAsync: vi.fn(),
+    });
+    return { default: StripeMock };
 });
 
 describe('Checkout API - Integration Tests', () => {
