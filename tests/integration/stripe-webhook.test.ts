@@ -15,22 +15,26 @@ const mockRetrieve = vi.fn().mockResolvedValue({
     current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
 });
 
-// Mock Stripe
 vi.mock('stripe', () => {
+    const StripeMock = function() {
+        return {
+            webhooks: {
+                constructEventAsync: mockConstructEventAsync,
+            },
+            subscriptions: {
+                retrieve: mockRetrieve,
+            },
+            customers: {
+                update: mockCustomerUpdate,
+            },
+        };
+    };
+    StripeMock.createSubtleCryptoProvider = () => ({
+        computeHMACSignature: vi.fn(),
+        computeHMACSignatureAsync: vi.fn(),
+    });
     return {
-        default: function() {
-            return {
-                webhooks: {
-                    constructEventAsync: mockConstructEventAsync,
-                },
-                subscriptions: {
-                    retrieve: mockRetrieve,
-                },
-                customers: {
-                    update: mockCustomerUpdate,
-                },
-            };
-        },
+        default: StripeMock,
     };
 });
 
@@ -324,6 +328,48 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
 
         const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE stripe_subscription_id = ?').get('sub_period');
         expect(subscription).toBeUndefined();
+    });
+
+    it('should fail checkout webhook processing if Stripe returns an invalid current_period_end value', async () => {
+        const leadId = 'lead_invalid_period_end';
+
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'invalid-period@example.com', '999 Invalid Ln', null, 0);
+
+        mockRetrieve.mockResolvedValueOnce({ current_period_end: undefined as unknown as number });
+
+        const event = {
+            id: 'evt_invalid_period_end',
+            type: 'checkout.session.completed',
+            data: {
+                object: {
+                    customer: 'cus_invalid_period',
+                    subscription: 'sub_invalid_period',
+                    metadata: {
+                        lead_id: leadId,
+                        phone_number: '555-4444',
+                        trash_day: 'THU',
+                        provider_name: 'Waste Co',
+                        bin_quantity: '1',
+                        frequency: 'monthly',
+                    },
+                },
+            },
+        };
+
+        mockConstructEventAsync.mockResolvedValue(event);
+
+        const response = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        }));
+
+        expect(response.status).toBe(502);
+
+        const payload = await response.json();
+        expect(payload.error).toContain('did not return a valid current_period_end');
     });
 
     it('should correctly capture and persist tos_accepted_at from metadata', async () => {

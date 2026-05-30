@@ -61,6 +61,9 @@ async function processStripeEvent(
         let currentPeriodEnd: string;
         try {
             const currentPeriodEndSecs = await paymentService.retrieveSubscriptionPeriodEnd(session.subscription as string);
+            if (!Number.isFinite(currentPeriodEndSecs)) {
+                throw new Error(`Stripe returned an invalid current_period_end for subscription ${session.subscription}`);
+            }
             currentPeriodEnd = new Date(currentPeriodEndSecs * 1000).toISOString();
         } catch (error) {
             throw new WebhookHttpError(502, `Failed to fetch subscription period end: ${(error as Error).message}`);
@@ -145,6 +148,9 @@ async function processStripeEvent(
 
         if (stripeSubscriptionId) {
             const currentPeriodEndSecs = await paymentService.retrieveSubscriptionPeriodEnd(stripeSubscriptionId);
+            if (!Number.isFinite(currentPeriodEndSecs)) {
+                throw new WebhookHttpError(502, `Stripe returned an invalid current_period_end for subscription ${stripeSubscriptionId}`);
+            }
             const currentPeriodEnd = new Date(currentPeriodEndSecs * 1000).toISOString();
 
             await db.updateSubscriptionStatus(stripeSubscriptionId, 'active', currentPeriodEnd);
