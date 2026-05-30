@@ -24,7 +24,7 @@ const signupSchema = z.object({
     email: z.string().email("Please enter a valid email"),
     phone_number: z.string().min(10, "Please enter a valid phone number"),
     trash_day: z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI']),
-    provider_name: z.string().min(2, "Please select or enter your provider"),
+    provider_name: z.string().optional(),
     bin_quantity: z.number().min(1, "Minimum 1 bin").max(10, "Maximum 10 bins"),
     sales_rep_id: z.string().optional(),
     setup_fee_override: z.number().min(1, "Setup fee must be at least $1").optional(),
@@ -113,7 +113,7 @@ function SignupForm() {
 
     const nextStep = async () => {
         const fieldsToValidate = step === 1
-            ? ['address', 'trash_day', 'bin_quantity', 'provider_name'] as const
+            ? ['address', 'trash_day', 'bin_quantity'] as const
             : ['email', 'phone_number'] as const;
 
         const isValid = await trigger(fieldsToValidate);
@@ -203,7 +203,7 @@ function SignupForm() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <Label htmlFor="provider_name" className="text-[#1C3D5A] font-bold">Service Provider</Label>
+                                    <Label htmlFor="provider_name" className="text-[#1C3D5A] font-bold">Service Provider <span className="text-slate-400 font-normal text-sm">(optional)</span></Label>
                                     <Input
                                         id="provider_name"
                                         {...register('provider_name')}

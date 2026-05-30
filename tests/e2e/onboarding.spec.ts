@@ -181,6 +181,47 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         expect(capturedPayload!.email).toBe('onetime@example.com');
     });
 
+    test('Organic Signup without Service Provider (optional field)', async ({ page }) => {
+        let capturedPayload: Record<string, unknown> | null = null;
+
+        await page.route('**/api/checkout', async (route) => {
+            capturedPayload = route.request().postDataJSON();
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ url: `/success?session_id=sess_no_provider_test` }),
+            });
+        });
+
+        await page.goto('/signup');
+
+        // Step 1: Fill all required fields EXCEPT provider_name
+        await page.fill('#address', '999 Optional Ln, Charlotte, NC');
+        await page.selectOption('#trash_day', 'THU');
+        await page.fill('#bin_quantity', '1');
+
+        // provider_name is NOT filled — verifying it's optional
+
+        // Verify progress is not blocked (no validation error for missing provider)
+        await page.getByRole('button', { name: 'Next Step' }).click();
+
+        // Step 2: Fill contact details
+        await page.fill('#email', 'noprovider@example.com');
+        await page.fill('#phone_number', '7045550000');
+
+        await page.getByRole('button', { name: 'Review Contract' }).click();
+
+        // Step 3: Accept ToS and submit
+        await page.check('#tos_accepted');
+        await page.getByRole('button', { name: 'Go to Payment' }).click();
+
+        await page.waitForURL('**/success**');
+
+        // Verify the captured payload has provider_name as empty string
+        expect(capturedPayload).not.toBeNull();
+        expect(capturedPayload!.provider_name).toBe('');
+    });
+
     test('Form validation - Step 1 should block progress with empty required fields', async ({ page }) => {
         await page.goto('/signup');
 

@@ -31,7 +31,7 @@ async function processStripeEvent(
         const salesRepId = metadata.sales_rep_id;
         const phoneNumber = metadata.phone_number;
         const trashDay = metadata.trash_day;
-        const providerName = metadata.provider_name;
+        const providerName = metadata.provider_name || '';
         const binQuantity = parseInt(metadata.bin_quantity || '1', 10);
         const lat = metadata.lat ? parseFloat(metadata.lat) : null;
         const lng = metadata.lng ? parseFloat(metadata.lng) : null;
