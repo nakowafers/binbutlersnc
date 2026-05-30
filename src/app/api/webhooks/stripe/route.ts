@@ -215,15 +215,32 @@ export async function POST(request: Request) {
 
         let event: Stripe.Event;
 
+        const webhookSecret = env.STRIPE_WEBHOOK_SECRET?.trim();
+        console.log(`[Webhook Debug] Secret starts with: ${webhookSecret?.substring(0, 10)}...`);
+        console.log(`[Webhook Debug] Secret length: ${webhookSecret?.length}`);
+        console.log(`[Webhook Debug] Signature header: ${signature?.substring(0, 30)}...`);
+        console.log(`[Webhook Debug] Body length: ${body?.length}`);
+
+        if (!webhookSecret || !webhookSecret.startsWith('whsec_')) {
+            console.error(`[Webhook Debug] Invalid webhook secret format. Value starts with: "${webhookSecret?.substring(0, 10)}"`);
+            return new Response(JSON.stringify({ error: 'Webhook secret misconfigured' }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
         try {
             event = await paymentService.verifyWebhookEvent(
                 body,
                 signature,
-                env.STRIPE_WEBHOOK_SECRET
+                webhookSecret
             ) as Stripe.Event;
         } catch (err) {
             const error = err as Error;
-            console.error(`Webhook signature verification failed: ${error.message}`);
+            console.error(`Webhook signature verification failed.`);
+            console.error(`  Error name: ${error.name}`);
+            console.error(`  Error message: ${error.message}`);
+            console.error(`  Full error: ${JSON.stringify(err, Object.getOwnPropertyNames(err))}`);
             return new Response(JSON.stringify({ error: 'Webhook signature verification failed' }), {
                 status: 400,
                 headers: { 'Content-Type': 'application/json' }
