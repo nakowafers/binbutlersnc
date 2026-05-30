@@ -1,4 +1,6 @@
 import Stripe from 'stripe';
+
+const cryptoProvider = Stripe.createSubtleCryptoProvider();
 import { IPaymentService, CheckoutSessionParams, CustomerServiceDetails } from './types';
 
 export interface StripeConfig {
@@ -175,6 +177,12 @@ export class StripeAdapter implements IPaymentService {
     }
 
     async verifyWebhookEvent(body: string, signature: string, secret: string): Promise<unknown> {
-        return await this.stripe.webhooks.constructEventAsync(body, signature, secret);
+        return await this.stripe.webhooks.constructEventAsync(
+            body,
+            signature,
+            secret,
+            undefined,
+            cryptoProvider
+        );
     }
 }
