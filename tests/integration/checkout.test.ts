@@ -93,6 +93,7 @@ describe('Checkout API - Integration Tests', () => {
         // 2. Verify Stripe session creation
         expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({
             customer_email: 'test@example.com',
+            customer_creation: undefined,
             mode: 'subscription',
             line_items: [
                 { price: 'price_monthly', quantity: 1 },
@@ -133,6 +134,7 @@ describe('Checkout API - Integration Tests', () => {
         // Verify Stripe session for one-time payment
         expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({
             mode: 'payment',
+            customer_creation: 'always',
             line_items: [
                 expect.objectContaining({
                     price_data: expect.objectContaining({

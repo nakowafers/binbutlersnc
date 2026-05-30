@@ -102,7 +102,7 @@ export class StripeAdapter implements IPaymentService {
             line_items: lineItems,
             mode: mode,
             customer: existingCustomerId || undefined,
-            customer_creation: existingCustomerId ? undefined : 'always',
+            customer_creation: mode === 'payment' && !existingCustomerId ? 'always' : undefined,
             subscription_data: mode === 'subscription' ? {
                 trial_period_days: params.frequency === 'monthly' ? 28 : 84,
             } : undefined,
