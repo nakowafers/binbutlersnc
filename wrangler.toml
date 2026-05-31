@@ -5,6 +5,7 @@ main = ".vercel/output/static/_worker.js/index.js"
 no_bundle = true
 find_additional_modules = true
 account_id = "4cd5940e1e98aa5f07d422904bc3cfa4"
+workers_dev = true
 
 [[rules]]
 type = "ESModule"

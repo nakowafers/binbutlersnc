@@ -1,0 +1,67 @@
+name: Deploy
+
+on: [push]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build for Cloudflare
+        run: npm run build:cf
+        env:
+          NEXT_PUBLIC_GEOAPIFY_API_KEY: ${{ secrets.NEXT_PUBLIC_GEOAPIFY_API_KEY }}
+
+      - name: Upload Workers preview version
+        if: github.ref != 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
+          command: versions upload --preview-alias ${{ github.ref_name }}
+
+      - name: Apply D1 migrations
+        if: github.ref == 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
+          command: d1 migrations apply binbutlersnc-db --remote
+
+      - name: Deploy main site
+        if: github.ref == 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
+          command: deploy
+
+      - name: Deploy daily-dispatch-cron worker
+        if: github.ref == 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
+          command: deploy
+          workingDirectory: workers/daily-dispatch-cron
+
+      - name: Deploy retry-cron worker
+        if: github.ref == 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
+          command: deploy
+          workingDirectory: workers/retry-cron
