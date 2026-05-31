@@ -169,6 +169,13 @@ export class D1DatabaseAdapter implements IDatabaseService {
         .run();
     }
 
+    async isSalesRepAllowedToOverrideFee(salesRepId: string): Promise<boolean> {
+        const result = await this.db.prepare(
+            'SELECT can_override_fee FROM sales_reps WHERE id = ? AND can_override_fee = 1'
+        ).bind(salesRepId).first<{ can_override_fee: number }>();
+        return result !== null;
+    }
+
     async convertLeadToCustomerTransaction(params: {
         leadId: string;
         email: string;

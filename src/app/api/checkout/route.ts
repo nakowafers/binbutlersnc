@@ -81,6 +81,20 @@ export async function POST(request: Request) {
 
         const validatedData = checkoutSchema.parse(body);
 
+        // Silently use default fee if sales rep is not authorized to override
+        if (validatedData.sales_rep_id && validatedData.setup_fee_override !== undefined && env?.DB) {
+            try {
+                const db = new D1DatabaseAdapter(env.DB);
+                const allowed = await db.isSalesRepAllowedToOverrideFee(validatedData.sales_rep_id);
+                if (!allowed) {
+                    validatedData.setup_fee_override = undefined;
+                }
+            } catch (dbError) {
+                console.error('Sales rep fee override check failed:', dbError);
+                validatedData.setup_fee_override = undefined;
+            }
+        }
+
         const leadId = crypto.randomUUID();
         const tosAcceptedAt = validatedData.tos_accepted ? new Date().toISOString() : null;
 
