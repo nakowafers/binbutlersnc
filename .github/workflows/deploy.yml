@@ -31,12 +31,14 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
           command: d1 migrations apply binbutlersnc-db --remote
 
       - name: Deploy main site
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
           command: pages deploy .vercel/output/static --project-name binbutlersnc --branch ${{ github.head_ref || 'main' }}
 
       - name: Deploy daily-dispatch-cron worker (production only)
@@ -44,6 +46,7 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
           command: deploy
           workingDirectory: workers/daily-dispatch-cron
 
@@ -52,5 +55,6 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
           command: deploy
           workingDirectory: workers/retry-cron
