@@ -69,7 +69,7 @@ export async function POST(request: Request) {
         if (body.event === 'stop.completed') {
             const { data } = body;
 
-            // Webhook does an UPDATE instead of INSERT because dispatch-cron already creates a Pending row
+            // Webhook does an UPDATE instead of INSERT because daily-dispatch-cron already creates a Pending row
             await db.updateServiceHistoryOnCompletion(data.subscription_id, data.completed_at || null);
 
             console.log(`Logged service completion for subscription ${data.subscription_id}`);

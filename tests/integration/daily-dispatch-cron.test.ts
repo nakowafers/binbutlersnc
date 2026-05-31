@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import dispatchCron from '../../workers/dispatch-cron/index';
+import dailyDispatchCron from '../../workers/daily-dispatch-cron/index';
 import { DbSimulator } from './db-simulator';
 
 // Mock Routific Adapter
@@ -13,7 +13,7 @@ vi.mock('../../src/lib/routing/RoutificAdapter', () => {
     };
 });
 
-describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
+describe('Daily Dispatch Cron Worker - Integration Tests with SQLite', () => {
     let simulator: DbSimulator;
     let mockEnv: any;
 
@@ -36,15 +36,15 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
         vi.useRealTimers();
     });
 
-    it('should push due subscriptions to Routific grouped by service_day and insert Pending history', async () => {
+    it('should push only tomorrow\'s due subscriptions to Routific and insert Pending history', async () => {
         // Seed database
-        // Customer 1 - Monday service
+        // Customer 1 - Tuesday service (tomorrow)
         simulator.db.prepare(
             'INSERT INTO customers (id, email) VALUES (?, ?)'
         ).run('cust1', 'test1@example.com');
         simulator.db.prepare(
             'INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run('addr1', 'cust1', '123 Main St', 35.1, -80.1, 'MON', 'MON');
+        ).run('addr1', 'cust1', '123 Main St', 35.1, -80.1, 'TUE', 'TUE');
         simulator.db.prepare(
             'UPDATE customers SET address_id = ? WHERE id = ?'
         ).run('addr1', 'cust1');
@@ -52,13 +52,13 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
             'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, current_period_end, frequency_days) VALUES (?, ?, ?, ?, ?, ?)'
         ).run('sub1', 'cust1', 'stripe_sub1', 'active', '2026-06-20T00:00:00.000Z', 28);
 
-        // Customer 2 - Tuesday service (one-time)
+        // Customer 2 - Wednesday service (2 days away - should be skipped)
         simulator.db.prepare(
             'INSERT INTO customers (id, email) VALUES (?, ?)'
         ).run('cust2', 'test2@example.com');
         simulator.db.prepare(
             'INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run('addr2', 'cust2', '456 Oak St', 35.2, -80.2, 'TUE', 'TUE');
+        ).run('addr2', 'cust2', '456 Oak St', 35.2, -80.2, 'WED', 'WED');
         simulator.db.prepare(
             'UPDATE customers SET address_id = ? WHERE id = ?'
         ).run('addr2', 'cust2');
@@ -70,43 +70,33 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
         mockCreateJob.mockResolvedValue('job_123');
 
         // Execute cron
-        await dispatchCron.handleDispatch(mockEnv);
+        await dailyDispatchCron.handleDispatch(mockEnv);
 
-        // Verify Routific API was called twice (once for 2024-05-14 (TUE) and once for 2024-05-20 (MON))
-        expect(mockCreateJob).toHaveBeenCalledTimes(2);
-        
-        // Check Monday Job (2024-05-20)
-        const monJobCall = mockCreateJob.mock.calls.find(call => call[0].date === '2024-05-20');
-        expect(monJobCall).toBeDefined();
-        expect(monJobCall[0].stops.length).toBe(1);
-        expect(monJobCall[0].stops[0].address).toBe('123 Main St');
+        // Verify Routific API was called once (only Tuesday stops)
+        expect(mockCreateJob).toHaveBeenCalledTimes(1);
 
-        // Check Tuesday Job (2024-05-14)
-        const tueJobCall = mockCreateJob.mock.calls.find(call => call[0].date === '2024-05-14');
-        expect(tueJobCall).toBeDefined();
-        expect(tueJobCall[0].stops.length).toBe(1);
-        expect(tueJobCall[0].stops[0].address).toBe('456 Oak St');
+        // Check the job is for 2024-05-14 (Tuesday)
+        const callArg = mockCreateJob.mock.calls[0][0];
+        expect(callArg.date).toBe('2024-05-14');
+        expect(callArg.stops.length).toBe(1);
+        expect(callArg.stops[0].address).toBe('123 Main St');
 
-        // Verify service_history table has 2 'Pending' rows
+        // Verify service_history table has 1 'Pending' row
         const history = simulator.db.prepare('SELECT * FROM service_history').all() as any[];
-        expect(history.length).toBe(2);
-        expect(history.every(h => h.dispatch_status === 'Pending')).toBe(true);
-        
-        const sub1History = history.find(h => h.subscription_id === 'sub1');
-        expect(sub1History.service_date).toBe('2024-05-20');
-
-        const sub2History = history.find(h => h.subscription_id === 'sub2');
-        expect(sub2History.service_date).toBe('2024-05-14');
+        expect(history.length).toBe(1);
+        expect(history[0].dispatch_status).toBe('Pending');
+        expect(history[0].subscription_id).toBe('sub1');
+        expect(history[0].service_date).toBe('2024-05-14');
     });
 
     it('should log to pending_dispatches if Routific API fails', async () => {
-        // Seed database
+        // Seed database: customer with Tuesday service (tomorrow)
         simulator.db.prepare(
             'INSERT INTO customers (id, email) VALUES (?, ?)'
         ).run('cust3', 'test3@example.com');
         simulator.db.prepare(
             'INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run('addr3', 'cust3', '789 Pine Rd', 35.3, -80.3, 'WED', 'WED');
+        ).run('addr3', 'cust3', '789 Pine Rd', 35.3, -80.3, 'TUE', 'TUE');
         simulator.db.prepare(
             'UPDATE customers SET address_id = ? WHERE id = ?'
         ).run('addr3', 'cust3');
@@ -118,7 +108,7 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
         mockCreateJob.mockRejectedValue(new Error('Routific timeout'));
 
         // Execute cron
-        await dispatchCron.handleDispatch(mockEnv);
+        await dailyDispatchCron.handleDispatch(mockEnv);
 
         // Verify Routific API was called
         expect(mockCreateJob).toHaveBeenCalledTimes(1);
@@ -128,7 +118,7 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
         expect(pending.length).toBe(1);
         expect(pending[0].subscription_id).toBe('sub3');
         expect(pending[0].last_error).toBe('Routific timeout');
-        
+
         // Verify service_history is still empty
         const history = simulator.db.prepare('SELECT * FROM service_history').all();
         expect(history.length).toBe(0);
@@ -152,7 +142,7 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
             'INSERT INTO service_history (id, subscription_id, dispatch_status, service_date) VALUES (?, ?, ?, ?)'
         ).run('sh_recent', 'sub4', 'Completed', '2024-05-13T12:00:00Z');
 
-        await dispatchCron.handleDispatch(mockEnv);
+        await dailyDispatchCron.handleDispatch(mockEnv);
 
         // Verify Routific API was NOT called
         expect(mockCreateJob).not.toHaveBeenCalled();
@@ -163,17 +153,17 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
     });
 
     it('should dispatch cancelled subscriptions if current_period_end is in the future', async () => {
-        // Customer 5 - cancelled but period ends in future
+        // Customer 5 - cancelled but period ends in future, Tuesday service (tomorrow)
         simulator.db.prepare(
             'INSERT INTO customers (id, email) VALUES (?, ?)'
         ).run('cust5', 'test5@example.com');
         simulator.db.prepare(
             'INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run('addr5', 'cust5', '101 Future St', 35.5, -80.5, 'FRI', 'FRI');
+        ).run('addr5', 'cust5', '101 Future St', 35.5, -80.5, 'TUE', 'TUE');
         simulator.db.prepare(
             'UPDATE customers SET address_id = ? WHERE id = ?'
         ).run('addr5', 'cust5');
-        
+
         const futureDate = new Date('2024-05-23T12:00:00Z');
         simulator.db.prepare(
             'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, current_period_end, frequency_days) VALUES (?, ?, ?, ?, ?, ?)'
@@ -181,49 +171,49 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
 
         mockCreateJob.mockResolvedValue('job_456');
 
-        await dispatchCron.handleDispatch(mockEnv);
+        await dailyDispatchCron.handleDispatch(mockEnv);
 
         expect(mockCreateJob).toHaveBeenCalledTimes(1);
         const callArg = mockCreateJob.mock.calls[0][0];
         expect(callArg.stops.length).toBe(1);
         expect(callArg.stops[0].subscription_id).toBe('sub5');
-        expect(callArg.date).toBe('2024-05-17'); // Next FRI after May 13 (Mon)
+        expect(callArg.date).toBe('2024-05-14');
     });
 
     it('should not dispatch cancelled subscriptions if current_period_end is in the past', async () => {
-        // Customer 6 - cancelled and period ended
+        // Customer 6 - cancelled and period ended, Tuesday service (tomorrow but filtered by db query)
         simulator.db.prepare(
             'INSERT INTO customers (id, email) VALUES (?, ?)'
         ).run('cust6', 'test6@example.com');
         simulator.db.prepare(
             'INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run('addr6', 'cust6', '202 Past St', 35.6, -80.6, 'MON', 'MON');
+        ).run('addr6', 'cust6', '202 Past St', 35.6, -80.6, 'TUE', 'TUE');
         simulator.db.prepare(
             'UPDATE customers SET address_id = ? WHERE id = ?'
         ).run('addr6', 'cust6');
-        
+
         const pastDate = new Date('2024-05-10T12:00:00Z');
         simulator.db.prepare(
             'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, current_period_end, frequency_days) VALUES (?, ?, ?, ?, ?, ?)'
         ).run('sub6', 'cust6', 'stripe_sub6', 'cancelled', pastDate.toISOString(), 28);
 
-        await dispatchCron.handleDispatch(mockEnv);
+        await dailyDispatchCron.handleDispatch(mockEnv);
 
         expect(mockCreateJob).not.toHaveBeenCalled();
     });
 
-    it('should apply holiday offsets to the dispatch date after calculating next service day', async () => {
-        // Customer 7 - Monday service
+    it('should apply holiday offsets to the dispatch date', async () => {
+        // Customer 7 - Tuesday service (tomorrow)
         simulator.db.prepare(
             'INSERT INTO customers (id, email) VALUES (?, ?)'
         ).run('cust7', 'test7@example.com');
         simulator.db.prepare(
             'INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run('addr7', 'cust7', '303 Holiday St', 35.7, -80.7, 'MON', 'MON');
+        ).run('addr7', 'cust7', '303 Holiday St', 35.7, -80.7, 'TUE', 'TUE');
         simulator.db.prepare(
             'UPDATE customers SET address_id = ? WHERE id = ?'
         ).run('addr7', 'cust7');
-        
+
         simulator.db.prepare(
             'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, current_period_end, frequency_days) VALUES (?, ?, ?, ?, ?, ?)'
         ).run('sub7', 'cust7', 'stripe_sub7', 'active', '2026-06-20T00:00:00.000Z', 28);
@@ -235,24 +225,23 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
 
         mockCreateJob.mockResolvedValue('job_789');
 
-        await dispatchCron.handleDispatch(mockEnv);
+        await dailyDispatchCron.handleDispatch(mockEnv);
 
         expect(mockCreateJob).toHaveBeenCalledTimes(1);
         const callArg = mockCreateJob.mock.calls[0][0];
-        
-        // Today is MON. Next MON is +7 days = 2024-05-20.
-        // Offset +24 hours -> 2024-05-21.
-        expect(callArg.date).toBe('2024-05-21');
+
+        // Today is MON. Tomorrow is TUE (2024-05-14). Offset +24 hours -> 2024-05-15.
+        expect(callArg.date).toBe('2024-05-15');
     });
 
     it('should NOT dispatch if there is already a Pending service record', async () => {
-         // Customer 8
-         simulator.db.prepare(
+        // Customer 8 - Tuesday service (tomorrow)
+        simulator.db.prepare(
             'INSERT INTO customers (id, email) VALUES (?, ?)'
         ).run('cust8', 'test8@example.com');
         simulator.db.prepare(
             'INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run('addr8', 'cust8', '888 Busy St', 35.8, -80.8, 'MON', 'MON');
+        ).run('addr8', 'cust8', '888 Busy St', 35.8, -80.8, 'TUE', 'TUE');
         simulator.db.prepare(
             'UPDATE customers SET address_id = ? WHERE id = ?'
         ).run('addr8', 'cust8');
@@ -263,9 +252,9 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
         // Add a Pending record manually
         simulator.db.prepare(
             'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES (?, ?, ?, ?)'
-        ).run('sh_busy', 'sub8', '2024-05-20', 'Pending');
+        ).run('sh_busy', 'sub8', '2024-05-14', 'Pending');
 
-        await dispatchCron.handleDispatch(mockEnv);
+        await dailyDispatchCron.handleDispatch(mockEnv);
 
         // Should NOT call Routific
         expect(mockCreateJob).not.toHaveBeenCalled();

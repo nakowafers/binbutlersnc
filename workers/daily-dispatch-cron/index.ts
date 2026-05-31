@@ -2,9 +2,9 @@ import { Env } from '../../src/lib/types';
 import { RoutificAdapter } from '../../src/lib/routing/RoutificAdapter';
 import { D1DatabaseAdapter } from '../../src/lib/db/D1DatabaseAdapter';
 
-const dispatchCron = {
+const dailyDispatchCron = {
     async fetch() {
-        return new Response("Dispatch Cron Worker is running. Press 's' in the terminal to trigger the scheduled event.");
+        return new Response("Daily Dispatch Cron Worker is running. Press 's' in the terminal to trigger the scheduled event.");
     },
 
     async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
@@ -12,7 +12,7 @@ const dispatchCron = {
     },
 
     async handleDispatch(env: Env, scheduledTime?: number) {
-        console.log('Starting Weekly Dispatch Cron...');
+        console.log('Starting Daily Dispatch Cron...');
 
         // Atomic lock acquisition: INSERT ... ON CONFLICT with WHERE only updates expired locks
         const acquiredAt = Date.now();
@@ -50,23 +50,23 @@ const dispatchCron = {
             return;
         }
 
-        console.log(`Found ${results.length} due subscriptions. Pushing to Routific...`);
+        console.log(`Found ${results.length} due subscriptions. Checking for tomorrow's stops...`);
 
         const offsetRowVal = await db.getGlobalSetting('holiday_offset_hours');
         const offsetHours = parseInt(offsetRowVal || '0', 10);
 
-        const routingService = new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
+        const daysMap: Record<string, number> = { 'SUN': 0, 'MON': 1, 'TUE': 2, 'WED': 3, 'THU': 4, 'FRI': 5, 'SAT': 6 };
 
-        // Group by service_day
-        const daysMap = { 'SUN': 0, 'MON': 1, 'TUE': 2, 'WED': 3, 'THU': 4, 'FRI': 5, 'SAT': 6 };
-        const jobsByDate: Record<string, Array<{
+        const tomorrowStops: Array<{
             id: string;
             address: string;
             lat?: number;
             lng?: number;
             customer_id: string;
             subscription_id: string;
-        }>> = {};
+        }> = [];
+
+        let tomorrowDate = '';
 
         for (const row of results) {
             const isStillPaused = await env.DB.prepare(
@@ -78,18 +78,21 @@ const dispatchCron = {
             }
 
             const sDay = (row.service_day || 'MON').toUpperCase();
-            const target = daysMap[sDay as keyof typeof daysMap] ?? 1;
+            const target = daysMap[sDay] ?? 1;
             const today = now.getDay();
             let daysUntil = target - today;
             if (daysUntil <= 0) daysUntil += 7;
-            
+
+            // Only dispatch stops scheduled for tomorrow
+            if (daysUntil !== 1) continue;
+
             const serviceDate = new Date(now);
-            serviceDate.setDate(serviceDate.getDate() + daysUntil);
+            serviceDate.setDate(serviceDate.getDate() + 1);
             serviceDate.setHours(serviceDate.getHours() + offsetHours);
             const formattedDate = serviceDate.toISOString().split('T')[0];
+            tomorrowDate = formattedDate;
 
-            if (!jobsByDate[formattedDate]) jobsByDate[formattedDate] = [];
-            jobsByDate[formattedDate].push({
+            tomorrowStops.push({
                 id: crypto.randomUUID(),
                 address: row.raw_address,
                 lat: row.latitude || undefined,
@@ -99,50 +102,55 @@ const dispatchCron = {
             });
         }
 
+        if (tomorrowStops.length === 0) {
+            console.log('No due subscriptions scheduled for tomorrow.');
+            return;
+        }
+
+        console.log(`Found ${tomorrowStops.length} stops for tomorrow (${tomorrowDate}). Pushing to Routific...`);
+
+        const routingService = new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
+
         const historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string }> = [];
         const retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }> = [];
         const routificDispatches: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }> = [];
 
-        for (const [date, stops] of Object.entries(jobsByDate)) {
-            try {
-                const jobId = await routingService.createJob({
-                    id: crypto.randomUUID(),
-                    stops: stops,
-                    date: date
+        try {
+            const jobId = await routingService.createJob({
+                id: crypto.randomUUID(),
+                stops: tomorrowStops,
+                date: tomorrowDate
+            });
+            console.log(`Successfully created routing job: ${jobId} for date: ${tomorrowDate}`);
+
+            for (const stop of tomorrowStops) {
+                const historyId = crypto.randomUUID();
+                historyInserts.push({
+                    id: historyId,
+                    subscriptionId: stop.subscription_id,
+                    date: tomorrowDate,
+                    status: 'Pending'
                 });
-                console.log(`Successfully created routing job: ${jobId} for date: ${date}`);
-                
-                // Add to service history as 'Pending' and collect routific order IDs for batched insert
-                for (const stop of stops) {
-                    const historyId = crypto.randomUUID();
-                    historyInserts.push({
-                        id: historyId,
-                        subscriptionId: stop.subscription_id,
-                        date,
-                        status: 'Pending'
-                    });
-                    routificDispatches.push({
-                        id: crypto.randomUUID(),
-                        subscriptionId: stop.subscription_id,
-                        routificOrderId: stop.id,
-                        serviceDate: date
-                    });
-                }
-            } catch (error: unknown) {
-                console.error(`Failed to create routing job for ${date}:`, error);
-                
-                for (const stop of stops) {
-                    retryInserts.push({
-                        id: crypto.randomUUID(),
-                        subscriptionId: stop.subscription_id,
-                        date,
-                        errorMsg: error instanceof Error ? error.message : 'Unknown Error'
-                    });
-                }
+                routificDispatches.push({
+                    id: crypto.randomUUID(),
+                    subscriptionId: stop.subscription_id,
+                    routificOrderId: stop.id,
+                    serviceDate: tomorrowDate
+                });
+            }
+        } catch (error: unknown) {
+            console.error(`Failed to create routing job for ${tomorrowDate}:`, error);
+
+            for (const stop of tomorrowStops) {
+                retryInserts.push({
+                    id: crypto.randomUUID(),
+                    subscriptionId: stop.subscription_id,
+                    date: tomorrowDate,
+                    errorMsg: error instanceof Error ? error.message : 'Unknown Error'
+                });
             }
         }
 
-        // Execute batch DB operations via Adapter (includes routific dispatch tracking)
         try {
             await db.logDispatchedJobs(historyInserts, retryInserts, routificDispatches);
             console.log(`Logged ${historyInserts.length} to service_history, ${retryInserts.length} to pending_dispatches.`);
@@ -152,4 +160,4 @@ const dispatchCron = {
     }
 };
 
-export default dispatchCron;
+export default dailyDispatchCron;

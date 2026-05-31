@@ -48,6 +48,6 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 To run cron workers locally:
 
 ```bash
-npx wrangler dev workers/dispatch-cron/index.ts
+npx wrangler dev workers/daily-dispatch-cron/index.ts
 npx wrangler dev workers/retry-cron/index.ts
 ```
