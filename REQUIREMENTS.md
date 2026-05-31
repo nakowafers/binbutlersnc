@@ -255,6 +255,43 @@ Replace the Stripe Billing Portal redirect with an authenticated, self-hosted po
 - **Manual Re-mapping:** Reassign a customer to a different service route without breaking the Stripe connection.
 - **Refund Flow:** Trigger refunds via Stripe redirect from the admin panel.
 
+## 11. Future Migrations
+
+### 11.1. Adapter Migration: `@cloudflare/next-on-pages` → `@opennextjs/cloudflare`
+
+**Status:** Planned (not yet scheduled)
+
+**Rationale:**
+`@cloudflare/next-on-pages` is [deprecated](https://github.com/cloudflare/next-on-pages#readme). It only supports the Next.js Edge runtime, which lacks ISR, full Node.js API compatibility, and modern Next.js features. The recommended replacement is `@opennextjs/cloudflare`, which runs on the Node.js runtime within Cloudflare Workers and supports the full Next.js feature set.
+
+**Impact Summary:**
+
+| Change | Files Affected |
+|---|---|
+| Replace package dependency | `package.json` |
+| Replace `getRequestContext` → `getCloudflareContext` | 10 source files |
+| Update `wrangler.toml` paths (`.vercel/output` → `.open-next/`) | `wrangler.toml` |
+| Update `next.config.mjs` dev platform setup | `next.config.mjs` |
+| Update `package.json` build scripts | `package.json` |
+| Remove `export const runtime = 'edge'` from routes | ~5 route files |
+| Update test mocks | 5 test files |
+| Update CI build command | `.github/workflows/deploy.yml` |
+| Add `open-next.config.ts` | New file |
+| Add `.open-next/` to `.gitignore` | `.gitignore` |
+
+**Key Differences After Migration:**
+
+| Capability | Before (`next-on-pages`) | After (`@opennextjs/cloudflare`) |
+|---|---|---|
+| Runtime | Edge (constrained Node.js) | Node.js via `nodejs_compat` |
+| ISR | Static fallback only | Full support |
+| Server Actions | Partial | Full |
+| `next/image` optimization | Limited | Via Cloudflare Images |
+| Build output | `.vercel/output/static/` | `.open-next/` |
+| Deploy command | `wrangler pages deploy` | `wrangler deploy` |
+
+**No architecture change** — the app remains a single Cloudflare Worker with Assets (no split into Pages + Workers required).
+
 ---
 
 **Approval Signature:**  

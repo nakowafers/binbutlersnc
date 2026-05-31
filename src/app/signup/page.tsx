@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -49,6 +49,8 @@ function SignupForm() {
 
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
+    const [canOverrideFee, setCanOverrideFee] = useState<boolean | null>(null);
+    const checkRepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
     const { register, handleSubmit, control, setValue, trigger, formState: { errors } } = useForm<SignupFormValues>({
@@ -73,6 +75,33 @@ function SignupForm() {
     const ageConfirmed = useWatch({ control, name: 'age_confirmed' });
     const contactConsent = useWatch({ control, name: 'contact_consent' });
     const trashDay = useWatch({ control, name: 'trash_day' });
+    useEffect(() => {
+        if (checkRepTimerRef.current) {
+            clearTimeout(checkRepTimerRef.current);
+        }
+        checkRepTimerRef.current = setTimeout(async () => {
+            if (!salesRepId) {
+                setCanOverrideFee(null);
+                return;
+            }
+            try {
+                const res = await fetch('/api/check-sales-rep', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sales_rep_id: salesRepId }),
+                });
+                const data = await res.json() as { allowed: boolean };
+                setCanOverrideFee(data.allowed);
+            } catch {
+                setCanOverrideFee(false);
+            }
+        }, 300);
+        return () => {
+            if (checkRepTimerRef.current) {
+                clearTimeout(checkRepTimerRef.current);
+            }
+        };
+    }, [salesRepId]);
 
     const onSubmit = async (data: SignupFormValues) => {
         setIsLoading(true);
@@ -322,7 +351,7 @@ function SignupForm() {
                                     />
                                 </div>
 
-                                {salesRepId && (
+                                {canOverrideFee && (
                                     <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
                                         <Label htmlFor="setup_fee_override" className="text-[#1C3D5A] font-bold">Initial Clean Fee ($)</Label>
                                         <Input

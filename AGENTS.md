@@ -21,3 +21,10 @@ When implementing UI, screens, or user flows, the agent MUST leverage the Stitch
 - Routing: Strict Adapter Pattern. Logic must live in `src/lib/routing/` using `IRoutingService`.
 - Fulfillment: D2D signups create immediate `service_history` records; Organic signups are dispatched via weekly cron.
 - Auth: Auth.js (Magic Links).
+
+## Verification
+- After making any code changes, run `npm run lint` to check for ESLint violations before committing.
+
+## Deployment Prerequisites
+- `AUTH_SECRET` must be set as a **GitHub Actions secret** (`https://github.com/binbutlersnc/binbutlersnc/settings/secrets/actions`) and is deployed via CI to Cloudflare Workers as a secret. Do not hardcode it anywhere.
+- For local dev, add `AUTH_SECRET=<value>` to `.dev.vars`.

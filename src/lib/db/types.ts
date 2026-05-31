@@ -57,6 +57,9 @@ export interface IDatabaseService {
     getGlobalSetting(key: string): Promise<string | null>;
     setGlobalSetting(key: string, value: string): Promise<void>;
 
+    // Sales Rep Authorization
+    isSalesRepAllowedToOverrideFee(salesRepId: string): Promise<boolean>;
+
     // Webhook/Process transactions
     convertLeadToCustomerTransaction(params: {
         leadId: string;
