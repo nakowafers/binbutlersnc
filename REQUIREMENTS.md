@@ -234,7 +234,6 @@ Every feature must be verified against the following SQA-grade testing matrix be
 
 ---
 
-<<<<<<< Updated upstream
 ## 10. Future Features
 
 ### 10.1. Custom Customer Portal
@@ -255,10 +254,10 @@ Replace the Stripe Billing Portal redirect with an authenticated, self-hosted po
 - **Route Shifting:** Holiday schedule offset tool to shift a week's stops (e.g., Tuesday → Wednesday).
 - **Manual Re-mapping:** Reassign a customer to a different service route without breaking the Stripe connection.
 - **Refund Flow:** Trigger refunds via Stripe redirect from the admin panel.
-=======
-## 10. Future Migrations
 
-### 10.1. Adapter Migration: `@cloudflare/next-on-pages` → `@opennextjs/cloudflare`
+## 11. Future Migrations
+
+### 11.1. Adapter Migration: `@cloudflare/next-on-pages` → `@opennextjs/cloudflare`
 
 **Status:** Planned (not yet scheduled)
 
@@ -292,7 +291,6 @@ Replace the Stripe Billing Portal redirect with an authenticated, self-hosted po
 | Deploy command | `wrangler pages deploy` | `wrangler deploy` |
 
 **No architecture change** — the app remains a single Cloudflare Worker with Assets (no split into Pages + Workers required).
->>>>>>> Stashed changes
 
 ---
 

@@ -1,12 +1,7 @@
 'use client';
 
-<<<<<<< Updated upstream
-import { useState, Suspense } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
-=======
 import { useState, useEffect, useRef, Suspense } from 'react';
-import { useForm } from 'react-hook-form';
->>>>>>> Stashed changes
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Image from 'next/image';
@@ -80,7 +75,6 @@ function SignupForm() {
     const ageConfirmed = useWatch({ control, name: 'age_confirmed' });
     const contactConsent = useWatch({ control, name: 'contact_consent' });
     const trashDay = useWatch({ control, name: 'trash_day' });
-
     useEffect(() => {
         if (checkRepTimerRef.current) {
             clearTimeout(checkRepTimerRef.current);
