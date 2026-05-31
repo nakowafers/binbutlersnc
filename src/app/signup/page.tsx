@@ -79,11 +79,11 @@ function SignupForm() {
         if (checkRepTimerRef.current) {
             clearTimeout(checkRepTimerRef.current);
         }
-        if (!salesRepId) {
-            setCanOverrideFee(null);
-            return;
-        }
         checkRepTimerRef.current = setTimeout(async () => {
+            if (!salesRepId) {
+                setCanOverrideFee(null);
+                return;
+            }
             try {
                 const res = await fetch('/api/check-sales-rep', {
                     method: 'POST',
