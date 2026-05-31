@@ -55,21 +55,15 @@ export class D1DatabaseAdapter implements IDatabaseService {
     async updateAddressDetails(addressId: string, details: {
         serviceDay?: string;
         trashDay?: string;
-        gateCode?: string;
-        hoaName?: string;
-        accessNotes?: string;
     }): Promise<void> {
         await this.db.prepare(
             `UPDATE addresses 
-             SET service_day = ?, trash_day = ?, gate_code = ?, hoa_name = ?, access_notes = ?
+             SET service_day = ?, trash_day = ?
              WHERE id = ?`
         )
         .bind(
             details.serviceDay ?? null,
             details.trashDay ?? null,
-            details.gateCode ?? null,
-            details.hoaName ?? null,
-            details.accessNotes ?? null,
             addressId
         )
         .run();
@@ -93,6 +87,13 @@ export class D1DatabaseAdapter implements IDatabaseService {
             .run();
     }
 
+    async getSubscriptionIdByStripeId(stripeSubscriptionId: string): Promise<string | null> {
+        const result = await this.db.prepare('SELECT id FROM subscriptions WHERE stripe_subscription_id = ?')
+            .bind(stripeSubscriptionId)
+            .first<{ id: string }>();
+        return result?.id || null;
+    }
+
     async updateSubscriptionStatus(stripeSubscriptionId: string, status: string, currentPeriodEnd: string | null): Promise<void> {
         if (currentPeriodEnd) {
             await this.db.prepare('UPDATE subscriptions SET status = ?, current_period_end = ? WHERE stripe_subscription_id = ?')
@@ -107,7 +108,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
     async getServiceHistoryByCustomerId(customerId: string, limit: number = 5): Promise<ServiceHistory[]> {
         const { results } = await this.db.prepare(
-            'SELECT * FROM service_history WHERE customer_id = ? ORDER BY service_date DESC LIMIT ?'
+            'SELECT sh.*, s.customer_id FROM service_history sh JOIN subscriptions s ON sh.subscription_id = s.id WHERE s.customer_id = ? ORDER BY sh.service_date DESC LIMIT ?'
         )
         .bind(customerId, limit)
         .all<ServiceHistory>();
@@ -139,13 +140,14 @@ export class D1DatabaseAdapter implements IDatabaseService {
         const { results } = await this.db.prepare(
             `SELECT 
                 c.email as customer, 
-                s.dispatch_status as status, 
-                s.service_date as time, 
+                sh.dispatch_status as status, 
+                sh.service_date as time, 
                 a.raw_address as address 
-             FROM service_history s 
+             FROM service_history sh 
+             JOIN subscriptions s ON sh.subscription_id = s.id
              JOIN customers c ON s.customer_id = c.id 
              JOIN addresses a ON c.address_id = a.id 
-             ORDER BY s.service_date DESC LIMIT ?`
+             ORDER BY sh.service_date DESC LIMIT ?`
         )
         .bind(limit)
         .all<{ customer: string; status: string; time: string; address: string }>();
@@ -187,10 +189,11 @@ export class D1DatabaseAdapter implements IDatabaseService {
         customerId: string;
         currentPeriodEnd: string | null;
         serviceHistoryId: string;
+        frequency: 'monthly' | 'quarterly' | 'one-time';
     }): Promise<void> {
         const batchStatements = [
-            // 1. Mark lead as converted
-            this.db.prepare('UPDATE leads SET converted = TRUE WHERE id = ?').bind(params.leadId),
+            // 1. Remove converted lead
+            this.db.prepare('DELETE FROM leads WHERE id = ?').bind(params.leadId),
 
             // 2. Create or update customer
             this.db.prepare(
@@ -239,15 +242,14 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
             // 5. Create subscription or one-time record
             this.db.prepare(
-                'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days, current_period_end, last_service_date) VALUES (?, ?, ?, ?, ?, ?, ?)'
+                'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days, current_period_end) VALUES (?, ?, ?, ?, ?, ?)'
             ).bind(
                 params.subscriptionId,
                 params.customerId,
                 params.stripeSubscriptionId,
                 params.stripeSubscriptionId ? 'active' : 'one-time',
-                params.stripeSubscriptionId ? (params.currentPeriodEnd ? 28 : 84) : 0, // Fallback logic based on webhook implementation
-                params.currentPeriodEnd,
-                params.salesRepId ? new Date().toISOString() : null
+                params.frequency === 'monthly' ? 28 : params.frequency === 'quarterly' ? 84 : 0,
+                params.currentPeriodEnd
             )
         ];
 
@@ -255,10 +257,9 @@ export class D1DatabaseAdapter implements IDatabaseService {
         if (params.salesRepId) {
             batchStatements.push(
                 this.db.prepare(
-                    'INSERT INTO service_history (id, customer_id, subscription_id, service_date, dispatch_status, sales_rep_id) VALUES (?, ?, ?, ?, ?, ?)'
+                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, sales_rep_id) VALUES (?, ?, ?, ?, ?)'
                 ).bind(
                     params.serviceHistoryId,
-                    params.customerId,
                     params.subscriptionId,
                     new Date().toISOString(),
                     'Completed',
@@ -270,17 +271,12 @@ export class D1DatabaseAdapter implements IDatabaseService {
         await this.db.batch(batchStatements);
     }
 
-    async updateServiceHistoryOnCompletion(subscriptionId: string, completedAt: string | null, nowIso: string): Promise<void> {
-        await this.db.batch([
-            this.db.prepare(
-                `UPDATE service_history 
-                 SET dispatch_status = ?, service_date = COALESCE(?, service_date) 
-                 WHERE subscription_id = ? AND dispatch_status = 'Pending'`
-            ).bind('Completed', completedAt, subscriptionId),
-            this.db.prepare(
-                'UPDATE subscriptions SET last_service_date = ? WHERE id = ?'
-            ).bind(completedAt || nowIso, subscriptionId)
-        ]);
+    async updateServiceHistoryOnCompletion(subscriptionId: string, completedAt: string | null): Promise<void> {
+        await this.db.prepare(
+            `UPDATE service_history 
+             SET dispatch_status = ?, service_date = COALESCE(?, service_date) 
+             WHERE subscription_id = ? AND dispatch_status = 'Pending'`
+        ).bind('Completed', completedAt, subscriptionId).run();
     }
 
     async updateServiceHistoryOnSkipped(subscriptionId: string, completedAt: string | null): Promise<void> {
@@ -305,14 +301,20 @@ export class D1DatabaseAdapter implements IDatabaseService {
             FROM subscriptions s
             JOIN customers c ON s.customer_id = c.id
             JOIN addresses a ON c.address_id = a.id
+            LEFT JOIN (
+                SELECT subscription_id, MAX(service_date) AS service_date
+                FROM service_history
+                WHERE dispatch_status = 'Completed'
+                GROUP BY subscription_id
+            ) sh_last ON sh_last.subscription_id = s.id
             WHERE (
               (s.status IN ('active', 'cancelled') AND s.is_paused = FALSE AND s.current_period_end > ?)
               OR
-              (s.status = 'one-time' AND s.last_service_date IS NULL)
+              (s.status = 'one-time' AND sh_last.service_date IS NULL)
             )
             AND (
-              s.last_service_date IS NULL
-              OR (julianday(?) - julianday(s.last_service_date)) >= s.frequency_days
+              sh_last.service_date IS NULL
+              OR (julianday(?) - julianday(sh_last.service_date)) >= s.frequency_days
             )
             AND NOT EXISTS (
               SELECT 1 FROM service_history sh 
@@ -328,11 +330,12 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
     async getPendingDispatches(maxRetries: number): Promise<PendingDispatchResult[]> {
         const { results } = await this.db.prepare(
-            `SELECT p.*, a.raw_address, a.latitude, a.longitude
+            `SELECT p.*, s.customer_id, a.raw_address, a.latitude, a.longitude
              FROM pending_dispatches p
-             JOIN customers c ON p.customer_id = c.id
+             JOIN subscriptions s ON p.subscription_id = s.id
+             JOIN customers c ON s.customer_id = c.id
              JOIN addresses a ON c.address_id = a.id
-             WHERE p.retry_count < ?`
+             WHERE p.retry_count < ? AND s.is_paused = FALSE`
         )
         .bind(maxRetries)
         .all<PendingDispatchResult>();
@@ -340,25 +343,36 @@ export class D1DatabaseAdapter implements IDatabaseService {
     }
 
     async logDispatchedJobs(
-        historyInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; status: string }>,
-        retryInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; errorMsg: string }>
+        historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string }>,
+        retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }>,
+        routificDispatches?: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }>
     ): Promise<void> {
         const batchStatements = [];
 
         for (const item of historyInserts) {
             batchStatements.push(
                 this.db.prepare(
-                    'INSERT INTO service_history (id, customer_id, subscription_id, service_date, dispatch_status) VALUES (?, ?, ?, ?, ?)'
-                ).bind(item.id, item.customerId, item.subscriptionId, item.date, item.status)
+                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES (?, ?, ?, ?)'
+                ).bind(item.id, item.subscriptionId, item.date, item.status)
             );
         }
 
         for (const item of retryInserts) {
             batchStatements.push(
                 this.db.prepare(
-                    'INSERT INTO pending_dispatches (id, customer_id, subscription_id, service_date, last_error) VALUES (?, ?, ?, ?, ?)'
-                ).bind(item.id, item.customerId, item.subscriptionId, item.date, item.errorMsg)
+                    'INSERT INTO pending_dispatches (id, subscription_id, service_date, last_error) VALUES (?, ?, ?, ?)'
+                ).bind(item.id, item.subscriptionId, item.date, item.errorMsg)
             );
+        }
+
+        if (routificDispatches) {
+            for (const item of routificDispatches) {
+                batchStatements.push(
+                    this.db.prepare(
+                        'INSERT INTO routific_dispatches (id, subscription_id, routific_order_id, service_date) VALUES (?, ?, ?, ?)'
+                    ).bind(item.id, item.subscriptionId, item.routificOrderId, item.serviceDate)
+                );
+            }
         }
 
         if (batchStatements.length > 0) {
@@ -369,13 +383,21 @@ export class D1DatabaseAdapter implements IDatabaseService {
         }
     }
 
-    async deletePendingDispatchAndLogSuccess(id: string, historyId: string, customerId: string, subscriptionId: string, date: string): Promise<void> {
-        await this.db.batch([
+    async deletePendingDispatchAndLogSuccess(id: string, historyId: string, subscriptionId: string, date: string, routificDispatchId?: string, routificOrderId?: string): Promise<void> {
+        const statements = [
             this.db.prepare('DELETE FROM pending_dispatches WHERE id = ?').bind(id),
             this.db.prepare(
-                'INSERT INTO service_history (id, customer_id, subscription_id, service_date, dispatch_status) VALUES (?, ?, ?, ?, ?)'
-            ).bind(historyId, customerId, subscriptionId, date, 'Pending')
-        ]);
+                'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES (?, ?, ?, ?)'
+            ).bind(historyId, subscriptionId, date, 'Pending')
+        ];
+        if (routificDispatchId && routificOrderId) {
+            statements.push(
+                this.db.prepare(
+                    'INSERT OR IGNORE INTO routific_dispatches (id, subscription_id, routific_order_id, service_date) VALUES (?, ?, ?, ?)'
+                ).bind(routificDispatchId, subscriptionId, routificOrderId, date)
+            );
+        }
+        await this.db.batch(statements);
     }
 
     async incrementPendingDispatchRetryCount(id: string, errorMsg: string): Promise<void> {
@@ -384,5 +406,25 @@ export class D1DatabaseAdapter implements IDatabaseService {
         )
         .bind(errorMsg, id)
         .run();
+    }
+
+    async storeRoutificDispatch(id: string, subscriptionId: string, routificOrderId: string, serviceDate: string): Promise<void> {
+        await this.db.prepare(
+            'INSERT INTO routific_dispatches (id, subscription_id, routific_order_id, service_date) VALUES (?, ?, ?, ?)'
+        ).bind(id, subscriptionId, routificOrderId, serviceDate).run();
+    }
+
+    async getRoutificOrderIdsBySubscription(subscriptionId: string): Promise<string[]> {
+        const today = new Date().toISOString().split('T')[0];
+        const result = await this.db.prepare(
+            'SELECT routific_order_id FROM routific_dispatches WHERE subscription_id = ? AND service_date >= ?'
+        ).bind(subscriptionId, today).all<{ routific_order_id: string }>();
+        return result.results?.map(r => r.routific_order_id) || [];
+    }
+
+    async deleteRoutificDispatch(id: string): Promise<void> {
+        await this.db.prepare(
+            'DELETE FROM routific_dispatches WHERE id = ?'
+        ).bind(id).run();
     }
 }

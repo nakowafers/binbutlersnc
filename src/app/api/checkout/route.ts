@@ -13,12 +13,42 @@ const checkoutSchema = z.object({
     lng: z.number().optional(),
     phone_number: z.string(),
     trash_day: z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI']),
-    provider_name: z.string(),
+    provider_name: z.string().optional(),
     bin_quantity: z.number().min(1),
     frequency: z.enum(['monthly', 'quarterly', 'one-time']),
     sales_rep_id: z.string().optional(),
-    setup_fee_override: z.number().optional(),
-    tos_accepted: z.boolean().optional(),
+    setup_fee_override: z.number().min(1).optional(),
+    tos_accepted: z.boolean().optional().default(false),
+    age_confirmed: z.boolean().optional().default(false),
+    contact_consent: z.boolean().optional().default(false),
+}).superRefine((data, ctx) => {
+    if (data.frequency === 'one-time') {
+        return;
+    }
+
+    if (!data.tos_accepted) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['tos_accepted'],
+            message: 'You must accept the Terms of Service',
+        });
+    }
+
+    if (!data.age_confirmed) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['age_confirmed'],
+            message: 'You must confirm you are 18 or older',
+        });
+    }
+
+    if (!data.contact_consent) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['contact_consent'],
+            message: 'You must agree to be contacted',
+        });
+    }
 });
 
 export async function POST(request: Request) {
@@ -90,7 +120,7 @@ export async function POST(request: Request) {
             binQuantity: validatedData.bin_quantity,
             phoneNumber: validatedData.phone_number,
             trashDay: validatedData.trash_day,
-            providerName: validatedData.provider_name,
+            providerName: validatedData.provider_name || '',
             salesRepId: validatedData.sales_rep_id,
             setup_fee_override: validatedData.setup_fee_override,
             tosAcceptedAt: tosAcceptedAt,

@@ -42,7 +42,7 @@ describe('Admin Settings API - Holiday Shift', () => {
         const request = new Request('http://localhost/api/admin/settings', {
             method: 'POST',
             body: JSON.stringify({ key: 'holiday_offset_hours', value: '24' }),
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' }
         });
 
         const response = await POST(request);
@@ -62,7 +62,7 @@ describe('Admin Settings API - Holiday Shift', () => {
         const request = new Request('http://localhost/api/admin/settings', {
             method: 'POST',
             body: JSON.stringify({ key: 'holiday_offset_hours' }), // Missing value
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' }
         });
 
         const response = await POST(request);
@@ -81,7 +81,7 @@ describe('Admin Settings API - Holiday Shift', () => {
         const request = new Request('http://localhost/api/admin/settings', {
             method: 'POST',
             body: JSON.stringify({ key: 'holiday_offset_hours', value: '24' }),
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' }
         });
 
         const response = await POST(request);
@@ -96,5 +96,25 @@ describe('Admin Settings API - Holiday Shift', () => {
         );
         expect(mockDb.bind).toHaveBeenCalledWith('holiday_offset_hours', '24');
         expect(mockDb.run).toHaveBeenCalled();
+    });
+
+    it('should reject invalid keys with 400 Bad Request', async () => {
+        // Mock admin user
+        (auth as any).mockResolvedValue({
+            user: { role: 'ADMIN' }
+        });
+
+        const request = new Request('http://localhost/api/admin/settings', {
+            method: 'POST',
+            body: JSON.stringify({ key: 'invalid_key_name', value: '24' }),
+            headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost' }
+        });
+
+        const response = await POST(request);
+        
+        expect(response.status).toBe(400);
+        const data = await response.json();
+        expect(data).toEqual({ error: 'Invalid setting key' });
+        expect(mockDb.prepare).not.toHaveBeenCalled();
     });
 });

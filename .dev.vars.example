@@ -1,0 +1,36 @@
+# =============================================================================
+# Bin Butlers NC — Environment Variables Template
+# =============================================================================
+# Copy this file to .dev.vars and fill in your own values.
+# Never commit .dev.vars to version control.
+# =============================================================================
+
+# Stripe — Get these from https://dashboard.stripe.com/apikeys (test mode)
+STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_signing_secret
+
+# Stripe Price IDs — Created in Stripe Dashboard > Products
+STRIPE_MONTHLY_PRICE_ID=price_your_monthly_price_id
+STRIPE_QUARTERLY_PRICE_ID=price_your_quarterly_price_id
+STRIPE_ONETIME_PRICE_ID=price_your_onetime_price_id
+STRIPE_SETUP_FEE_PRICE_ID=price_your_setup_fee_price_id
+
+# Routific — Get from https://beta.routific.com/settings?view=integrations
+ROUTIFIC_API_KEY=your_routific_api_key_here
+ROUTIFIC_WORKSPACE_ID=your_workspace_id_here
+ROUTIFIC_WEBHOOK_SECRET=your_routific_webhook_secret
+
+# Auth.js — Generate with: openssl rand -hex 32
+AUTH_SECRET=your_auth_secret_here
+
+# Resend — Get from https://resend.com/api-keys
+RESEND_API_KEY=re_your_resend_api_key
+
+# Geoapify — Get from https://console.geoapify.com
+NEXT_PUBLIC_GEOAPIFY_API_KEY=your_geoapify_api_key
+
+# Google Maps — Get from https://console.cloud.google.com
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+
+# Stripe Publishable Key — Get from https://dashboard.stripe.com/apikeys
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_your_publishable_key

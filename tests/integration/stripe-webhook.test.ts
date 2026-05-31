@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../../src/app/api/webhooks/stripe/route';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import Stripe from 'stripe';
 import { DbSimulator } from './db-simulator';
 
 const mockConstructEventAsync = vi.fn();
+const mockCustomerUpdate = vi.fn();
 
 // Mock Cloudflare context
 vi.mock('@cloudflare/next-on-pages', () => ({
@@ -12,35 +12,37 @@ vi.mock('@cloudflare/next-on-pages', () => ({
 }));
 
 const mockRetrieve = vi.fn().mockResolvedValue({
-    current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+    items: {
+        data: [
+            {
+                current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+            },
+        ],
+    },
 });
 
-// Mock Stripe
 vi.mock('stripe', () => {
-    return {
-        default: function() {
-            return {
-                webhooks: {
-                    constructEventAsync: mockConstructEventAsync,
-                },
-                subscriptions: {
-                    retrieve: mockRetrieve,
-                },
-            };
-        },
-    };
-});
-
-// Mock Resend
-vi.mock('resend', () => ({
-    Resend: function() {
+    const StripeMock = function() {
         return {
-            emails: {
-                send: vi.fn().mockResolvedValue({ id: 'test-email-id' }),
+            webhooks: {
+                constructEventAsync: mockConstructEventAsync,
+            },
+            subscriptions: {
+                retrieve: mockRetrieve,
+            },
+            customers: {
+                update: mockCustomerUpdate,
             },
         };
-    },
-}));
+    };
+    StripeMock.createSubtleCryptoProvider = () => ({
+        computeHMACSignature: vi.fn(),
+        computeHMACSignatureAsync: vi.fn(),
+    });
+    return {
+        default: StripeMock,
+    };
+});
 
 describe('Stripe Webhook - Integration Tests with SQLite', () => {
     let simulator: DbSimulator;
@@ -48,6 +50,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        mockCustomerUpdate.mockResolvedValue({});
 
         // Use the real SQLite-backed database simulator
         simulator = new DbSimulator();
@@ -56,7 +59,6 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
             DB: simulator,
             STRIPE_SECRET_KEY: 'sk_test_123',
             STRIPE_WEBHOOK_SECRET: 'whsec_123',
-            RESEND_API_KEY: 're_123',
         };
 
         (getRequestContext as any).mockReturnValue({ env: mockEnv });
@@ -99,9 +101,9 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         const response = await POST(request);
         expect(response.status).toBe(200);
 
-        // 2. Query and verify lead conversion
-        const lead = simulator.db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId) as any;
-        expect(lead.converted).toBe(1);
+        // 2. Verify lead was removed after conversion
+        const lead = simulator.db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId);
+        expect(lead).toBeUndefined();
 
         // 3. Query and verify customer insertion
         const customer = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').get('organic@example.com') as any;
@@ -119,6 +121,15 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         expect(address.trash_day).toBe('MON');
         expect(address.service_day).toBe('MON');
         expect(address.provider_name).toBe('Waste Co');
+
+        expect(mockCustomerUpdate).toHaveBeenCalledWith('cus_123', {
+            metadata: expect.objectContaining({
+                service_address: '123 Organic St',
+                trash_day: 'MON',
+                provider_name: 'Waste Co',
+                phone_number: '555-5555',
+            }),
+        });
 
         // 5. Query and verify subscription insertion
         const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE customer_id = ?').get(customer.id) as any;
@@ -175,15 +186,191 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         expect(customer).toBeDefined();
 
         // Verify service_history has 1 completed record
-        const services = simulator.db.prepare('SELECT * FROM service_history WHERE customer_id = ?').all(customer.id) as any[];
+        const services = simulator.db.prepare('SELECT sh.*, s.customer_id FROM service_history sh JOIN subscriptions s ON sh.subscription_id = s.id WHERE s.customer_id = ?').all(customer.id) as any[];
         expect(services.length).toBe(1);
         expect(services[0].dispatch_status).toBe('Completed');
         expect(services[0].sales_rep_id).toBe('REP_007');
+    });
 
-        // Verify subscription has last_service_date set to current time
-        const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE customer_id = ?').get(customer.id) as any;
-        expect(subscription.last_service_date).toBeDefined();
-        expect(subscription.last_service_date).not.toBeNull();
+    it('should fail checkout webhook processing if Stripe customer service details cannot be mirrored', async () => {
+        const leadId = 'lead_customer_update';
+
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'customer-update@example.com', '987 Metadata Ave', null, 0);
+
+        mockCustomerUpdate.mockRejectedValueOnce(new Error('Stripe customer update failed'));
+
+        const event = {
+            id: 'evt_customer_update_fail',
+            type: 'checkout.session.completed',
+            data: {
+                object: {
+                    customer: 'cus_customer_update',
+                    subscription: 'sub_customer_update',
+                    metadata: {
+                        lead_id: leadId,
+                        phone_number: '555-8989',
+                        trash_day: 'FRI',
+                        provider_name: 'Waste Co',
+                        bin_quantity: '1',
+                        frequency: 'monthly',
+                    },
+                },
+            },
+        };
+
+        mockConstructEventAsync.mockResolvedValue(event);
+
+        const response = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        }));
+
+        expect(response.status).toBe(502);
+
+        const customer = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').get('customer-update@example.com');
+        expect(customer).toBeUndefined();
+
+        const lead = simulator.db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId) as any;
+        expect(lead.converted).toBe(0);
+    });
+
+    it('should allow a failed checkout webhook to be retried after the missing lead is created', async () => {
+        const leadId = 'lead_retry';
+        const event = {
+            id: 'evt_retry_missing_lead',
+            type: 'checkout.session.completed',
+            data: {
+                object: {
+                    customer: 'cus_retry',
+                    subscription: 'sub_retry',
+                    metadata: {
+                        lead_id: leadId,
+                        phone_number: '555-1212',
+                        trash_day: 'THU',
+                        provider_name: 'Waste Co',
+                        bin_quantity: '1',
+                        frequency: 'monthly',
+                    },
+                },
+            },
+        };
+
+        mockConstructEventAsync.mockResolvedValue(event);
+
+        const firstResponse = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        }));
+        expect(firstResponse.status).toBe(404);
+
+        let customer = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').get('retry@example.com') as any;
+        expect(customer).toBeUndefined();
+
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'retry@example.com', '321 Retry Ln', null, 0);
+
+        const secondResponse = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        }));
+        expect(secondResponse.status).toBe(200);
+
+        customer = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').get('retry@example.com') as any;
+        expect(customer).toBeDefined();
+        expect(customer.stripe_customer_id).toBe('cus_retry');
+    });
+
+    it('should fail checkout webhook processing if subscription period lookup fails instead of writing a null end date', async () => {
+        const leadId = 'lead_period_end';
+
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'period@example.com', '654 Period Ln', null, 0);
+
+        mockRetrieve.mockRejectedValueOnce(new Error('Stripe unavailable'));
+
+        const event = {
+            id: 'evt_period_end_fail',
+            type: 'checkout.session.completed',
+            data: {
+                object: {
+                    customer: 'cus_period',
+                    subscription: 'sub_period',
+                    metadata: {
+                        lead_id: leadId,
+                        phone_number: '555-3434',
+                        trash_day: 'MON',
+                        provider_name: 'Waste Co',
+                        bin_quantity: '2',
+                        frequency: 'monthly',
+                    },
+                },
+            },
+        };
+
+        mockConstructEventAsync.mockResolvedValue(event);
+
+        const response = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        }));
+
+        expect(response.status).toBe(502);
+
+        const customer = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').get('period@example.com');
+        expect(customer).toBeUndefined();
+
+        const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE stripe_subscription_id = ?').get('sub_period');
+        expect(subscription).toBeUndefined();
+    });
+
+    it('should fail checkout webhook processing if Stripe returns an invalid current_period_end value', async () => {
+        const leadId = 'lead_invalid_period_end';
+
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'invalid-period@example.com', '999 Invalid Ln', null, 0);
+
+        mockRetrieve.mockResolvedValueOnce({ items: { data: [{ current_period_end: undefined as unknown as number }] } });
+
+        const event = {
+            id: 'evt_invalid_period_end',
+            type: 'checkout.session.completed',
+            data: {
+                object: {
+                    customer: 'cus_invalid_period',
+                    subscription: 'sub_invalid_period',
+                    metadata: {
+                        lead_id: leadId,
+                        phone_number: '555-4444',
+                        trash_day: 'THU',
+                        provider_name: 'Waste Co',
+                        bin_quantity: '1',
+                        frequency: 'monthly',
+                    },
+                },
+            },
+        };
+
+        mockConstructEventAsync.mockResolvedValue(event);
+
+        const response = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        }));
+
+        expect(response.status).toBe(502);
+
+        const payload = await response.json();
+        expect(payload.error).toContain('did not return a valid current_period_end');
     });
 
     it('should correctly capture and persist tos_accepted_at from metadata', async () => {
@@ -262,8 +449,13 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         const addrBefore = simulator.db.prepare('SELECT * FROM addresses WHERE raw_address = ?').get('555 Upsert Ln') as any;
         expect(addrBefore.trash_day).toBe('MON');
 
-        // 2. Second conversion (same address, same lead/email -> same customer_id)
+        // 2. Second conversion (same address, same email -> same customer_id, new lead)
         // This simulates a customer re-subscribing or updating info via a new checkout with same address
+        const leadId2 = 'lead_upsert_2';
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId2, 'upsert@example.com', '555 Upsert Ln', null, 0);
+
         const mockSession2 = {
             type: 'checkout.session.completed',
             data: {
@@ -271,7 +463,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
                     customer: 'cus_upsert_1', // Same stripe customer
                     subscription: 'sub_upsert_2',
                     metadata: {
-                        lead_id: leadId,
+                        lead_id: leadId2,
                         phone_number: '555-0002',
                         trash_day: 'TUE', // Updated trash day
                         bin_quantity: '2',
@@ -314,6 +506,13 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
             data: {
                 object: {
                     id: stripeSubId,
+                    items: {
+                        data: [
+                            {
+                                current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+                            },
+                        ],
+                    },
                 },
             },
         };

@@ -22,7 +22,7 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: 'npm run preview',
+        command: 'npx wrangler pages dev .vercel/output/static --port 8788 --no-bundle',
         url: 'http://localhost:8788',
         reuseExistingServer: !process.env.CI,
         timeout: 120 * 1000,

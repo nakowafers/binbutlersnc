@@ -77,7 +77,7 @@ test.describe('Admin Dashboard E2E Tests', () => {
         await expect(page.getByText('Completed', { exact: true })).toBeVisible();
     });
 
-    test('Non-admins should be redirected to portal', async ({ context, page }) => {
+    test('Non-admins should be redirected to home', async ({ context, page }) => {
         const userId = 'user_456';
         const userEmail = 'user@example.com';
         const userSessionToken = crypto.randomUUID();
@@ -101,8 +101,8 @@ test.describe('Admin Dashboard E2E Tests', () => {
 
         await page.goto('/admin');
 
-        // Should be redirected to portal
-        await page.waitForURL('**/portal');
-        await expect(page.getByText('Service History')).toBeVisible();
+        // Should be redirected to home
+        await page.waitForURL('http://localhost:3000/');
+        await expect(page.getByText('Bin Butlers NC')).toBeVisible();
     });
 });

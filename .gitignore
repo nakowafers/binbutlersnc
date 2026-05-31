@@ -43,7 +43,7 @@ next-env.d.ts
 /.vercel
 /.wrangler
 .dev.vars
-/workers/dispatch-cron/.wrangler
+/workers/daily-dispatch-cron/.wrangler
 /.antigravitycli
 /playwright-report
 /test-results

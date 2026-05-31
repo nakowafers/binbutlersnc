@@ -1,5 +1,7 @@
 import Stripe from 'stripe';
-import { IPaymentService, CheckoutSessionParams } from './types';
+
+const cryptoProvider = Stripe.createSubtleCryptoProvider();
+import { IPaymentService, CheckoutSessionParams, CustomerServiceDetails } from './types';
 
 export interface StripeConfig {
     secretKey: string;
@@ -15,10 +17,7 @@ export class StripeAdapter implements IPaymentService {
 
     constructor(config: StripeConfig) {
         this.config = config;
-        this.stripe = new Stripe(config.secretKey, {
-            // @ts-expect-error - Newer API version
-            apiVersion: '2025-01-27.acacia',
-        });
+        this.stripe = new Stripe(config.secretKey);
     }
 
     async createCheckoutSession(params: CheckoutSessionParams): Promise<{ url: string | null }> {
@@ -91,17 +90,27 @@ export class StripeAdapter implements IPaymentService {
             }
         }
 
+        const customerEmail = params.email;
+        let existingCustomerId: string | null = null;
+        try {
+            const customers = await this.stripe.customers.list({ email: customerEmail, limit: 1 });
+            existingCustomerId = customers.data[0]?.id || null;
+        } catch (err) {
+            console.error('Failed to look up customer by email in Stripe:', err);
+        }
+
         const session = await this.stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             line_items: lineItems,
             mode: mode,
-            customer_creation: mode === 'payment' ? 'always' : undefined,
+            customer: existingCustomerId || undefined,
+            customer_creation: mode === 'payment' && !existingCustomerId ? 'always' : undefined,
             subscription_data: mode === 'subscription' ? {
                 trial_period_days: params.frequency === 'monthly' ? 28 : 84,
             } : undefined,
             success_url: params.successUrl,
             cancel_url: params.cancelUrl,
-            customer_email: params.email,
+            customer_email: existingCustomerId ? undefined : params.email,
             metadata: {
                 lead_id: params.leadId,
                 sales_rep_id: params.salesRepId || '',
@@ -131,6 +140,20 @@ export class StripeAdapter implements IPaymentService {
         return null;
     }
 
+    async updateCustomerServiceDetails(customerId: string, details: CustomerServiceDetails): Promise<void> {
+        await this.stripe.customers.update(customerId, {
+            metadata: {
+                service_address: details.address,
+                trash_day: details.trashDay,
+                provider_name: details.providerName || '',
+                phone_number: details.phoneNumber || '',
+                sales_rep_id: details.salesRepId || '',
+                service_lat: details.lat?.toString() || '',
+                service_lng: details.lng?.toString() || '',
+            },
+        });
+    }
+
     async createBillingPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }> {
         const portalSession = await this.stripe.billingPortal.sessions.create({
             customer: customerId,
@@ -140,11 +163,35 @@ export class StripeAdapter implements IPaymentService {
     }
 
     async retrieveSubscriptionPeriodEnd(subscriptionId: string): Promise<number> {
-        const subscription = await this.stripe.subscriptions.retrieve(subscriptionId) as unknown as { current_period_end: number };
-        return subscription.current_period_end;
+        const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
+
+        const periodEnd = subscription.items?.data?.[0]?.current_period_end;
+
+        if (typeof periodEnd !== 'number' || !Number.isFinite(periodEnd)) {
+            throw new Error(`Stripe subscription ${subscriptionId} did not return a valid current_period_end`);
+        }
+
+        return periodEnd;
+    }
+
+    async retrieveCheckoutSession(sessionId: string): Promise<{ id: string; payment_status: string; customer_email: string | null; amount_total: number | null; customer: string | null }> {
+        const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+        return {
+            id: session.id,
+            payment_status: session.payment_status,
+            customer_email: session.customer_email || session.customer_details?.email || null,
+            amount_total: session.amount_total,
+            customer: (session.customer as string) || null,
+        };
     }
 
     async verifyWebhookEvent(body: string, signature: string, secret: string): Promise<unknown> {
-        return await this.stripe.webhooks.constructEventAsync(body, signature, secret);
+        return await this.stripe.webhooks.constructEventAsync(
+            body,
+            signature,
+            secret,
+            undefined,
+            cryptoProvider
+        );
     }
 }

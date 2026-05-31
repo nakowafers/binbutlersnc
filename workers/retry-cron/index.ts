@@ -2,13 +2,36 @@ import { Env } from '../../src/lib/types';
 import { RoutificAdapter } from '../../src/lib/routing/RoutificAdapter';
 import { D1DatabaseAdapter } from '../../src/lib/db/D1DatabaseAdapter';
 
-export default {
-    async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+const retryCron = {
+    async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
         ctx.waitUntil(this.handleRetries(env));
     },
 
     async handleRetries(env: Env) {
         console.log('Starting Retry Dispatch Cron...');
+
+        // Atomic lock acquisition
+        const acquiredAt = Date.now();
+        const lockKey = 'cron_lock_retry';
+        const ttl = 5 * 60 * 1000;
+        const lockValue = JSON.stringify({ acquired_at: acquiredAt });
+
+        await env.DB.prepare(
+            `INSERT INTO global_settings (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET
+               value = EXCLUDED.value,
+               updated_at = CURRENT_TIMESTAMP
+             WHERE json_extract(value, '$.acquired_at') < ?`
+        ).bind(lockKey, lockValue, acquiredAt - ttl).run();
+
+        const lockRow = await env.DB.prepare(
+            'SELECT value FROM global_settings WHERE key = ?'
+        ).bind(lockKey).first<{ value: string }>();
+
+        if (!lockRow || JSON.parse(lockRow.value).acquired_at !== acquiredAt) {
+            console.log('Another worker holds the cron lock, skipping this run.');
+            return;
+        }
 
         const db = new D1DatabaseAdapter(env.DB);
 
@@ -22,23 +45,17 @@ export default {
 
         console.log(`Found ${results.length} pending dispatches. Retrying...`);
 
-        // 3. Fetch Holiday Offset
-        const offsetRowVal = await db.getGlobalSetting('holiday_offset_hours');
-        const offsetHours = parseInt(offsetRowVal || '0', 10);
-
-        // 2. Group by service_date to create batch jobs if possible
         const routingService = new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
 
         for (const row of results) {
             try {
-                const serviceDate = new Date(row.service_date);
-                serviceDate.setHours(serviceDate.getHours() + offsetHours);
-                const formattedDate = serviceDate.toISOString().split('T')[0];
+                const formattedDate = row.service_date.split('T')[0];
+                const routificOrderId = crypto.randomUUID();
 
                 await routingService.createJob({
                     id: crypto.randomUUID(),
                     stops: [{
-                        id: crypto.randomUUID(),
+                        id: routificOrderId,
                         address: row.raw_address,
                         lat: row.latitude || undefined,
                         lng: row.longitude || undefined,
@@ -48,20 +65,25 @@ export default {
                     date: formattedDate
                 });
 
-                // 3. If successful, remove from pending and log as pending in service history via Adapter
                 await db.deletePendingDispatchAndLogSuccess(
                     row.id,
                     crypto.randomUUID(),
-                    row.customer_id,
                     row.subscription_id,
-                    row.service_date
+                    row.service_date,
+                    crypto.randomUUID(),
+                    routificOrderId
                 );
                 console.log(`Successfully retried and removed dispatch ${row.id}, logged Pending service history.`);
-            } catch (error: any) {
+            } catch (error: unknown) {
                 console.error(`Retry failed for ${row.id}:`, error);
                 // 4. Increment retry count via Adapter
-                await db.incrementPendingDispatchRetryCount(row.id, error.message || 'Retry failed');
+                await db.incrementPendingDispatchRetryCount(
+                    row.id,
+                    error instanceof Error ? error.message : 'Retry failed'
+                );
             }
         }
     }
 };
+
+export default retryCron;

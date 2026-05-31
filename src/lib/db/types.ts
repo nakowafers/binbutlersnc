@@ -35,14 +35,12 @@ export interface IDatabaseService {
     updateAddressDetails(addressId: string, details: {
         serviceDay?: string;
         trashDay?: string;
-        gateCode?: string;
-        hoaName?: string;
-        accessNotes?: string;
     }): Promise<void>;
 
     // Subscription Operations
     getSubscriptionByCustomerId(customerId: string): Promise<Subscription | null>;
     getSubscriptionByIdAndCustomer(id: string, customerId: string): Promise<Subscription | null>;
+    getSubscriptionIdByStripeId(stripeSubscriptionId: string): Promise<string | null>;
     updateSubscriptionPauseStatus(id: string, isPaused: number): Promise<void>;
     updateSubscriptionStatus(stripeSubscriptionId: string, status: string, currentPeriodEnd: string | null): Promise<void>;
 
@@ -80,18 +78,25 @@ export interface IDatabaseService {
         customerId: string;
         currentPeriodEnd: string | null;
         serviceHistoryId: string;
+        frequency: 'monthly' | 'quarterly' | 'one-time';
     }): Promise<void>;
 
-    updateServiceHistoryOnCompletion(subscriptionId: string, completedAt: string | null, nowIso: string): Promise<void>;
+    updateServiceHistoryOnCompletion(subscriptionId: string, completedAt: string | null): Promise<void>;
     updateServiceHistoryOnSkipped(subscriptionId: string, completedAt: string | null): Promise<void>;
 
     // Workers / Dispatch Operations
     getDueSubscriptions(nowIso: string): Promise<DueSubscriptionResult[]>;
     getPendingDispatches(maxRetries: number): Promise<PendingDispatchResult[]>;
     logDispatchedJobs(
-        historyInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; status: string }>,
-        retryInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; errorMsg: string }>
+        historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string }>,
+        retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }>,
+        routificDispatches?: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }>
     ): Promise<void>;
-    deletePendingDispatchAndLogSuccess(id: string, historyId: string, customerId: string, subscriptionId: string, date: string): Promise<void>;
+    deletePendingDispatchAndLogSuccess(id: string, historyId: string, subscriptionId: string, date: string, routificDispatchId?: string, routificOrderId?: string): Promise<void>;
     incrementPendingDispatchRetryCount(id: string, errorMsg: string): Promise<void>;
+
+    // Routific Dispatch Tracking
+    storeRoutificDispatch(id: string, subscriptionId: string, routificOrderId: string, serviceDate: string): Promise<void>;
+    getRoutificOrderIdsBySubscription(subscriptionId: string): Promise<string[]>;
+    deleteRoutificDispatch(id: string): Promise<void>;
 }

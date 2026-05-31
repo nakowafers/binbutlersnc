@@ -3,11 +3,16 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { Env } from '@/lib/types';
 import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
+import { validateOrigin } from '@/lib/csrf';
 
 export const runtime = 'edge';
 
 export async function POST(request: Request) {
     try {
+        if (!validateOrigin(request)) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
         const session = await auth();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (!session || (session.user as any).role !== 'ADMIN') {
@@ -19,6 +24,12 @@ export async function POST(request: Request) {
 
         if (!body.key || body.value === undefined) {
             return NextResponse.json({ error: 'Missing key or value' }, { status: 400 });
+        }
+
+        // Whitelist allowed settings keys to prevent injection
+        const ALLOWED_KEYS = ['holiday_offset_hours'];
+        if (!ALLOWED_KEYS.includes(body.key)) {
+            return NextResponse.json({ error: 'Invalid setting key' }, { status: 400 });
         }
 
         const db = new D1DatabaseAdapter(env.DB);

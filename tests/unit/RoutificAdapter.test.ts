@@ -91,4 +91,50 @@ describe('RoutificAdapter', () => {
         const status = await adapter.getJobStatus('some_id');
         expect(status).toBe('synced');
     });
+
+    it('should pushTarget, updateTarget, and getDispatchStatus', async () => {
+        adapter = new RoutificAdapter('valid_api_key', 'workspace_123');
+        
+        // Mock getDispatchStatus
+        const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({ status: 'completed' }) };
+        vi.mocked(fetch).mockResolvedValue(mockResponse as unknown as Response);
+
+        const status = await adapter.getDispatchStatus('order_123');
+        expect(status).toBe('completed');
+        expect(fetch).toHaveBeenCalledWith(
+            'https://planning-service.beta.routific.com/v1/orders/order_123?workspaceId=workspace_123',
+            expect.objectContaining({ method: 'GET' })
+        );
+
+        // Mock updateTarget
+        const mockUpdateResponse = { ok: true };
+        vi.mocked(fetch).mockResolvedValue(mockUpdateResponse as unknown as Response);
+
+        await adapter.updateTarget({
+            id: 'order_123',
+            address: '123 Fake St',
+            lat: 45.0,
+            lng: -75.0,
+            customer_id: 'cust_abc',
+            subscription_id: 'sub_xyz'
+        });
+        expect(fetch).toHaveBeenLastCalledWith(
+            'https://planning-service.beta.routific.com/v1/orders/order_123?workspaceId=workspace_123',
+            expect.objectContaining({ method: 'PUT' })
+        );
+
+        // Mock pushTarget
+        const mockPushResponse = { ok: true, text: vi.fn().mockResolvedValue('success') };
+        vi.mocked(fetch).mockResolvedValue(mockPushResponse as unknown as Response);
+
+        const pushResult = await adapter.pushTarget({
+            id: 'order_123',
+            address: '123 Fake St',
+            lat: 45.0,
+            lng: -75.0,
+            customer_id: 'cust_abc',
+            subscription_id: 'sub_xyz'
+        });
+        expect(pushResult).toContain('synced');
+    });
 });

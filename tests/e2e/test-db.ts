@@ -54,8 +54,8 @@ export function cleanTestRecords() {
     const customerIds = customers.map(c => `'${c.id}'`).join(',');
     
     if (customerIds) {
-        runDb(`DELETE FROM service_history WHERE customer_id IN (${customerIds})`);
-        runDb(`DELETE FROM pending_dispatches WHERE customer_id IN (${customerIds})`);
+        runDb(`DELETE FROM service_history WHERE subscription_id IN (SELECT id FROM subscriptions WHERE customer_id IN (${customerIds}))`);
+        runDb(`DELETE FROM pending_dispatches WHERE subscription_id IN (SELECT id FROM subscriptions WHERE customer_id IN (${customerIds}))`);
         runDb(`DELETE FROM subscriptions WHERE customer_id IN (${customerIds})`);
         runDb(`DELETE FROM accounts WHERE userId IN (${customerIds})`);
         runDb(`DELETE FROM sessions WHERE userId IN (${customerIds})`);

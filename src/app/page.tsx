@@ -1,5 +1,7 @@
+import { Header } from '@/components/Header';
 import Link from 'next/link';
-import { Button } from "@/components/ui/button";
+import Image from 'next/image';
+import { Button } from '@/components/ui/button';
 import {
   Accordion,
   AccordionContent,
@@ -11,28 +13,7 @@ import { CheckCircle2, MousePointer2, Truck, Sparkles } from "lucide-react";
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen font-sans bg-[#F8FAFC]">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
-        <div className="container mx-auto px-4 h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <img src="/assets/logo.png" alt="Bin Butlers NC" className="h-12 w-auto" />
-          </Link>
-          <nav className="hidden md:flex items-center gap-8 text-[#1C3D5A] font-semibold">
-            <Link href="#how-it-works" className="hover:text-[#7AC142] transition-colors">How It Works</Link>
-            <Link href="#about" className="hover:text-[#7AC142] transition-colors">About</Link>
-            <Link href="#pricing" className="hover:text-[#7AC142] transition-colors">Pricing</Link>
-            <Link href="#faq" className="hover:text-[#7AC142] transition-colors">FAQ</Link>
-          </nav>
-          <div className="flex items-center gap-4">
-            <Link href="/api/auth/signin">
-              <Button variant="outline" className="hidden sm:flex border-[#1C3D5A] text-[#1C3D5A] rounded-xl font-bold transition-all active:scale-95">Sign In</Button>
-            </Link>
-            <Link href="/signup">
-              <Button className="bg-[#7AC142] hover:bg-[#68a638] text-white rounded-xl px-6 font-bold transition-all active:scale-95">Book Now</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="flex-grow">
         {/* Hero Section */}
@@ -133,8 +114,14 @@ export default function Home() {
                 </Link>
               </div>
               <div className="relative">
-                <div className="aspect-video rounded-3xl overflow-hidden shadow-2xl">
-                  <img src="/assets/trash_bins_cleaning.png" alt="Family First Cleaning" className="w-full h-full object-cover" />
+                <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl">
+                  <Image
+                    src="/assets/trash_bins_cleaning.png"
+                    alt="Family First Cleaning"
+                    fill
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                    className="object-cover"
+                  />
                 </div>
                 <div className="absolute -bottom-8 -left-8 bg-white p-6 rounded-3xl shadow-xl flex items-center gap-4">
                   <div className="w-16 h-16 bg-[#7AC142] text-white rounded-2xl flex items-center justify-center">
@@ -221,7 +208,7 @@ export default function Home() {
               <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group">
                 <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">One-Time</h3>
                 <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-4xl font-extrabold text-[#1C3D5A]">$60</span>
+                  <span className="text-4xl font-extrabold text-[#1C3D5A]">$100</span>
                   <span className="text-slate-500">/clean</span>
                 </div>
                 <p className="text-slate-600 mb-8">Great for a deep spring cleaning</p>
@@ -302,10 +289,10 @@ export default function Home() {
 
       {/* Footer */}
       <footer id="contact" className="bg-[#1C3D5A] text-white py-20 border-t border-white/10">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-12 mb-16">
-            <div className="col-span-2 md:col-span-1">
-              <img src="/assets/logo.png" alt="Bin Butlers NC" className="h-12 w-auto mb-6" />
+          <div className="container mx-auto px-4">
+            <div className="grid md:grid-cols-4 gap-12 mb-16">
+              <div className="col-span-2 md:col-span-1">
+              <Image src="/assets/logo.png" alt="Bin Butlers NC" width={1189} height={1251} className="h-12 w-auto mb-6" />
               <p className="text-slate-400 leading-relaxed">
                 The premier trash bin cleaning service in North Carolina. We sanitize, disinfect, and deodorize your bins to keep your family safe and your home smelling fresh.
               </p>

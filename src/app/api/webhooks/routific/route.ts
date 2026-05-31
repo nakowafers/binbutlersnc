@@ -38,18 +38,19 @@ export async function POST(request: Request) {
         const payloadStr = await request.text();
         const signature = request.headers.get('x-routific-signature') || '';
         
-        // Use a configured secret if available. If not, log a warning for security.
-        // In production, this should be mandatory.
         const secret = (env as Env & { ROUTIFIC_WEBHOOK_SECRET?: string }).ROUTIFIC_WEBHOOK_SECRET;
-        if (secret) {
-            if (!(await verifySignature(payloadStr, signature, secret))) {
-                return new Response(JSON.stringify({ error: 'Invalid signature' }), { 
-                    status: 401, 
-                    headers: { 'Content-Type': 'application/json' } 
-                });
-            }
-        } else {
-            console.warn('ROUTIFIC_WEBHOOK_SECRET is not set. Skipping signature verification.');
+        if (!secret) {
+            console.error('ROUTIFIC_WEBHOOK_SECRET is not configured.');
+            return new Response(JSON.stringify({ error: 'Webhook secret not configured' }), { 
+                status: 500, 
+                headers: { 'Content-Type': 'application/json' } 
+            });
+        }
+        if (!(await verifySignature(payloadStr, signature, secret))) {
+            return new Response(JSON.stringify({ error: 'Invalid signature' }), { 
+                status: 401, 
+                headers: { 'Content-Type': 'application/json' } 
+            });
         }
 
         interface RoutificEvent {
@@ -67,17 +68,15 @@ export async function POST(request: Request) {
 
         if (body.event === 'stop.completed') {
             const { data } = body;
-            const now = new Date().toISOString();
 
-            // Webhook does an UPDATE instead of INSERT because dispatch-cron already creates a Pending row
-            await db.updateServiceHistoryOnCompletion(data.subscription_id, data.completed_at || null, now);
+            // Webhook does an UPDATE instead of INSERT because daily-dispatch-cron already creates a Pending row
+            await db.updateServiceHistoryOnCompletion(data.subscription_id, data.completed_at || null);
 
             console.log(`Logged service completion for subscription ${data.subscription_id}`);
         } else if (body.event === 'stop.skipped') {
             const { data } = body;
 
-            // Log as Skipped/Failed in service_history but DO NOT update last_service_date on the subscription
-            // so they automatically reschedule for the following week
+            // Log as Skipped/Failed in service_history so they automatically reschedule for the following week
             await db.updateServiceHistoryOnSkipped(data.subscription_id, data.completed_at || null);
 
             console.log(`Logged service skip/failure for subscription ${data.subscription_id}`);

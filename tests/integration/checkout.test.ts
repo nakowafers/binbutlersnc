@@ -12,21 +12,28 @@ vi.mock('@cloudflare/next-on-pages', () => ({
 }));
 
 // Mock Stripe
+const mockCustomerList = vi.fn();
 vi.mock('stripe', () => {
-    return {
-        default: function() {
-            return {
-                checkout: {
-                    sessions: {
-                        create: mockCreateSession,
-                    },
+    const StripeMock = function() {
+        return {
+            checkout: {
+                sessions: {
+                    create: mockCreateSession,
                 },
-                prices: {
-                    retrieve: mockRetrievePrice,
-                }
-            };
-        },
+            },
+            prices: {
+                retrieve: mockRetrievePrice,
+            },
+            customers: {
+                list: mockCustomerList,
+            },
+        };
     };
+    StripeMock.createSubtleCryptoProvider = () => ({
+        computeHMACSignature: vi.fn(),
+        computeHMACSignatureAsync: vi.fn(),
+    });
+    return { default: StripeMock };
 });
 
 describe('Checkout API - Integration Tests', () => {
@@ -35,6 +42,8 @@ describe('Checkout API - Integration Tests', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+
+        mockCustomerList.mockResolvedValue({ data: [] });
 
         simulator = new DbSimulator();
 
@@ -63,6 +72,8 @@ describe('Checkout API - Integration Tests', () => {
             bin_quantity: 2,
             frequency: 'monthly',
             tos_accepted: true,
+            age_confirmed: true,
+            contact_consent: true,
         };
 
         const request = new Request('http://localhost/api/checkout', {
@@ -85,6 +96,7 @@ describe('Checkout API - Integration Tests', () => {
         // 2. Verify Stripe session creation
         expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({
             customer_email: 'test@example.com',
+            customer_creation: undefined,
             mode: 'subscription',
             line_items: [
                 { price: 'price_monthly', quantity: 1 },
@@ -101,6 +113,7 @@ describe('Checkout API - Integration Tests', () => {
     it('should handle one-time frequency and custom setup fee override', async () => {
         mockCreateSession.mockResolvedValue({ url: 'https://stripe.com/checkout/session/456' });
         mockRetrievePrice.mockResolvedValue({ product: 'prod_onetime' });
+        mockCustomerList.mockResolvedValue({ data: [] });
 
         const body = {
             email: 'onetime@example.com',
@@ -110,7 +123,7 @@ describe('Checkout API - Integration Tests', () => {
             provider_name: 'City Waste',
             bin_quantity: 1,
             frequency: 'one-time',
-            setup_fee_override: 50, // $50 instead of default
+            setup_fee_override: 50,
         };
 
         const request = new Request('http://localhost/api/checkout', {
@@ -124,6 +137,7 @@ describe('Checkout API - Integration Tests', () => {
         // Verify Stripe session for one-time payment
         expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({
             mode: 'payment',
+            customer_creation: 'always',
             line_items: [
                 expect.objectContaining({
                     price_data: expect.objectContaining({

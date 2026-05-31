@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,11 +24,13 @@ const signupSchema = z.object({
     email: z.string().email("Please enter a valid email"),
     phone_number: z.string().min(10, "Please enter a valid phone number"),
     trash_day: z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI']),
-    provider_name: z.string().min(2, "Please select or enter your provider"),
+    provider_name: z.string().optional(),
     bin_quantity: z.number().min(1, "Minimum 1 bin").max(10, "Maximum 10 bins"),
     sales_rep_id: z.string().optional(),
-    setup_fee_override: z.number().min(0, "Setup fee cannot be negative").optional(),
+    setup_fee_override: z.number().min(1, "Setup fee must be at least $1").optional(),
     tos_accepted: z.boolean().optional(),
+    age_confirmed: z.boolean().refine(v => v === true, { message: "You must confirm you are 18 or older" }),
+    contact_consent: z.boolean().refine(v => v === true, { message: "You must agree to be contacted" }),
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
@@ -48,7 +51,7 @@ function SignupForm() {
     const [isLoading, setIsLoading] = useState(false);
 
 
-    const { register, handleSubmit, watch, setValue, trigger, formState: { errors } } = useForm<SignupFormValues>({
+    const { register, handleSubmit, control, setValue, trigger, formState: { errors } } = useForm<SignupFormValues>({
         resolver: zodResolver(signupSchema),
         defaultValues: {
             frequency: (initialFrequency === 'monthly' || initialFrequency === 'quarterly' || initialFrequency === 'one-time') ? initialFrequency : 'monthly',
@@ -56,15 +59,20 @@ function SignupForm() {
             trash_day: 'MON',
             setup_fee_override: 100,
             tos_accepted: false,
+            age_confirmed: false,
+            contact_consent: false,
         }
     });
 
-    const address = watch('address');
-    const frequency = watch('frequency');
-    const binQuantity = watch('bin_quantity');
-    const salesRepId = watch('sales_rep_id');
-    const setupFeeOverride = watch('setup_fee_override') ?? 100;
-    const tosAccepted = watch('tos_accepted');
+    const address = useWatch({ control, name: 'address' });
+    const frequency = useWatch({ control, name: 'frequency' });
+    const binQuantity = useWatch({ control, name: 'bin_quantity' });
+    const salesRepId = useWatch({ control, name: 'sales_rep_id' });
+    const setupFeeOverride = useWatch({ control, name: 'setup_fee_override' }) ?? 100;
+    const tosAccepted = useWatch({ control, name: 'tos_accepted' });
+    const ageConfirmed = useWatch({ control, name: 'age_confirmed' });
+    const contactConsent = useWatch({ control, name: 'contact_consent' });
+    const trashDay = useWatch({ control, name: 'trash_day' });
 
     const onSubmit = async (data: SignupFormValues) => {
         setIsLoading(true);
@@ -89,7 +97,7 @@ function SignupForm() {
 
             const result = await response.json() as { url?: string };
             if (result.url) {
-                window.location.href = result.url;
+                window.location.assign(result.url);
             } else {
                 toast.error('Something went wrong. Please try again.');
             }
@@ -105,7 +113,7 @@ function SignupForm() {
 
     const nextStep = async () => {
         const fieldsToValidate = step === 1
-            ? ['address', 'trash_day', 'bin_quantity', 'provider_name'] as const
+            ? ['address', 'trash_day', 'bin_quantity'] as const
             : ['email', 'phone_number'] as const;
 
         const isValid = await trigger(fieldsToValidate);
@@ -118,7 +126,7 @@ function SignupForm() {
     return (
         <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 flex flex-col items-center">
             <Link href="/" className="mb-8">
-                <img src="/assets/logo.png" alt="Bin Butlers NC" className="h-12 w-auto" />
+                <Image src="/assets/logo.png" alt="Bin Butlers NC" width={1189} height={1251} className="h-12 w-auto" />
             </Link>
 
             <div className="w-full max-w-xl">
@@ -195,7 +203,7 @@ function SignupForm() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <Label htmlFor="provider_name" className="text-[#1C3D5A] font-bold">Service Provider</Label>
+                                    <Label htmlFor="provider_name" className="text-[#1C3D5A] font-bold">Service Provider <span className="text-slate-400 font-normal text-sm">(optional)</span></Label>
                                     <Input
                                         id="provider_name"
                                         {...register('provider_name')}
@@ -320,7 +328,7 @@ function SignupForm() {
                                         <Input
                                             id="setup_fee_override"
                                             type="number"
-                                            min={0}
+                                            min={1}
                                             {...register('setup_fee_override', { valueAsNumber: true })}
                                             className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
                                         />
@@ -397,7 +405,7 @@ function SignupForm() {
                                     <p>This agreement confirms your <span className="capitalize font-semibold">{frequency}</span> subscription for {binQuantity} trash bin{binQuantity > 1 ? 's' : ''} at the address listed above.</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">1. Service Scope</h4>
-                                    <p>Bin Butlers NC will provide professional cleaning, sanitizing, and deodorizing services for your specified trash bins. Service will occur on your municipal trash day ({watch('trash_day')}).</p>
+                                    <p>Bin Butlers NC will provide professional cleaning, sanitizing, and deodorizing services for your specified trash bins. Service will occur on your municipal trash day ({trashDay}).</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">2. Billing & Renewal</h4>
                                     <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of ${frequency === 'monthly' ? 30 : 40} will begin in {frequency === 'monthly' ? 4 : 12} weeks and will automatically renew until cancelled via the Stripe Customer Portal.</p>
@@ -414,6 +422,21 @@ function SignupForm() {
                                 <div className="flex items-start gap-3 p-4 bg-lime-50 rounded-xl border border-lime-100">
                                     <div className="flex items-center h-6">
                                         <input
+                                            id="age_confirmed"
+                                            type="checkbox"
+                                            {...register('age_confirmed')}
+                                            className="h-5 w-5 rounded border-slate-300 text-[#7AC142] focus:ring-[#7AC142] transition-all cursor-pointer"
+                                        />
+                                    </div>
+                                    <Label htmlFor="age_confirmed" className="text-sm text-slate-700 leading-snug cursor-pointer font-medium">
+                                        I confirm I am 18 years of age or older.
+                                    </Label>
+                                </div>
+                                {errors.age_confirmed && <p className="text-red-500 text-xs font-medium pl-1">{errors.age_confirmed.message}</p>}
+
+                                <div className="flex items-start gap-3 p-4 bg-lime-50 rounded-xl border border-lime-100">
+                                    <div className="flex items-center h-6">
+                                        <input
                                             id="tos_accepted"
                                             type="checkbox"
                                             {...register('tos_accepted')}
@@ -425,6 +448,21 @@ function SignupForm() {
                                     </Label>
                                 </div>
                                 {errors.tos_accepted && <p className="text-red-500 text-xs font-medium pl-1">{errors.tos_accepted.message}</p>}
+
+                                <div className="flex items-start gap-3 p-4 bg-lime-50 rounded-xl border border-lime-100">
+                                    <div className="flex items-center h-6">
+                                        <input
+                                            id="contact_consent"
+                                            type="checkbox"
+                                            {...register('contact_consent')}
+                                            className="h-5 w-5 rounded border-slate-300 text-[#7AC142] focus:ring-[#7AC142] transition-all cursor-pointer"
+                                        />
+                                    </div>
+                                    <Label htmlFor="contact_consent" className="text-sm text-slate-700 leading-snug cursor-pointer font-medium">
+                                        I consent to being contacted regarding my service and account.
+                                    </Label>
+                                </div>
+                                {errors.contact_consent && <p className="text-red-500 text-xs font-medium pl-1">{errors.contact_consent.message}</p>}
                             </CardContent>
                             <CardFooter className="p-8 bg-slate-50 border-t flex gap-4">
                                 <Button
@@ -437,7 +475,7 @@ function SignupForm() {
                                 </Button>
                                 <Button
                                     type="submit"
-                                    disabled={isLoading || !tosAccepted}
+                                    disabled={isLoading || !tosAccepted || !ageConfirmed || !contactConsent}
                                     className="flex-grow bg-[#7AC142] hover:bg-[#68a638] text-white h-14 rounded-xl text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                                 >
                                     {isLoading ? (
