@@ -24,4 +24,3 @@ pattern = "binbutlersnc.com"
 custom_domain = true
 
 account_id = "4cd5940e1e98aa5f07d422904bc3cfa4"
-pages_build_output_dir = ".vercel/output/static"
