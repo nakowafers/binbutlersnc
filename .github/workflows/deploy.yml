@@ -1,10 +1,6 @@
 name: Deploy
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+on: [push]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,8 +21,18 @@ jobs:
 
       - name: Build for Cloudflare
         run: npm run build:cf
+        env:
+          NEXT_PUBLIC_GEOAPIFY_API_KEY: ${{ secrets.NEXT_PUBLIC_GEOAPIFY_API_KEY }}
 
-      - name: Apply D1 migrations (production only)
+      - name: Upload Workers preview version
+        if: github.ref != 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
+          command: versions upload --preview-alias ${{ github.ref_name }}
+
+      - name: Apply D1 migrations
         if: github.ref == 'refs/heads/main'
         uses: cloudflare/wrangler-action@v3
         with:
@@ -42,7 +48,7 @@ jobs:
           accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
           command: deploy
 
-      - name: Deploy daily-dispatch-cron worker (production only)
+      - name: Deploy daily-dispatch-cron worker
         if: github.ref == 'refs/heads/main'
         uses: cloudflare/wrangler-action@v3
         with:
@@ -51,7 +57,7 @@ jobs:
           command: deploy
           workingDirectory: workers/daily-dispatch-cron
 
-      - name: Deploy retry-cron worker (production only)
+      - name: Deploy retry-cron worker
         if: github.ref == 'refs/heads/main'
         uses: cloudflare/wrangler-action@v3
         with:
