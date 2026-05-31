@@ -43,8 +43,8 @@ describe('Retry Cron Worker - Integration Tests with SQLite', () => {
             'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days) VALUES (?, ?, ?, ?, ?)'
         ).run('sub_retry1', 'cust_retry1', 'stripe_retry1', 'active', 28);
         simulator.db.prepare(
-            'INSERT INTO pending_dispatches (id, customer_id, subscription_id, service_date, retry_count) VALUES (?, ?, ?, ?, ?)'
-        ).run('pending1', 'cust_retry1', 'sub_retry1', '2026-05-19T00:00:00.000Z', 0);
+            'INSERT INTO pending_dispatches (id, subscription_id, service_date, retry_count) VALUES (?, ?, ?, ?)'
+        ).run('pending1', 'sub_retry1', '2026-05-19T00:00:00.000Z', 0);
 
         // Mock successful Routific call
         mockCreateJob.mockResolvedValueOnce('job_success');
@@ -63,8 +63,9 @@ describe('Retry Cron Worker - Integration Tests with SQLite', () => {
         const history = simulator.db.prepare('SELECT * FROM service_history WHERE subscription_id = ?').all('sub_retry1') as any[];
         expect(history.length).toBe(1);
         expect(history[0].dispatch_status).toBe('Pending');
-        expect(history[0].customer_id).toBe('cust_retry1');
         expect(history[0].service_date).toBe('2026-05-19T00:00:00.000Z');
+        const joined = simulator.db.prepare('SELECT sh.*, s.customer_id FROM service_history sh JOIN subscriptions s ON sh.subscription_id = s.id WHERE sh.subscription_id = ?').get('sub_retry1') as any;
+        expect(joined.customer_id).toBe('cust_retry1');
     });
 
     it('should increment retry_count and set last_error if Routific call fails', async () => {
@@ -82,8 +83,8 @@ describe('Retry Cron Worker - Integration Tests with SQLite', () => {
             'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days) VALUES (?, ?, ?, ?, ?)'
         ).run('sub_retry2', 'cust_retry2', 'stripe_retry2', 'active', 28);
         simulator.db.prepare(
-            'INSERT INTO pending_dispatches (id, customer_id, subscription_id, service_date, retry_count) VALUES (?, ?, ?, ?, ?)'
-        ).run('pending2', 'cust_retry2', 'sub_retry2', '2026-05-19T00:00:00.000Z', 1);
+            'INSERT INTO pending_dispatches (id, subscription_id, service_date, retry_count) VALUES (?, ?, ?, ?)'
+        ).run('pending2', 'sub_retry2', '2026-05-19T00:00:00.000Z', 1);
 
         // Mock Routific failure
         mockCreateJob.mockRejectedValueOnce(new Error('Routific error'));
@@ -116,8 +117,8 @@ describe('Retry Cron Worker - Integration Tests with SQLite', () => {
             'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days) VALUES (?, ?, ?, ?, ?)'
         ).run('sub_retry3', 'cust_retry3', 'stripe_retry3', 'active', 28);
         simulator.db.prepare(
-            'INSERT INTO pending_dispatches (id, customer_id, subscription_id, service_date, retry_count) VALUES (?, ?, ?, ?, ?)'
-        ).run('pending3', 'cust_retry3', 'sub_retry3', '2026-05-19T00:00:00.000Z', 5);
+            'INSERT INTO pending_dispatches (id, subscription_id, service_date, retry_count) VALUES (?, ?, ?, ?)'
+        ).run('pending3', 'sub_retry3', '2026-05-19T00:00:00.000Z', 5);
 
         // Run retry cron
         await retryCron.handleRetries(mockEnv);

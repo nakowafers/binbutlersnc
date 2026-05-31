@@ -17,7 +17,6 @@ export interface Customer {
     bin_quantity?: number;
     sales_rep_id?: string;
     tos_accepted_at?: string;
-    external_routing_id?: string;
     created_at: string;
 }
 
@@ -25,15 +24,11 @@ export interface Address {
     id: string;
     customer_id: string;
     raw_address: string;
-    standardized_address?: string;
     latitude?: number;
     longitude?: number;
     trash_day?: 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI';
     service_day?: string;
     provider_name?: string;
-    gate_code?: string;
-    hoa_name?: string;
-    access_notes?: string;
     created_at: string;
 }
 
@@ -42,10 +37,8 @@ export interface Subscription {
     customer_id: string;
     stripe_subscription_id?: string;
     status: string;
-    tier?: string;
     current_period_end?: string;
     is_paused: boolean;
-    last_service_date?: string;
     frequency_days: number;
     created_at: string;
 }

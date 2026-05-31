@@ -68,7 +68,6 @@ const retryCron = {
                 await db.deletePendingDispatchAndLogSuccess(
                     row.id,
                     crypto.randomUUID(),
-                    row.customer_id,
                     row.subscription_id,
                     row.service_date,
                     crypto.randomUUID(),

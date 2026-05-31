@@ -68,17 +68,15 @@ export async function POST(request: Request) {
 
         if (body.event === 'stop.completed') {
             const { data } = body;
-            const now = new Date().toISOString();
 
             // Webhook does an UPDATE instead of INSERT because dispatch-cron already creates a Pending row
-            await db.updateServiceHistoryOnCompletion(data.subscription_id, data.completed_at || null, now);
+            await db.updateServiceHistoryOnCompletion(data.subscription_id, data.completed_at || null);
 
             console.log(`Logged service completion for subscription ${data.subscription_id}`);
         } else if (body.event === 'stop.skipped') {
             const { data } = body;
 
-            // Log as Skipped/Failed in service_history but DO NOT update last_service_date on the subscription
-            // so they automatically reschedule for the following week
+            // Log as Skipped/Failed in service_history so they automatically reschedule for the following week
             await db.updateServiceHistoryOnSkipped(data.subscription_id, data.completed_at || null);
 
             console.log(`Logged service skip/failure for subscription ${data.subscription_id}`);

@@ -101,9 +101,9 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         const response = await POST(request);
         expect(response.status).toBe(200);
 
-        // 2. Query and verify lead conversion
-        const lead = simulator.db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId) as any;
-        expect(lead.converted).toBe(1);
+        // 2. Verify lead was removed after conversion
+        const lead = simulator.db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId);
+        expect(lead).toBeUndefined();
 
         // 3. Query and verify customer insertion
         const customer = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').get('organic@example.com') as any;
@@ -186,15 +186,10 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         expect(customer).toBeDefined();
 
         // Verify service_history has 1 completed record
-        const services = simulator.db.prepare('SELECT * FROM service_history WHERE customer_id = ?').all(customer.id) as any[];
+        const services = simulator.db.prepare('SELECT sh.*, s.customer_id FROM service_history sh JOIN subscriptions s ON sh.subscription_id = s.id WHERE s.customer_id = ?').all(customer.id) as any[];
         expect(services.length).toBe(1);
         expect(services[0].dispatch_status).toBe('Completed');
         expect(services[0].sales_rep_id).toBe('REP_007');
-
-        // Verify subscription has last_service_date set to current time
-        const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE customer_id = ?').get(customer.id) as any;
-        expect(subscription.last_service_date).toBeDefined();
-        expect(subscription.last_service_date).not.toBeNull();
     });
 
     it('should fail checkout webhook processing if Stripe customer service details cannot be mirrored', async () => {
@@ -454,8 +449,13 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         const addrBefore = simulator.db.prepare('SELECT * FROM addresses WHERE raw_address = ?').get('555 Upsert Ln') as any;
         expect(addrBefore.trash_day).toBe('MON');
 
-        // 2. Second conversion (same address, same lead/email -> same customer_id)
+        // 2. Second conversion (same address, same email -> same customer_id, new lead)
         // This simulates a customer re-subscribing or updating info via a new checkout with same address
+        const leadId2 = 'lead_upsert_2';
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId2, 'upsert@example.com', '555 Upsert Ln', null, 0);
+
         const mockSession2 = {
             type: 'checkout.session.completed',
             data: {
@@ -463,7 +463,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
                     customer: 'cus_upsert_1', // Same stripe customer
                     subscription: 'sub_upsert_2',
                     metadata: {
-                        lead_id: leadId,
+                        lead_id: leadId2,
                         phone_number: '555-0002',
                         trash_day: 'TUE', // Updated trash day
                         bin_quantity: '2',

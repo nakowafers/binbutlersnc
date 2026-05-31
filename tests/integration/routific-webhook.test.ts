@@ -58,8 +58,8 @@ describe('Routific Webhook - Integration Tests', () => {
 
         // Create pending service history
         simulator.db.prepare(
-            'INSERT INTO service_history (id, subscription_id, customer_id, dispatch_status, service_date) VALUES (?, ?, ?, ?, ?)'
-        ).run('srv_123', subId, customerId, 'Pending', '2025-01-01T00:00:00Z');
+            'INSERT INTO service_history (id, subscription_id, dispatch_status, service_date) VALUES (?, ?, ?, ?)'
+        ).run('srv_123', subId, 'Pending', '2025-01-01T00:00:00Z');
 
         const payload = {
             event: 'stop.completed',
@@ -91,8 +91,6 @@ describe('Routific Webhook - Integration Tests', () => {
         expect(service.dispatch_status).toBe('Completed');
         expect(service.service_date).toBe('2025-02-01T10:00:00Z');
 
-        const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE id = ?').get(subId) as any;
-        expect(subscription.last_service_date).toBe('2025-02-01T10:00:00Z');
     });
 
     it('should handle missing completed_at', async () => {
@@ -109,8 +107,8 @@ describe('Routific Webhook - Integration Tests', () => {
         ).run(subId, customerId, 'active', 28);
 
         simulator.db.prepare(
-            'INSERT INTO service_history (id, subscription_id, customer_id, dispatch_status, service_date) VALUES (?, ?, ?, ?, ?)'
-        )            .run('srv_456', subId, customerId, 'Pending', '2025-01-01T00:00:00Z');
+            'INSERT INTO service_history (id, subscription_id, dispatch_status, service_date) VALUES (?, ?, ?, ?)'
+        )            .run('srv_456', subId, 'Pending', '2025-01-01T00:00:00Z');
 
         const payload = {
             event: 'stop.completed',
@@ -139,11 +137,9 @@ describe('Routific Webhook - Integration Tests', () => {
         const service = simulator.db.prepare('SELECT * FROM service_history WHERE subscription_id = ?').get(subId) as any;
         expect(service.dispatch_status).toBe('Completed');
 
-        const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE id = ?').get(subId) as any;
-        expect(subscription.last_service_date).toBeDefined(); // Falls back to now
     });
 
-    it('should handle stop.skipped event by updating service_history to Skipped and NOT updating last_service_date', async () => {
+    it('should handle stop.skipped event by updating service_history to Skipped', async () => {
         const subId = 'sub_skipped';
         const customerId = 'cust_skipped';
 
@@ -157,8 +153,8 @@ describe('Routific Webhook - Integration Tests', () => {
         ).run(subId, customerId, 'active', 28);
 
         simulator.db.prepare(
-            'INSERT INTO service_history (id, subscription_id, customer_id, dispatch_status, service_date) VALUES (?, ?, ?, ?, ?)'
-        )            .run('srv_skipped', subId, customerId, 'Pending', '2025-01-01T00:00:00Z');
+            'INSERT INTO service_history (id, subscription_id, dispatch_status, service_date) VALUES (?, ?, ?, ?)'
+        )            .run('srv_skipped', subId, 'Pending', '2025-01-01T00:00:00Z');
 
         const payload = {
             event: 'stop.skipped',
@@ -189,8 +185,6 @@ describe('Routific Webhook - Integration Tests', () => {
         const service = simulator.db.prepare('SELECT * FROM service_history WHERE subscription_id = ?').get(subId) as any;
         expect(service.dispatch_status).toBe('Skipped');
 
-        const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE id = ?').get(subId) as any;
-        expect(subscription.last_service_date).toBeNull(); // Should not have been updated!
     });
 
     it('should reject malformed or invalid signature with 401 if secret is configured', async () => {

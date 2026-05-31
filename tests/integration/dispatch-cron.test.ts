@@ -126,7 +126,6 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
         // Verify pending_dispatches has 1 row
         const pending = simulator.db.prepare('SELECT * FROM pending_dispatches').all() as any[];
         expect(pending.length).toBe(1);
-        expect(pending[0].customer_id).toBe('cust3');
         expect(pending[0].subscription_id).toBe('sub3');
         expect(pending[0].last_error).toBe('Routific timeout');
         
@@ -136,7 +135,7 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
     });
 
     it('should do nothing if no subscriptions are due', async () => {
-        // Customer 4 - not due yet because last_service_date is today and frequency is 28 days
+        // Customer 4 - not due yet because they have a Completed service_history record today and frequency is 28 days
         simulator.db.prepare(
             'INSERT INTO customers (id, email) VALUES (?, ?)'
         ).run('cust4', 'test4@example.com');
@@ -147,8 +146,11 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
             'UPDATE customers SET address_id = ? WHERE id = ?'
         ).run('addr4', 'cust4');
         simulator.db.prepare(
-            'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, current_period_end, frequency_days, last_service_date) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run('sub4', 'cust4', 'stripe_sub4', 'active', '2026-06-20T00:00:00.000Z', 28, '2024-05-13T12:00:00Z');
+            'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, current_period_end, frequency_days) VALUES (?, ?, ?, ?, ?, ?)'
+        ).run('sub4', 'cust4', 'stripe_sub4', 'active', '2026-06-20T00:00:00.000Z', 28);
+        simulator.db.prepare(
+            'INSERT INTO service_history (id, subscription_id, dispatch_status, service_date) VALUES (?, ?, ?, ?)'
+        ).run('sh_recent', 'sub4', 'Completed', '2024-05-13T12:00:00Z');
 
         await dispatchCron.handleDispatch(mockEnv);
 
@@ -260,8 +262,8 @@ describe('Dispatch Cron Worker - Integration Tests with SQLite', () => {
 
         // Add a Pending record manually
         simulator.db.prepare(
-            'INSERT INTO service_history (id, customer_id, subscription_id, service_date, dispatch_status) VALUES (?, ?, ?, ?, ?)'
-        ).run('sh_busy', 'cust8', 'sub8', '2024-05-20', 'Pending');
+            'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES (?, ?, ?, ?)'
+        ).run('sh_busy', 'sub8', '2024-05-20', 'Pending');
 
         await dispatchCron.handleDispatch(mockEnv);
 

@@ -35,9 +35,6 @@ export interface IDatabaseService {
     updateAddressDetails(addressId: string, details: {
         serviceDay?: string;
         trashDay?: string;
-        gateCode?: string;
-        hoaName?: string;
-        accessNotes?: string;
     }): Promise<void>;
 
     // Subscription Operations
@@ -84,18 +81,18 @@ export interface IDatabaseService {
         frequency: 'monthly' | 'quarterly' | 'one-time';
     }): Promise<void>;
 
-    updateServiceHistoryOnCompletion(subscriptionId: string, completedAt: string | null, nowIso: string): Promise<void>;
+    updateServiceHistoryOnCompletion(subscriptionId: string, completedAt: string | null): Promise<void>;
     updateServiceHistoryOnSkipped(subscriptionId: string, completedAt: string | null): Promise<void>;
 
     // Workers / Dispatch Operations
     getDueSubscriptions(nowIso: string): Promise<DueSubscriptionResult[]>;
     getPendingDispatches(maxRetries: number): Promise<PendingDispatchResult[]>;
     logDispatchedJobs(
-        historyInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; status: string }>,
-        retryInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; errorMsg: string }>,
+        historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string }>,
+        retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }>,
         routificDispatches?: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }>
     ): Promise<void>;
-    deletePendingDispatchAndLogSuccess(id: string, historyId: string, customerId: string, subscriptionId: string, date: string, routificDispatchId?: string, routificOrderId?: string): Promise<void>;
+    deletePendingDispatchAndLogSuccess(id: string, historyId: string, subscriptionId: string, date: string, routificDispatchId?: string, routificOrderId?: string): Promise<void>;
     incrementPendingDispatchRetryCount(id: string, errorMsg: string): Promise<void>;
 
     // Routific Dispatch Tracking

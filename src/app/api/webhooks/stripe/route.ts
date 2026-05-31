@@ -75,6 +75,7 @@ async function processStripeEvent(
                 trashDay,
                 providerName,
                 phoneNumber,
+                salesRepId: salesRepId || undefined,
                 lat,
                 lng,
             });

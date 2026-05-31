@@ -20,6 +20,7 @@ export interface CustomerServiceDetails {
     trashDay: string;
     providerName?: string;
     phoneNumber?: string;
+    salesRepId?: string;
     lat?: number | null;
     lng?: number | null;
 }

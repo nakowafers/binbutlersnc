@@ -99,8 +99,8 @@ const dispatchCron = {
             });
         }
 
-        const historyInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; status: string }> = [];
-        const retryInserts: Array<{ id: string; customerId: string; subscriptionId: string; date: string; errorMsg: string }> = [];
+        const historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string }> = [];
+        const retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }> = [];
         const routificDispatches: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }> = [];
 
         for (const [date, stops] of Object.entries(jobsByDate)) {
@@ -117,7 +117,6 @@ const dispatchCron = {
                     const historyId = crypto.randomUUID();
                     historyInserts.push({
                         id: historyId,
-                        customerId: stop.customer_id,
                         subscriptionId: stop.subscription_id,
                         date,
                         status: 'Pending'
@@ -135,7 +134,6 @@ const dispatchCron = {
                 for (const stop of stops) {
                     retryInserts.push({
                         id: crypto.randomUUID(),
-                        customerId: stop.customer_id,
                         subscriptionId: stop.subscription_id,
                         date,
                         errorMsg: error instanceof Error ? error.message : 'Unknown Error'
