@@ -42,7 +42,7 @@ jobs:
 
       - name: Set AUTH_SECRET (required by Auth.js magic link flow)
         if: github.ref == 'refs/heads/main'
-        run: echo "${{ secrets.AUTH_SECRET }}" | npx wrangler secret put AUTH_SECRET
+        run: echo "${{ secrets.AUTH_SECRET }}" | npx wrangler versions secret put AUTH_SECRET
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "4cd5940e1e98aa5f07d422904bc3cfa4"
