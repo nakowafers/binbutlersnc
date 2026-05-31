@@ -4,6 +4,7 @@ compatibility_flags = ["nodejs_compat"]
 main = ".vercel/output/static/_worker.js/index.js"
 no_bundle = true
 find_additional_modules = true
+account_id = "4cd5940e1e98aa5f07d422904bc3cfa4"
 
 [[rules]]
 type = "ESModule"
@@ -17,6 +18,7 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "binbutlersnc-db"
 database_id = "99e70f3e-e151-44e0-92d1-1cf52a1f5094"
+migrations_dir = "migrations"
 
 [[routes]]
 pattern = "binbutlersnc.com"
