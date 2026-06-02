@@ -18,7 +18,7 @@ const checkoutSchema = z.object({
     bin_quantity: z.number().min(1),
     frequency: z.enum(['monthly', 'quarterly', 'one-time']),
     sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined),
-    setup_fee_override: z.number().min(1).optional(),
+    setup_fee_override: z.number().min(0).optional(),
     tos_accepted: z.boolean().optional().default(false),
     age_confirmed: z.boolean().optional().default(false),
     contact_consent: z.boolean().optional().default(false),

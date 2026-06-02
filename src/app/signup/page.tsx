@@ -30,7 +30,7 @@ const signupSchema = z.object({
     provider_name: z.string().optional(),
     bin_quantity: z.number().min(1, "Minimum 1 bin").max(10, "Maximum 10 bins"),
     sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined).optional(),
-    setup_fee_override: z.number().min(1, "Setup fee must be at least $1").optional(),
+    setup_fee_override: z.number().min(0, "Setup fee must be at least $0").optional(),
     tos_accepted: z.boolean().optional(),
     age_confirmed: z.boolean().refine(v => v === true, { message: "You must confirm you are 18 or older" }),
     contact_consent: z.boolean().refine(v => v === true, { message: "You must agree to be contacted" }),
