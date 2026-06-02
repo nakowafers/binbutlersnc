@@ -1,5 +1,6 @@
+import Stripe from 'stripe';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { Env, Lead, Customer } from '@/lib/types';
+import { Env } from '@/lib/types';
 import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { StripeAdapter } from '@/lib/payment/StripeAdapter';
 import { normalizeSalesRepId } from '@/lib/sales-rep';
