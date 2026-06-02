@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { Header } from '@/components/Header';
 import Link from 'next/link';
 import Image from 'next/image';
+
+export const runtime = 'edge';
 import { Button } from '@/components/ui/button';
 import {
   Accordion,

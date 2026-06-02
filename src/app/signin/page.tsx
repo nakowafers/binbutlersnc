@@ -1,5 +1,7 @@
 'use client';
 
+export const runtime = 'edge';
+
 import { useState, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import Image from 'next/image';
