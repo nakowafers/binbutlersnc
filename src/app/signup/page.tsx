@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
+import { normalizeSalesRepId } from "@/lib/sales-rep";
 
 const signupSchema = z.object({
     address: z.string().min(5, "Please enter a valid address"),
@@ -26,7 +27,7 @@ const signupSchema = z.object({
     trash_day: z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI']),
     provider_name: z.string().optional(),
     bin_quantity: z.number().min(1, "Minimum 1 bin").max(10, "Maximum 10 bins"),
-    sales_rep_id: z.string().optional(),
+    sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined).optional(),
     setup_fee_override: z.number().min(1, "Setup fee must be at least $1").optional(),
     tos_accepted: z.boolean().optional(),
     age_confirmed: z.boolean().refine(v => v === true, { message: "You must confirm you are 18 or older" }),
@@ -88,7 +89,7 @@ function SignupForm() {
                 const res = await fetch('/api/check-sales-rep', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sales_rep_id: salesRepId }),
+                    body: JSON.stringify({ sales_rep_id: normalizeSalesRepId(salesRepId) }),
                 });
                 const data = await res.json() as { allowed: boolean };
                 setCanOverrideFee(data.allowed);
@@ -348,6 +349,11 @@ function SignupForm() {
                                         {...register('sales_rep_id')}
                                         placeholder="REP123"
                                         className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
+                                        onChange={(e) => {
+                                            const upper = e.target.value.toUpperCase();
+                                            e.target.value = upper;
+                                            setValue('sales_rep_id', upper);
+                                        }}
                                     />
                                 </div>
 

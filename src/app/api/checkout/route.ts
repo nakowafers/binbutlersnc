@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Env } from '@/lib/types';
 import { StripeAdapter } from '@/lib/payment/StripeAdapter';
 import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
+import { normalizeSalesRepId } from '@/lib/sales-rep';
 
 export const runtime = 'edge';
 
@@ -16,7 +17,7 @@ const checkoutSchema = z.object({
     provider_name: z.string().optional(),
     bin_quantity: z.number().min(1),
     frequency: z.enum(['monthly', 'quarterly', 'one-time']),
-    sales_rep_id: z.string().optional(),
+    sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined),
     setup_fee_override: z.number().min(1).optional(),
     tos_accepted: z.boolean().optional().default(false),
     age_confirmed: z.boolean().optional().default(false),

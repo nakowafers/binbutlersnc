@@ -1,8 +1,8 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import Stripe from 'stripe';
-import { Env } from '@/lib/types';
-import { StripeAdapter } from '@/lib/payment/StripeAdapter';
+import { Env, Lead, Customer } from '@/lib/types';
 import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
+import { StripeAdapter } from '@/lib/payment/StripeAdapter';
+import { normalizeSalesRepId } from '@/lib/sales-rep';
 import { RoutificAdapter } from '@/lib/routing/RoutificAdapter';
 
 export const runtime = 'edge';
@@ -28,7 +28,7 @@ async function processStripeEvent(
         const session = event.data.object as Stripe.Checkout.Session;
         const metadata = session.metadata || {};
         const leadId = metadata.lead_id;
-        const salesRepId = metadata.sales_rep_id;
+        const salesRepId = normalizeSalesRepId(metadata.sales_rep_id);
         const phoneNumber = metadata.phone_number;
         const trashDay = metadata.trash_day;
         const providerName = metadata.provider_name || '';

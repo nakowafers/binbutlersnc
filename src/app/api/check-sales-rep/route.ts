@@ -1,6 +1,7 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { Env } from '@/lib/types';
 import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
+import { normalizeSalesRepId } from '@/lib/sales-rep';
 
 export const runtime = 'edge';
 
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
         if (env.DB) {
             try {
                 const db = new D1DatabaseAdapter(env.DB);
-                allowed = await db.isSalesRepAllowedToOverrideFee(body.sales_rep_id);
+                allowed = await db.isSalesRepAllowedToOverrideFee(normalizeSalesRepId(body.sales_rep_id) ?? '');
             } catch (dbError) {
                 console.error('Sales rep check failed:', dbError);
             }
