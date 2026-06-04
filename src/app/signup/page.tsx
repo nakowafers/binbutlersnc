@@ -18,6 +18,7 @@ import { useSearchParams } from 'next/navigation';
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { normalizeSalesRepId } from "@/lib/sales-rep";
+import { calculatePricing } from "@/lib/pricing";
 
 const signupSchema = z.object({
     address: z.string().min(5, "Please enter a valid address"),
@@ -78,6 +79,9 @@ function SignupForm() {
     const ageConfirmed = useWatch({ control, name: 'age_confirmed' });
     const contactConsent = useWatch({ control, name: 'contact_consent' });
     const trashDay = useWatch({ control, name: 'trash_day' });
+    const recurringPrice = frequency === 'one-time'
+        ? 0
+        : calculatePricing(binQuantity, frequency).recurringPrice;
     useEffect(() => {
         if (checkRepTimerRef.current) {
             clearTimeout(checkRepTimerRef.current);
@@ -278,7 +282,7 @@ function SignupForm() {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">$40</p>
+                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'quarterly').recurringPrice}</p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
@@ -294,7 +298,7 @@ function SignupForm() {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">$100</p>
+                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'monthly').setupFee}</p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
@@ -389,7 +393,7 @@ function SignupForm() {
                                         <span className="text-xs text-slate-500 block mt-1">
                                             {frequency === 'one-time'
                                                 ? `($${setupFeeOverride} flat-rate one-time clean)`
-                                                : `($${setupFeeOverride} initial fee today + $${frequency === 'monthly' ? 30 : 40} flat-rate service starting in ${frequency === 'monthly' ? 4 : 12} weeks)`}
+                                                : `($${setupFeeOverride} initial fee today + $${recurringPrice} flat-rate service starting in ${frequency === 'monthly' ? 4 : 12} weeks)`}
                                         </span>
                                     </p>
                                 </div>
@@ -445,7 +449,7 @@ function SignupForm() {
                                     <p>Bin Butlers NC will provide professional cleaning, sanitizing, and deodorizing services for your specified trash bins. Service will occur on your municipal trash day ({trashDay}).</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">2. Billing & Renewal</h4>
-                                    <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of ${frequency === 'monthly' ? 30 : 40} will begin in {frequency === 'monthly' ? 4 : 12} weeks and will automatically renew until cancelled via the Stripe Customer Portal.</p>
+                                    <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of ${recurringPrice} will begin in {frequency === 'monthly' ? 4 : 12} weeks and will automatically renew until cancelled via the Stripe Customer Portal.</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">3. Customer Obligations</h4>
                                     <p>Customers must leave their bins at the curb or in a visible, accessible location on the scheduled service day. If bins are not accessible, service may be skipped and rescheduled for the following week.</p>
