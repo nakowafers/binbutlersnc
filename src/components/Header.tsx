@@ -25,11 +25,13 @@ export function Header() {
                 </nav>
 
                 <div className="hidden md:flex items-center gap-4">
+                    {/* TODO: re-enable Sign In
                     <Link href="/signin">
                         <Button variant="outline" className="border-[#1C3D5A] text-[#1C3D5A] rounded-xl font-bold transition-all active:scale-95">
                             Sign In
                         </Button>
                     </Link>
+                    */}
                     <Link href="/signup">
                         <Button className="bg-[#7AC142] hover:bg-[#68a638] text-white rounded-xl px-6 font-bold transition-all active:scale-95">
                             Book Now
@@ -86,6 +88,7 @@ export function Header() {
                         >
                             FAQ
                         </Link>
+                        {/* TODO: re-enable Sign In
                         <Link 
                             href="/signin" 
                             onClick={() => setIsOpen(false)}
@@ -93,6 +96,7 @@ export function Header() {
                         >
                             Sign In
                         </Link>
+                        */}
                     </nav>
                 </div>
             )}

@@ -316,7 +316,9 @@ export default async function Home() {
               <ul className="space-y-4 text-slate-400">
                 <li><Link href="#how-it-works" className="hover:text-white transition-colors">Our Process</Link></li>
                 <li><Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link></li>
+                {/* TODO: re-enable Sign In
                 <li><Link href="/signin" className="hover:text-white transition-colors">Sign In</Link></li>
+                */}
               </ul>
             </div>
             <div>
