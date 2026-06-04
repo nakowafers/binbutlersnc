@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Header } from '@/components/Header';
 import Link from 'next/link';
 import Image from 'next/image';
+import { calculatePricing } from '@/lib/pricing';
 
 export const runtime = 'edge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,9 @@ export default async function Home() {
   if (role === 'ADMIN') {
     redirect('/admin');
   }
+
+  const monthlyPrice = calculatePricing(1, 'monthly').recurringPrice;
+  const quarterlyPrice = calculatePricing(1, 'quarterly').recurringPrice;
   return (
     <div className="flex flex-col min-h-screen font-sans bg-[#F8FAFC]">
       <Header />
@@ -163,7 +167,7 @@ export default async function Home() {
               <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group">
                 <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">Monthly</h3>
                 <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-4xl font-extrabold text-[#1C3D5A]">$30</span>
+                  <span className="text-4xl font-extrabold text-[#1C3D5A]">${monthlyPrice}</span>
                   <span className="text-slate-500">/mo</span>
                 </div>
                 <p className="text-slate-600 mb-8">Best for keeping bins fresh year-round</p>
@@ -192,7 +196,7 @@ export default async function Home() {
                 </div>
                 <h3 className="text-2xl font-bold mb-2">Quarterly</h3>
                 <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-4xl font-extrabold text-white">$40</span>
+                  <span className="text-4xl font-extrabold text-white">${quarterlyPrice}</span>
                   <span className="text-slate-400">/qtr</span>
                 </div>
                 <p className="text-slate-300 mb-8">Perfect balance of value and hygiene</p>
@@ -312,7 +316,9 @@ export default async function Home() {
               <ul className="space-y-4 text-slate-400">
                 <li><Link href="#how-it-works" className="hover:text-white transition-colors">Our Process</Link></li>
                 <li><Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link></li>
+                {/* TODO: re-enable Sign In
                 <li><Link href="/signin" className="hover:text-white transition-colors">Sign In</Link></li>
+                */}
               </ul>
             </div>
             <div>

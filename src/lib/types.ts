@@ -2,6 +2,8 @@ export interface Lead {
     id: string;
     email: string;
     address: string;
+    first_name?: string;
+    last_name?: string;
     sales_rep_id?: string;
     tos_accepted_at?: string;
     converted: boolean;
@@ -11,6 +13,9 @@ export interface Lead {
 export interface Customer {
     id: string;
     email: string;
+    name?: string;
+    first_name?: string;
+    last_name?: string;
     stripe_customer_id?: string;
     phone_number?: string;
     address_id?: string;

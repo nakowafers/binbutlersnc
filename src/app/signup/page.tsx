@@ -18,8 +18,11 @@ import { useSearchParams } from 'next/navigation';
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { normalizeSalesRepId } from "@/lib/sales-rep";
+import { calculatePricing } from "@/lib/pricing";
 
 const signupSchema = z.object({
+    first_name: z.string().trim().min(1, "First name is required").max(100),
+    last_name: z.string().trim().min(1, "Last name is required").max(100),
     address: z.string().min(5, "Please enter a valid address"),
     lat: z.number().optional(),
     lng: z.number().optional(),
@@ -59,6 +62,8 @@ function SignupForm() {
     const { register, handleSubmit, control, setValue, trigger, formState: { errors } } = useForm<SignupFormValues>({
         resolver: zodResolver(signupSchema),
         defaultValues: {
+            first_name: '',
+            last_name: '',
             frequency: (initialFrequency === 'monthly' || initialFrequency === 'quarterly' || initialFrequency === 'one-time') ? initialFrequency : 'monthly',
             bin_quantity: 1,
             trash_day: 'MON',
@@ -78,6 +83,9 @@ function SignupForm() {
     const ageConfirmed = useWatch({ control, name: 'age_confirmed' });
     const contactConsent = useWatch({ control, name: 'contact_consent' });
     const trashDay = useWatch({ control, name: 'trash_day' });
+    const recurringPrice = frequency === 'one-time'
+        ? 0
+        : calculatePricing(binQuantity, frequency).recurringPrice;
     useEffect(() => {
         if (checkRepTimerRef.current) {
             clearTimeout(checkRepTimerRef.current);
@@ -145,7 +153,7 @@ function SignupForm() {
 
     const nextStep = async () => {
         const fieldsToValidate = step === 1
-            ? ['address', 'trash_day', 'bin_quantity'] as const
+            ? ['first_name', 'last_name', 'address', 'trash_day', 'bin_quantity'] as const
             : ['email', 'phone_number'] as const;
 
         const isValid = await trigger(fieldsToValidate);
@@ -192,6 +200,29 @@ function SignupForm() {
                                 <CardDescription className="text-slate-300">Enter your address and choose your service plan.</CardDescription>
                             </CardHeader>
                             <CardContent className="p-8 space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-3">
+                                        <Label htmlFor="first_name" className="text-[#1C3D5A] font-bold">First Name</Label>
+                                        <Input
+                                            id="first_name"
+                                            {...register('first_name')}
+                                            placeholder="John"
+                                            className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
+                                        />
+                                        {errors.first_name && <p className="text-red-500 text-sm">{errors.first_name.message}</p>}
+                                    </div>
+                                    <div className="space-y-3">
+                                        <Label htmlFor="last_name" className="text-[#1C3D5A] font-bold">Last Name</Label>
+                                        <Input
+                                            id="last_name"
+                                            {...register('last_name')}
+                                            placeholder="Doe"
+                                            className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
+                                        />
+                                        {errors.last_name && <p className="text-red-500 text-sm">{errors.last_name.message}</p>}
+                                    </div>
+                                </div>
+
                                 <div className="space-y-3">
                                     <Label htmlFor="address" className="text-[#1C3D5A] font-bold">Service Address</Label>
                                     <AddressAutocomplete
@@ -278,7 +309,7 @@ function SignupForm() {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">$40</p>
+                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'quarterly').recurringPrice}</p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
@@ -294,7 +325,7 @@ function SignupForm() {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">$100</p>
+                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'monthly').setupFee}</p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
@@ -389,7 +420,7 @@ function SignupForm() {
                                         <span className="text-xs text-slate-500 block mt-1">
                                             {frequency === 'one-time'
                                                 ? `($${setupFeeOverride} flat-rate one-time clean)`
-                                                : `($${setupFeeOverride} initial fee today + $${frequency === 'monthly' ? 30 : 40} flat-rate service starting in ${frequency === 'monthly' ? 4 : 12} weeks)`}
+                                                : `($${setupFeeOverride} initial fee today + $${recurringPrice} flat-rate service starting in ${frequency === 'monthly' ? 4 : 12} weeks)`}
                                         </span>
                                     </p>
                                 </div>
@@ -423,7 +454,7 @@ function SignupForm() {
                                         onClick={nextStep}
                                         className="flex-grow bg-[#7AC142] hover:bg-[#68a638] text-white h-14 rounded-xl text-lg font-bold"
                                     >
-                                        Review Contract <ChevronRight size={20} className="ml-2" />
+                                        Review Agreement <ChevronRight size={20} className="ml-2" />
                                     </Button>
                                 )}
                             </CardFooter>
@@ -438,14 +469,14 @@ function SignupForm() {
                             </CardHeader>
                             <CardContent className="p-8 space-y-6">
                                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 h-64 overflow-y-auto text-sm text-slate-600 space-y-4 leading-relaxed scrollbar-thin scrollbar-thumb-slate-300">
-                                    <h3 className="font-bold text-[#1C3D5A] text-base">Service Contract for {address}</h3>
+                                    <h3 className="font-bold text-[#1C3D5A] text-base">Service Agreement for {address}</h3>
                                     <p>This agreement confirms your <span className="capitalize font-semibold">{frequency}</span> subscription for {binQuantity} trash bin{binQuantity > 1 ? 's' : ''} at the address listed above.</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">1. Service Scope</h4>
                                     <p>Bin Butlers NC will provide professional cleaning, sanitizing, and deodorizing services for your specified trash bins. Service will occur on your municipal trash day ({trashDay}).</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">2. Billing & Renewal</h4>
-                                    <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of ${frequency === 'monthly' ? 30 : 40} will begin in {frequency === 'monthly' ? 4 : 12} weeks and will automatically renew until cancelled via the Stripe Customer Portal.</p>
+                                    <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of ${recurringPrice} will begin in {frequency === 'monthly' ? 4 : 12} weeks and will automatically renew until cancelled via the Stripe Customer Portal.</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">3. Customer Obligations</h4>
                                     <p>Customers must leave their bins at the curb or in a visible, accessible location on the scheduled service day. If bins are not accessible, service may be skipped and rescheduled for the following week.</p>

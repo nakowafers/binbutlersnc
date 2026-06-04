@@ -114,6 +114,8 @@ export class StripeAdapter implements IPaymentService {
             metadata: {
                 lead_id: params.leadId,
                 sales_rep_id: params.salesRepId || '',
+                first_name: params.firstName,
+                last_name: params.lastName,
                 phone_number: params.phoneNumber,
                 trash_day: params.trashDay,
                 provider_name: params.providerName,
@@ -142,7 +144,10 @@ export class StripeAdapter implements IPaymentService {
 
     async updateCustomerServiceDetails(customerId: string, details: CustomerServiceDetails): Promise<void> {
         await this.stripe.customers.update(customerId, {
+            ...(details.name ? { name: details.name } : {}),
             metadata: {
+                first_name: details.firstName || '',
+                last_name: details.lastName || '',
                 service_address: details.address,
                 trash_day: details.trashDay,
                 provider_name: details.providerName || '',

@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
  * These tests verify the customer signup flow including:
  * - Organic signup (no sales rep) step-by-step form navigation
  * - D2D signup (with sales rep) with setup fee override
- * - One-time clean flow (skips contract step)
+ * - One-time clean flow (skips agreement step)
  * - Form validation and error handling
  * 
  * These tests mock the /api/checkout endpoint to avoid real Stripe sessions,
@@ -53,12 +53,12 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         // Verify summary shows correct info
         await expect(page.getByText('Monthly')).toBeVisible();
 
-        // Click Review Contract
-        await page.getByRole('button', { name: 'Review Contract' }).click();
+        // Click Review Agreement
+        await page.getByRole('button', { name: 'Review Agreement' }).click();
 
         // Step 3: Service Agreement
         await expect(page.getByText('Service Agreement', { exact: true })).toBeVisible();
-        await expect(page.getByText('Service Contract for 123 Organic St')).toBeVisible();
+        await expect(page.getByText('Service Agreement for 123 Organic St')).toBeVisible();
 
         // "Go to Payment" should be disabled until ToS is accepted
         const paymentButton = page.getByRole('button', { name: 'Go to Payment' });
@@ -120,8 +120,8 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await feeInput.clear();
         await feeInput.fill('50');
 
-        // Click Review Contract
-        await page.getByRole('button', { name: 'Review Contract' }).click();
+        // Click Review Agreement
+        await page.getByRole('button', { name: 'Review Agreement' }).click();
 
         // Step 3: Accept ToS and submit
         await page.check('#tos_accepted');
@@ -138,7 +138,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         expect(capturedPayload!.frequency).toBe('monthly');
     });
 
-    test('One-Time Clean Flow (skips contract step entirely)', async ({ page }) => {
+    test('One-Time Clean Flow (skips agreement step entirely)', async ({ page }) => {
         let capturedPayload: Record<string, unknown> | null = null;
 
         await page.route('**/api/checkout', async (route) => {
@@ -165,8 +165,8 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.fill('#email', 'onetime@example.com');
         await page.fill('#phone_number', '7045559999');
 
-        // "Review Contract" should NOT be visible, "Go to Payment" should be
-        await expect(page.getByRole('button', { name: 'Review Contract' })).not.toBeVisible();
+        // "Review Agreement" should NOT be visible, "Go to Payment" should be
+        await expect(page.getByRole('button', { name: 'Review Agreement' })).not.toBeVisible();
         const paymentButton = page.getByRole('button', { name: 'Go to Payment' });
         await expect(paymentButton).toBeVisible();
 
@@ -209,7 +209,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.fill('#email', 'noprovider@example.com');
         await page.fill('#phone_number', '7045550000');
 
-        await page.getByRole('button', { name: 'Review Contract' }).click();
+        await page.getByRole('button', { name: 'Review Agreement' }).click();
 
         // Step 3: Accept ToS and submit
         await page.check('#tos_accepted');
@@ -247,7 +247,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.fill('#phone_number', '7045551234');
 
         // Try to proceed
-        await page.getByRole('button', { name: 'Review Contract' }).click();
+        await page.getByRole('button', { name: 'Review Agreement' }).click();
 
         // Should show email validation error
         await expect(page.getByText('Please enter a valid email')).toBeVisible();
