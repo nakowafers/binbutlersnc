@@ -8,11 +8,11 @@ export class D1DatabaseAdapter implements IDatabaseService {
         this.db = db;
     }
 
-    async createLead(id: string, email: string, address: string, salesRepId: string | null, tosAcceptedAt: string | null): Promise<void> {
+    async createLead(id: string, email: string, address: string, firstName: string, lastName: string, salesRepId: string | null, tosAcceptedAt: string | null): Promise<void> {
         await this.db.prepare(
-            'INSERT INTO leads (id, email, address, sales_rep_id, tos_accepted_at) VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO leads (id, email, address, first_name, last_name, sales_rep_id, tos_accepted_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
         )
-        .bind(id, email, address, salesRepId, tosAcceptedAt)
+        .bind(id, email, address, firstName, lastName, salesRepId, tosAcceptedAt)
         .run();
     }
 
@@ -179,6 +179,8 @@ export class D1DatabaseAdapter implements IDatabaseService {
     async convertLeadToCustomerTransaction(params: {
         leadId: string;
         email: string;
+        firstName: string;
+        lastName: string;
         stripeCustomerId: string;
         stripeSubscriptionId: string | null;
         phoneNumber: string;
@@ -198,15 +200,19 @@ export class D1DatabaseAdapter implements IDatabaseService {
         serviceHistoryId: string;
         frequency: 'monthly' | 'quarterly' | 'one-time';
     }): Promise<void> {
+        const combinedName = `${params.firstName} ${params.lastName}`.trim();
         const batchStatements = [
             // 1. Remove converted lead
             this.db.prepare('DELETE FROM leads WHERE id = ?').bind(params.leadId),
 
             // 2. Create or update customer
             this.db.prepare(
-                `INSERT INTO customers (id, email, stripe_customer_id, phone_number, bin_quantity, sales_rep_id, tos_accepted_at) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                `INSERT INTO customers (id, email, first_name, last_name, name, stripe_customer_id, phone_number, bin_quantity, sales_rep_id, tos_accepted_at) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(email) DO UPDATE SET 
+                    first_name = excluded.first_name,
+                    last_name = excluded.last_name,
+                    name = excluded.name,
                     stripe_customer_id = excluded.stripe_customer_id,
                     phone_number = excluded.phone_number,
                     bin_quantity = excluded.bin_quantity,
@@ -215,6 +221,9 @@ export class D1DatabaseAdapter implements IDatabaseService {
             ).bind(
                 params.customerId,
                 params.email,
+                params.firstName,
+                params.lastName,
+                combinedName,
                 params.stripeCustomerId,
                 params.phoneNumber,
                 params.binQuantity,

@@ -21,7 +21,7 @@ export interface PendingDispatchResult {
 
 export interface IDatabaseService {
     // Lead Operations
-    createLead(id: string, email: string, address: string, salesRepId: string | null, tosAcceptedAt: string | null): Promise<void>;
+    createLead(id: string, email: string, address: string, firstName: string, lastName: string, salesRepId: string | null, tosAcceptedAt: string | null): Promise<void>;
     getLeadById(id: string): Promise<Lead | null>;
 
     // Customer Operations
@@ -64,6 +64,8 @@ export interface IDatabaseService {
     convertLeadToCustomerTransaction(params: {
         leadId: string;
         email: string;
+        firstName: string;
+        lastName: string;
         stripeCustomerId: string;
         stripeSubscriptionId: string | null;
         phoneNumber: string;

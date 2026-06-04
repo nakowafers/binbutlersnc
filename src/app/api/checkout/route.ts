@@ -9,6 +9,8 @@ export const runtime = 'edge';
 
 const checkoutSchema = z.object({
     email: z.string().email(),
+    first_name: z.string().trim().min(1).max(100),
+    last_name: z.string().trim().min(1).max(100),
     address: z.string().min(5),
     lat: z.number().optional(),
     lng: z.number().optional(),
@@ -103,7 +105,7 @@ export async function POST(request: Request) {
         if (env.DB) {
             try {
                 const db = new D1DatabaseAdapter(env.DB);
-                await db.createLead(leadId, validatedData.email, validatedData.address, validatedData.sales_rep_id || null, tosAcceptedAt);
+                await db.createLead(leadId, validatedData.email, validatedData.address, validatedData.first_name, validatedData.last_name, validatedData.sales_rep_id || null, tosAcceptedAt);
             } catch (dbError) {
                 console.error('Lead capture failed:', dbError);
             }
@@ -131,6 +133,8 @@ export async function POST(request: Request) {
         // 3. Create Payment/Checkout Session via Adapter
         const { url } = await paymentService.createCheckoutSession({
             email: validatedData.email,
+            firstName: validatedData.first_name,
+            lastName: validatedData.last_name,
             frequency: validatedData.frequency,
             binQuantity: validatedData.bin_quantity,
             phoneNumber: validatedData.phone_number,

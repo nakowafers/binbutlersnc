@@ -21,6 +21,8 @@ import { normalizeSalesRepId } from "@/lib/sales-rep";
 import { calculatePricing } from "@/lib/pricing";
 
 const signupSchema = z.object({
+    first_name: z.string().trim().min(1, "First name is required").max(100),
+    last_name: z.string().trim().min(1, "Last name is required").max(100),
     address: z.string().min(5, "Please enter a valid address"),
     lat: z.number().optional(),
     lng: z.number().optional(),
@@ -60,6 +62,8 @@ function SignupForm() {
     const { register, handleSubmit, control, setValue, trigger, formState: { errors } } = useForm<SignupFormValues>({
         resolver: zodResolver(signupSchema),
         defaultValues: {
+            first_name: '',
+            last_name: '',
             frequency: (initialFrequency === 'monthly' || initialFrequency === 'quarterly' || initialFrequency === 'one-time') ? initialFrequency : 'monthly',
             bin_quantity: 1,
             trash_day: 'MON',
@@ -149,7 +153,7 @@ function SignupForm() {
 
     const nextStep = async () => {
         const fieldsToValidate = step === 1
-            ? ['address', 'trash_day', 'bin_quantity'] as const
+            ? ['first_name', 'last_name', 'address', 'trash_day', 'bin_quantity'] as const
             : ['email', 'phone_number'] as const;
 
         const isValid = await trigger(fieldsToValidate);
@@ -196,6 +200,29 @@ function SignupForm() {
                                 <CardDescription className="text-slate-300">Enter your address and choose your service plan.</CardDescription>
                             </CardHeader>
                             <CardContent className="p-8 space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-3">
+                                        <Label htmlFor="first_name" className="text-[#1C3D5A] font-bold">First Name</Label>
+                                        <Input
+                                            id="first_name"
+                                            {...register('first_name')}
+                                            placeholder="John"
+                                            className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
+                                        />
+                                        {errors.first_name && <p className="text-red-500 text-sm">{errors.first_name.message}</p>}
+                                    </div>
+                                    <div className="space-y-3">
+                                        <Label htmlFor="last_name" className="text-[#1C3D5A] font-bold">Last Name</Label>
+                                        <Input
+                                            id="last_name"
+                                            {...register('last_name')}
+                                            placeholder="Doe"
+                                            className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
+                                        />
+                                        {errors.last_name && <p className="text-red-500 text-sm">{errors.last_name.message}</p>}
+                                    </div>
+                                </div>
+
                                 <div className="space-y-3">
                                     <Label htmlFor="address" className="text-[#1C3D5A] font-bold">Service Address</Label>
                                     <AddressAutocomplete

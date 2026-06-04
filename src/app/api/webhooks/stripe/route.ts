@@ -30,6 +30,8 @@ async function processStripeEvent(
         const metadata = session.metadata || {};
         const leadId = metadata.lead_id;
         const salesRepId = normalizeSalesRepId(metadata.sales_rep_id);
+        const firstName = metadata.first_name || '';
+        const lastName = metadata.last_name || '';
         const phoneNumber = metadata.phone_number;
         const trashDay = metadata.trash_day;
         const providerName = metadata.provider_name || '';
@@ -38,6 +40,7 @@ async function processStripeEvent(
         const lng = metadata.lng ? parseFloat(metadata.lng) : null;
         const frequency = (metadata.frequency || 'monthly') as 'monthly' | 'quarterly' | 'one-time';
         const tosAcceptedAt = metadata.tos_accepted_at || null;
+        const combinedName = `${firstName} ${lastName}`.trim();
 
         if (!leadId) {
             throw new WebhookHttpError(400, 'Missing lead_id in metadata');
@@ -72,6 +75,9 @@ async function processStripeEvent(
 
         try {
             await paymentService.updateCustomerServiceDetails(session.customer as string, {
+                name: combinedName,
+                firstName,
+                lastName,
                 address: lead.address,
                 trashDay,
                 providerName,
@@ -87,6 +93,8 @@ async function processStripeEvent(
         await db.convertLeadToCustomerTransaction({
             leadId,
             email: lead.email,
+            firstName,
+            lastName,
             stripeCustomerId: session.customer as string,
             stripeSubscriptionId: session.subscription as string,
             phoneNumber: phoneNumber,

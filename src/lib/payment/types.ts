@@ -1,5 +1,7 @@
 export interface CheckoutSessionParams {
     email: string;
+    firstName: string;
+    lastName: string;
     frequency: 'monthly' | 'quarterly' | 'one-time';
     binQuantity: number;
     phoneNumber: string;
@@ -16,6 +18,9 @@ export interface CheckoutSessionParams {
 }
 
 export interface CustomerServiceDetails {
+    name?: string;
+    firstName?: string;
+    lastName?: string;
     address: string;
     trashDay: string;
     providerName?: string;
