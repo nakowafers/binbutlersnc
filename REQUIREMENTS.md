@@ -113,7 +113,7 @@ Column names in D1 must be generic to support the Adapter Pattern:
     1. Capture `sales_rep_id` from metadata.
     2. Persist `bin_quantity` and `customer` details to D1.
     3. **D2D Fulfillment:** If `sales_rep_id` is present, immediately create a record in `service_history` with `dispatch_status = 'completed'` and `service_date = NOW()`.
-    4. **Contract Delivery:** Trigger an automated email via Resend containing a copy of the agreed-upon Terms of Service.
+    4. **Agreement Delivery:** Trigger an automated email via Resend containing a copy of the agreed-upon Terms of Service.
     5. Calculate the first scheduled cleaning date for the dispatch cron.
 - **Event:** `customer.subscription.deleted`
 - **Action:** Update `status = 'cancelled'` in D1. Note: Service continues until the `current_period_end` stored in D1/Stripe.

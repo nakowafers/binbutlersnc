@@ -427,7 +427,7 @@ function SignupForm() {
                                         onClick={nextStep}
                                         className="flex-grow bg-[#7AC142] hover:bg-[#68a638] text-white h-14 rounded-xl text-lg font-bold"
                                     >
-                                        Review Contract <ChevronRight size={20} className="ml-2" />
+                                        Review Agreement <ChevronRight size={20} className="ml-2" />
                                     </Button>
                                 )}
                             </CardFooter>
@@ -442,7 +442,7 @@ function SignupForm() {
                             </CardHeader>
                             <CardContent className="p-8 space-y-6">
                                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 h-64 overflow-y-auto text-sm text-slate-600 space-y-4 leading-relaxed scrollbar-thin scrollbar-thumb-slate-300">
-                                    <h3 className="font-bold text-[#1C3D5A] text-base">Service Contract for {address}</h3>
+                                    <h3 className="font-bold text-[#1C3D5A] text-base">Service Agreement for {address}</h3>
                                     <p>This agreement confirms your <span className="capitalize font-semibold">{frequency}</span> subscription for {binQuantity} trash bin{binQuantity > 1 ? 's' : ''} at the address listed above.</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">1. Service Scope</h4>
