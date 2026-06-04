@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 
+export const runtime = 'edge';
+
 const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
@@ -10,6 +12,7 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: "Bin Butlers NC | Premier Trash Bin Cleaning",
   description: "Professional, eco-friendly trash bin cleaning services in North Carolina.",
+  icons: [{ rel: "icon", url: "/assets/logo.png" }],
 };
 
 import { Toaster } from "@/components/ui/sonner";

@@ -110,7 +110,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         // Step 2: Fill D2D-specific fields
         await page.fill('#email', 'd2d@example.com');
         await page.fill('#phone_number', '7045559876');
-        await page.fill('#sales_rep_id', 'REP123');
+        await page.fill('#sales_rep_id', 'rep123');
 
         // Setup fee override field should appear
         await expect(page.getByLabel('Initial Clean Fee ($)')).toBeVisible();

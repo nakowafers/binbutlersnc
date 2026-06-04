@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+export const runtime = 'edge';
+
+import { useState, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
@@ -9,9 +11,24 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Mail } from "lucide-react";
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { toast } from "sonner";
 
 export default function SignInPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-[#F8FAFC] py-20 px-4 flex flex-col items-center justify-center">
+                <Loader2 size={40} className="animate-spin text-[#7AC142]" />
+            </div>
+        }>
+            <SignInForm />
+        </Suspense>
+    );
+}
+
+function SignInForm() {
+    const searchParams = useSearchParams();
+    const callbackUrl = searchParams.get('callbackUrl') || '/';
     const [email, setEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -19,7 +36,7 @@ export default function SignInPage() {
         e.preventDefault();
         setIsLoading(true);
         try {
-            await signIn('resend', { email, callbackUrl: '/' });
+            await signIn('resend', { email, callbackUrl });
         } catch (error) {
             console.error('Sign in error:', error);
             toast.error('Failed to send magic link.');

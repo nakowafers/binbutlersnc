@@ -1,6 +1,10 @@
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import { Header } from '@/components/Header';
 import Link from 'next/link';
 import Image from 'next/image';
+
+export const runtime = 'edge';
 import { Button } from '@/components/ui/button';
 import {
   Accordion,
@@ -10,7 +14,13 @@ import {
 } from "@/components/ui/accordion";
 import { CheckCircle2, MousePointer2, Truck, Sparkles } from "lucide-react";
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth();
+  const role = (session?.user as { role?: string })?.role;
+
+  if (role === 'ADMIN') {
+    redirect('/admin');
+  }
   return (
     <div className="flex flex-col min-h-screen font-sans bg-[#F8FAFC]">
       <Header />

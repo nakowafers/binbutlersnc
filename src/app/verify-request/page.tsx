@@ -1,6 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Mail } from "lucide-react";
+
+export const runtime = 'edge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function VerifyRequestPage() {
