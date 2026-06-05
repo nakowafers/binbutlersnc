@@ -84,6 +84,7 @@ export interface IDatabaseService {
         currentPeriodEnd: string | null;
         serviceHistoryId: string;
         frequency: 'monthly' | 'quarterly' | 'one-time';
+        nextServiceDate?: string | null;
     }): Promise<void>;
 
     updateServiceHistoryOnCompletion(subscriptionId: string, completedAt: string | null): Promise<void>;

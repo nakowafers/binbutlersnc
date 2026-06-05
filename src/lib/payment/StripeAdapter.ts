@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
 import { IPaymentService, CheckoutSessionParams, CustomerServiceDetails } from './types';
+import { getRecurringBillingStartTimestamp } from '@/lib/date-utils';
 
 export interface StripeConfig {
     secretKey: string;
@@ -99,15 +100,24 @@ export class StripeAdapter implements IPaymentService {
             console.error('Failed to look up customer by email in Stripe:', err);
         }
 
+        let subscriptionData: NonNullable<Parameters<typeof this.stripe.checkout.sessions.create>[0]>['subscription_data'];
+        if (mode === 'subscription') {
+            subscriptionData = {};
+            if (params.nextServiceDate) {
+                const frequencyDays = params.frequency === 'monthly' ? 28 : 84;
+                subscriptionData.trial_end = getRecurringBillingStartTimestamp(params.nextServiceDate, frequencyDays);
+            } else {
+                subscriptionData.trial_period_days = params.frequency === 'monthly' ? 28 : 84;
+            }
+        }
+
         const session = await this.stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             line_items: lineItems,
             mode: mode,
             customer: existingCustomerId || undefined,
             customer_creation: mode === 'payment' && !existingCustomerId ? 'always' : undefined,
-            subscription_data: mode === 'subscription' ? {
-                trial_period_days: params.frequency === 'monthly' ? 28 : 84,
-            } : undefined,
+            subscription_data: subscriptionData,
             success_url: params.successUrl,
             cancel_url: params.cancelUrl,
             customer_email: existingCustomerId ? undefined : params.email,
@@ -124,6 +134,7 @@ export class StripeAdapter implements IPaymentService {
                 lng: params.lng?.toString() || '',
                 frequency: params.frequency,
                 tos_accepted_at: params.tosAcceptedAt || '',
+                next_service_date: params.nextServiceDate || '',
             },
         });
 

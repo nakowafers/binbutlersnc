@@ -199,6 +199,8 @@ export class D1DatabaseAdapter implements IDatabaseService {
         currentPeriodEnd: string | null;
         serviceHistoryId: string;
         frequency: 'monthly' | 'quarterly' | 'one-time';
+        nextServiceDate?: string | null;
+        serviceHistoryStatus?: string;
     }): Promise<void> {
         const combinedName = `${params.firstName} ${params.lastName}`.trim();
         const batchStatements = [
@@ -258,19 +260,34 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
             // 5. Create subscription or one-time record
             this.db.prepare(
-                'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days, current_period_end) VALUES (?, ?, ?, ?, ?, ?)'
+                'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days, current_period_end, next_service_date) VALUES (?, ?, ?, ?, ?, ?, ?)'
             ).bind(
                 params.subscriptionId,
                 params.customerId,
                 params.stripeSubscriptionId,
                 params.stripeSubscriptionId ? 'active' : 'one-time',
                 params.frequency === 'monthly' ? 28 : params.frequency === 'quarterly' ? 84 : 0,
-                params.currentPeriodEnd
+                params.currentPeriodEnd,
+                params.nextServiceDate || null
             )
         ];
 
-        // 6. D2D Fulfillment completed record
-        if (params.salesRepId) {
+        // 6. Service history for scheduled first service (or immediate fulfillment)
+        if (params.nextServiceDate) {
+            // Next service date provided: same-day -> Completed, future -> Pending
+            batchStatements.push(
+                this.db.prepare(
+                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, sales_rep_id) VALUES (?, ?, ?, ?, ?)'
+                ).bind(
+                    params.serviceHistoryId,
+                    params.subscriptionId,
+                    params.nextServiceDate,
+                    params.serviceHistoryStatus || 'Pending',
+                    params.salesRepId
+                )
+            );
+        } else if (params.salesRepId) {
+            // Fallback for D2D without next_service_date: immediate Completed (old behavior)
             batchStatements.push(
                 this.db.prepare(
                     'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, sales_rep_id) VALUES (?, ?, ?, ?, ?)'

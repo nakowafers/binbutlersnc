@@ -19,6 +19,14 @@ import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { normalizeSalesRepId } from "@/lib/sales-rep";
 import { calculatePricing } from "@/lib/pricing";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { getTodayDateString, getMaximumDate, isTrashDayMatch, isWeekday } from "@/lib/date-utils";
+
+const todayStr = getTodayDateString();
+const maxDate = getMaximumDate();
 
 const signupSchema = z.object({
     first_name: z.string().trim().min(1, "First name is required").max(100),
@@ -34,10 +42,25 @@ const signupSchema = z.object({
     bin_quantity: z.number().min(1, "Minimum 1 bin").max(10, "Maximum 10 bins"),
     sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined).optional(),
     setup_fee_override: z.number().min(0, "Setup fee must be at least $0").optional(),
+    next_service_date: z.string().optional(),
     tos_accepted: z.boolean().optional(),
     age_confirmed: z.boolean().optional(),
     contact_consent: z.boolean().optional(),
 }).superRefine((data, ctx) => {
+    if (data.next_service_date) {
+        if (data.next_service_date < todayStr) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: 'Service date cannot be in the past' });
+        }
+        if (data.next_service_date > maxDate) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: 'Service date must be within 180 days' });
+        }
+        if (data.frequency !== 'one-time' && !isTrashDayMatch(data.next_service_date, data.trash_day)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: `Service date must be a ${data.trash_day}` });
+        }
+        if (data.frequency === 'one-time' && !isWeekday(data.next_service_date)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: 'Service date must be a weekday' });
+        }
+    }
     if (data.frequency === 'one-time') return;
     if (!data.tos_accepted) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tos_accepted'], message: 'You must accept the Terms of Service' });
@@ -67,6 +90,7 @@ function SignupForm() {
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [canOverrideFee, setCanOverrideFee] = useState<boolean | null>(null);
+    const [calendarOpen, setCalendarOpen] = useState(false);
     const checkRepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
@@ -82,6 +106,7 @@ function SignupForm() {
             tos_accepted: false,
             age_confirmed: false,
             contact_consent: false,
+            next_service_date: '',
         }
     });
 
@@ -94,6 +119,7 @@ function SignupForm() {
     const ageConfirmed = useWatch({ control, name: 'age_confirmed' });
     const contactConsent = useWatch({ control, name: 'contact_consent' });
     const trashDay = useWatch({ control, name: 'trash_day' });
+    const nextServiceDate = useWatch({ control, name: 'next_service_date' });
     const recurringPrice = frequency === 'one-time'
         ? 0
         : calculatePricing(binQuantity, frequency).recurringPrice;
@@ -390,14 +416,13 @@ function SignupForm() {
                                     <Label htmlFor="sales_rep_id" className="text-[#1C3D5A] font-bold">Sales Rep ID (Optional)</Label>
                                     <Input
                                         id="sales_rep_id"
-                                        {...register('sales_rep_id')}
+                                        {...register('sales_rep_id', {
+                                            onChange: (e) => {
+                                                e.target.value = e.target.value.toUpperCase();
+                                            }
+                                        })}
                                         placeholder="REP123"
                                         className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
-                                        onChange={(e) => {
-                                            const upper = e.target.value.toUpperCase();
-                                            e.target.value = upper;
-                                            setValue('sales_rep_id', upper);
-                                        }}
                                     />
                                 </div>
 
@@ -415,12 +440,51 @@ function SignupForm() {
                                     </div>
                                 )}
 
+                                <div className="space-y-3">
+                                    <Label htmlFor="next_service_date" className="text-[#1C3D5A] font-bold">Next Service Date</Label>
+                                    <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                id="next_service_date"
+                                                variant="outline"
+                                                className={`w-full h-14 rounded-xl border-slate-200 justify-start text-left font-normal ${!nextServiceDate ? 'text-muted-foreground' : ''}`}
+                                            >
+                                                <CalendarIcon className="mr-2 size-4" />
+                                                {nextServiceDate ? format(new Date(`${nextServiceDate}T12:00:00`), 'PPP') : 'Select a date'}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <Calendar
+                                                mode="single"
+                                                selected={nextServiceDate ? new Date(`${nextServiceDate}T12:00:00`) : undefined}
+                                                onSelect={(date) => {
+                                                    if (date) {
+                                                        const dateStr = date.toISOString().split('T')[0];
+                                                        setValue('next_service_date', dateStr, { shouldValidate: true });
+                                                        setCalendarOpen(false);
+                                                    }
+                                                }}
+                                                disabled={(date) => {
+                                                    const dateStr = date.toISOString().split('T')[0];
+                                                    if (dateStr < todayStr || dateStr > maxDate) return true;
+                                                    if (frequency !== 'one-time') return !isTrashDayMatch(dateStr, trashDay);
+                                                    return !isWeekday(dateStr);
+                                                }}
+                                                autoFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                    {errors.next_service_date && <p className="text-red-500 text-sm">{errors.next_service_date.message}</p>}
+                                </div>
+
                                 <div className="p-4 bg-lime-50 rounded-2xl border border-lime-100 flex gap-4">
                                     <div className="text-[#7AC142] shrink-0 mt-1">
                                         <CheckCircle2 size={24} />
                                     </div>
                                     <p className="text-sm text-slate-600 leading-relaxed">
                                         <strong>Summary:</strong> You&apos;re signing up for the <span className="capitalize">{frequency.replace('-', ' ')}</span> service for {binQuantity} bin{binQuantity > 1 ? 's' : ''}{address ? ` at ${address}` : ''}.
+                                        <br /><br />
+                                        <strong>Next Service Date:</strong> {nextServiceDate ? format(new Date(`${nextServiceDate}T12:00:00`), 'PPP') : 'Not set'}
                                         <br /><br />
                                         <strong>Total due today:</strong>
                                         {frequency === 'one-time' ? (
@@ -430,8 +494,8 @@ function SignupForm() {
                                         )}
                                         <span className="text-xs text-slate-500 block mt-1">
                                             {frequency === 'one-time'
-                                                ? `($${setupFeeOverride} flat-rate one-time clean)`
-                                                : `($${setupFeeOverride} initial fee today + $${recurringPrice} flat-rate service starting in ${frequency === 'monthly' ? 4 : 12} weeks)`}
+                                                ? `($${setupFeeOverride} flat-rate one-time clean${nextServiceDate ? ' on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : ''})`
+                                                : `($${setupFeeOverride} initial fee today + $${recurringPrice} flat-rate service ${nextServiceDate ? 'starting on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : 'starting in ' + (frequency === 'monthly' ? 4 : 12) + ' weeks'})`}
                                         </span>
                                     </p>
                                 </div>
@@ -487,7 +551,7 @@ function SignupForm() {
                                     <p>Bin Butlers NC will provide professional cleaning, sanitizing, and deodorizing services for your specified trash bins. Service will occur on your municipal trash day ({trashDay}).</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">2. Billing & Renewal</h4>
-                                    <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of ${recurringPrice} will begin in {frequency === 'monthly' ? 4 : 12} weeks and will automatically renew until cancelled via the Stripe Customer Portal.</p>
+                                    <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of ${recurringPrice} will begin on {nextServiceDate ? format(new Date(nextServiceDate + 'T12:00:00'), 'PPP') : 'your scheduled service date'} and will automatically renew until cancelled via the Stripe Customer Portal.</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">3. Customer Obligations</h4>
                                     <p>Customers must leave their bins at the curb or in a visible, accessible location on the scheduled service day. If bins are not accessible, service may be skipped and rescheduled for the following week.</p>

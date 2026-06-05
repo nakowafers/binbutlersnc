@@ -21,6 +21,7 @@ const checkoutSchema = z.object({
     frequency: z.enum(['monthly', 'quarterly', 'one-time']),
     sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined),
     setup_fee_override: z.number().min(0).optional(),
+    next_service_date: z.string().optional(),
     tos_accepted: z.boolean().optional().default(false),
     age_confirmed: z.boolean().optional().default(false),
     contact_consent: z.boolean().optional().default(false),
@@ -84,7 +85,13 @@ export async function POST(request: Request) {
 
         const validatedData = checkoutSchema.parse(body);
 
-        // Silently use default fee if sales rep is not authorized to override
+        // Silently use default fee unless a sales rep is authorized to override it.
+        if (validatedData.setup_fee_override !== undefined) {
+            if (!validatedData.sales_rep_id || !env?.DB) {
+                validatedData.setup_fee_override = undefined;
+            }
+        }
+
         if (validatedData.sales_rep_id && validatedData.setup_fee_override !== undefined && env?.DB) {
             try {
                 const db = new D1DatabaseAdapter(env.DB);
@@ -143,6 +150,7 @@ export async function POST(request: Request) {
             salesRepId: validatedData.sales_rep_id,
             setup_fee_override: validatedData.setup_fee_override,
             tosAcceptedAt: tosAcceptedAt,
+            nextServiceDate: validatedData.next_service_date,
             lat: validatedData.lat,
             lng: validatedData.lng,
             leadId: leadId,
