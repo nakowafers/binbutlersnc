@@ -65,6 +65,8 @@ describe('Checkout API - Integration Tests', () => {
 
         const body = {
             email: 'test@example.com',
+            first_name: 'John',
+            last_name: 'Doe',
             address: '123 Test St',
             phone_number: '555-1234',
             trash_day: 'MON',
@@ -117,14 +119,19 @@ describe('Checkout API - Integration Tests', () => {
 
         const body = {
             email: 'onetime@example.com',
+            first_name: 'Jane',
+            last_name: 'Smith',
             address: '456 Onetime Rd',
             phone_number: '555-0000',
             trash_day: 'FRI',
             provider_name: 'City Waste',
             bin_quantity: 1,
             frequency: 'one-time',
+            sales_rep_id: 'rep_override',
             setup_fee_override: 50,
         };
+        simulator.db.prepare('INSERT INTO sales_reps (id, can_override_fee) VALUES (?, ?)')
+            .run('rep_override', 1);
 
         const request = new Request('http://localhost/api/checkout', {
             method: 'POST',
@@ -161,5 +168,77 @@ describe('Checkout API - Integration Tests', () => {
 
         const response = await POST(request);
         expect(response.status).toBe(400);
+    });
+
+    it('should accept valid next_service_date with subscription', async () => {
+        mockCreateSession.mockResolvedValue({ url: 'https://stripe.com/checkout/session/789' });
+        mockRetrievePrice.mockResolvedValue({ product: 'prod_setup' });
+
+        const body = {
+            email: 'date-test@example.com',
+            first_name: 'Date',
+            last_name: 'Test',
+            address: '777 Date Pick Ln',
+            phone_number: '555-7777',
+            trash_day: 'WED',
+            provider_name: 'Waste Co',
+            bin_quantity: 1,
+            frequency: 'monthly',
+            tos_accepted: true,
+            age_confirmed: true,
+            contact_consent: true,
+            next_service_date: '2026-06-17',
+        };
+
+        const request = new Request('http://localhost/api/checkout', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+
+        const response = await POST(request);
+        expect(response.status).toBe(200);
+
+        expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({
+            mode: 'subscription',
+            metadata: expect.objectContaining({
+                next_service_date: '2026-06-17',
+            }),
+            subscription_data: expect.objectContaining({
+                trial_end: 1784159999,
+            }),
+        }));
+    });
+
+    it('should accept next_service_date with one-time frequency', async () => {
+        mockCreateSession.mockResolvedValue({ url: 'https://stripe.com/checkout/session/101' });
+        mockRetrievePrice.mockResolvedValue({ product: 'prod_onetime' });
+
+        const body = {
+            email: 'ot-date@example.com',
+            first_name: 'OT',
+            last_name: 'Date',
+            address: '888 OT Date Dr',
+            phone_number: '555-8888',
+            trash_day: 'FRI',
+            provider_name: 'Waste Co',
+            bin_quantity: 1,
+            frequency: 'one-time',
+            next_service_date: '2026-06-19',
+        };
+
+        const request = new Request('http://localhost/api/checkout', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+
+        const response = await POST(request);
+        expect(response.status).toBe(200);
+
+        expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({
+            mode: 'payment',
+            metadata: expect.objectContaining({
+                next_service_date: '2026-06-19',
+            }),
+        }));
     });
 });

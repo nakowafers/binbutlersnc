@@ -10,6 +10,7 @@ export interface CheckoutSessionParams {
     salesRepId?: string;
     setup_fee_override?: number;
     tosAcceptedAt?: string | null;
+    nextServiceDate?: string;
     lat?: number;
     lng?: number;
     leadId: string;
@@ -28,6 +29,7 @@ export interface CustomerServiceDetails {
     salesRepId?: string;
     lat?: number | null;
     lng?: number | null;
+    nextServiceDate?: string | null;
 }
 
 export interface IPaymentService {

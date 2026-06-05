@@ -252,4 +252,89 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         // Should show email validation error
         await expect(page.getByText('Please enter a valid email')).toBeVisible();
     });
+
+    test('D2D Fee Override persists after date picker interaction', async ({ page }) => {
+        let capturedPayload: Record<string, unknown> | null = null;
+
+        // Mock /api/check-sales-rep to reliably return allowed: true
+        await page.route('**/api/check-sales-rep', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ allowed: true }),
+            });
+        });
+
+        // Mock /api/checkout to capture the payload
+        await page.route('**/api/checkout', async (route) => {
+            capturedPayload = route.request().postDataJSON();
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ url: '/success?session_id=sess_fee_persist_test' }),
+            });
+        });
+
+        await page.goto('/signup');
+
+        // Step 1: Address and plan details
+        await page.fill('#address', '123 Persist Fee St, Charlotte, NC');
+        await page.selectOption('#trash_day', 'WED');
+        await page.fill('#bin_quantity', '1');
+        await page.fill('#provider_name', 'Waste Co');
+        await page.getByRole('button', { name: 'Next Step' }).click();
+
+        // Step 2: Contact info + sales rep ID
+        await page.fill('#email', 'persist@example.com');
+        await page.fill('#phone_number', '7045551234');
+        await page.fill('#sales_rep_id', 'REP123');
+
+        // Fee override should appear after debounce + API response
+        const feeLabel = page.getByLabel('Initial Clean Fee ($)');
+        await expect(feeLabel).toBeVisible();
+
+        // Set a custom fee override value
+        const feeInput = page.locator('#setup_fee_override');
+        await feeInput.clear();
+        await feeInput.fill('55');
+        await expect(feeInput).toHaveValue('55');
+
+        // Open the date picker popover
+        const dateButton = page.getByLabel('Next Service Date');
+        await dateButton.click();
+        await expect(page.locator('[role="dialog"]')).toBeVisible();
+
+        // Close the date picker (Escape key)
+        await page.keyboard.press('Escape');
+        await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+
+        // Fee override should STILL be visible with correct value
+        await expect(feeLabel).toBeVisible();
+        await expect(feeInput).toHaveValue('55');
+
+        // Re-open date picker and select the first non-disabled date
+        await dateButton.click();
+        await page.locator('[role="dialog"] button:not([disabled])').first().click();
+        await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+
+        // Fee override should STILL be visible with correct value
+        await expect(feeLabel).toBeVisible();
+        await expect(feeInput).toHaveValue('55');
+
+        // Complete the flow
+        await page.getByRole('button', { name: 'Review Agreement' }).click();
+
+        // Step 3: Accept ToS and submit
+        await page.check('#tos_accepted');
+        await page.getByRole('button', { name: 'Go to Payment' }).click();
+
+        await page.waitForURL('**/success**');
+
+        // Verify payload has all expected fields
+        expect(capturedPayload).not.toBeNull();
+        expect(capturedPayload!.sales_rep_id).toBe('REP123');
+        expect(capturedPayload!.setup_fee_override).toBe(55);
+        expect(capturedPayload!.next_service_date).toBeDefined();
+        expect(capturedPayload!.frequency).toBe('monthly');
+    });
 });

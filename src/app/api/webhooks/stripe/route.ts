@@ -51,9 +51,7 @@ async function processStripeEvent(
             throw new WebhookHttpError(404, 'Lead not found');
         }
 
-        if (!session.subscription) {
-            throw new WebhookHttpError(500, 'Missing subscription reference in checkout session');
-        }
+        const isSubscription = !!session.subscription;
 
         const existingCustomer = await db.getCustomerByEmail(lead.email);
         const customerId = existingCustomer?.id || crypto.randomUUID();
@@ -61,34 +59,41 @@ async function processStripeEvent(
         const addressId = existingAddress?.id || crypto.randomUUID();
         const subscriptionId = crypto.randomUUID();
         const serviceHistoryId = crypto.randomUUID();
+        const nextServiceDate = metadata.next_service_date || null;
 
-        let currentPeriodEnd: string;
-        try {
-            const currentPeriodEndSecs = await paymentService.retrieveSubscriptionPeriodEnd(session.subscription as string);
-            if (!Number.isFinite(currentPeriodEndSecs)) {
-                throw new Error(`Stripe returned an invalid current_period_end for subscription ${session.subscription}`);
+        let currentPeriodEnd: string | null = null;
+        if (isSubscription) {
+            try {
+                const currentPeriodEndSecs = await paymentService.retrieveSubscriptionPeriodEnd(session.subscription as string);
+                if (!Number.isFinite(currentPeriodEndSecs)) {
+                    throw new Error(`Stripe returned an invalid current_period_end for subscription ${session.subscription}`);
+                }
+                currentPeriodEnd = new Date(currentPeriodEndSecs * 1000).toISOString();
+            } catch (error) {
+                throw new WebhookHttpError(502, `Failed to fetch subscription period end: ${(error as Error).message}`);
             }
-            currentPeriodEnd = new Date(currentPeriodEndSecs * 1000).toISOString();
-        } catch (error) {
-            throw new WebhookHttpError(502, `Failed to fetch subscription period end: ${(error as Error).message}`);
+
+            try {
+                await paymentService.updateCustomerServiceDetails(session.customer as string, {
+                    name: combinedName,
+                    firstName,
+                    lastName,
+                    address: lead.address,
+                    trashDay,
+                    providerName,
+                    phoneNumber,
+                    salesRepId: salesRepId || undefined,
+                    lat,
+                    lng,
+                    nextServiceDate,
+                });
+            } catch (error) {
+                throw new WebhookHttpError(502, `Failed to update Stripe customer service details: ${(error as Error).message}`);
+            }
         }
 
-        try {
-            await paymentService.updateCustomerServiceDetails(session.customer as string, {
-                name: combinedName,
-                firstName,
-                lastName,
-                address: lead.address,
-                trashDay,
-                providerName,
-                phoneNumber,
-                salesRepId: salesRepId || undefined,
-                lat,
-                lng,
-            });
-        } catch (error) {
-            throw new WebhookHttpError(502, `Failed to update Stripe customer service details: ${(error as Error).message}`);
-        }
+        const todayIso = new Date().toISOString().split('T')[0];
+        const isSameDay = nextServiceDate === todayIso;
 
         await db.convertLeadToCustomerTransaction({
             leadId,
@@ -96,7 +101,7 @@ async function processStripeEvent(
             firstName,
             lastName,
             stripeCustomerId: session.customer as string,
-            stripeSubscriptionId: session.subscription as string,
+            stripeSubscriptionId: isSubscription ? (session.subscription as string) : null,
             phoneNumber: phoneNumber,
             binQuantity: binQuantity,
             salesRepId: salesRepId || null,
@@ -112,7 +117,9 @@ async function processStripeEvent(
             customerId,
             currentPeriodEnd,
             serviceHistoryId,
-            frequency
+            frequency,
+            nextServiceDate,
+            serviceHistoryStatus: isSameDay ? 'Completed' : undefined,
         });
 
         console.log(`Successfully converted lead ${leadId} to customer ${customerId}`);
