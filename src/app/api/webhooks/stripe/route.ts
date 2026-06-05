@@ -85,6 +85,7 @@ async function processStripeEvent(
                     salesRepId: salesRepId || undefined,
                     lat,
                     lng,
+                    nextServiceDate,
                 });
             } catch (error) {
                 throw new WebhookHttpError(502, `Failed to update Stripe customer service details: ${(error as Error).message}`);

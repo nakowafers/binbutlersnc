@@ -29,6 +29,7 @@ export interface CustomerServiceDetails {
     salesRepId?: string;
     lat?: number | null;
     lng?: number | null;
+    nextServiceDate?: string | null;
 }
 
 export interface IPaymentService {
