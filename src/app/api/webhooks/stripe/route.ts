@@ -72,24 +72,24 @@ async function processStripeEvent(
             } catch (error) {
                 throw new WebhookHttpError(502, `Failed to fetch subscription period end: ${(error as Error).message}`);
             }
+        }
 
-            try {
-                await paymentService.updateCustomerServiceDetails(session.customer as string, {
-                    name: combinedName,
-                    firstName,
-                    lastName,
-                    address: lead.address,
-                    trashDay,
-                    providerName,
-                    phoneNumber,
-                    salesRepId: salesRepId || undefined,
-                    lat,
-                    lng,
-                    nextServiceDate,
-                });
-            } catch (error) {
-                throw new WebhookHttpError(502, `Failed to update Stripe customer service details: ${(error as Error).message}`);
-            }
+        try {
+            await paymentService.updateCustomerServiceDetails(session.customer as string, {
+                name: combinedName,
+                firstName,
+                lastName,
+                address: lead.address,
+                trashDay,
+                providerName,
+                phoneNumber,
+                salesRepId: salesRepId || undefined,
+                lat,
+                lng,
+                nextServiceDate,
+            });
+        } catch (error) {
+            throw new WebhookHttpError(502, `Failed to update Stripe customer service details: ${(error as Error).message}`);
         }
 
         const todayIso = new Date().toISOString().split('T')[0];
