@@ -77,7 +77,7 @@ Column names in D1 must be generic to support the Adapter Pattern:
 3.  **Abandoned Cart Recovery (Future):** The system will persist the customer's `email`, `address`, and `rep_id` to a `leads` table *before* redirecting to Stripe. If a successful `checkout.session.completed` webhook is not received within 24 hours, the system triggers an automated follow-up.
 
 ### 4.2. Checkout & Provisioning
-1.  **Dynamic Stripe Checkout:** The backend generates a dynamic session where the `Setup Fee` defaults to $100 flat regardless of bin count. This is the only fee due at signing. For subscriptions, a trial period is applied (28 days for monthly, 84 days for quarterly) so that the recurring flat rate starts only after the initial cleaning interval. D2D sales reps have the ability to manually edit this initial fee for on-the-spot sales, but the fee cannot be less than $0.
+1.  **Dynamic Stripe Checkout:** The backend generates a dynamic session where the `Setup Fee` defaults to $60 flat regardless of bin count. This is the only fee due at signing. For subscriptions, a trial period is applied (28 days for monthly, 84 days for quarterly) so that the recurring flat rate starts only after the initial cleaning interval. D2D sales reps have the ability to manually edit this initial fee for on-the-spot sales, but the fee cannot be less than $0.
 2.  **Service Day Logic:** The system automatically assigns `service_day = trash_day`. Bins are cleaned on the same day as garbage collection.
 3.  **Route Assignment:** Maps address to `service_route_id` based on the assigned `service_day`.
 
@@ -210,7 +210,7 @@ To initialize the project, the following external credentials must be provisione
 Every feature must be verified against the following SQA-grade testing matrix before being marked as "Complete."
 
 ### 9.1. Unit Testing (Core Logic)
-- **Pricing Engine:** Verify the $100 flat fee for initial cleans (including custom overrides for D2D reps) and that recurring charges are deferred by the appropriate interval (4 or 12 weeks).
+- **Pricing Engine:** Verify the $60 flat fee for initial cleans (including custom overrides for D2D reps) and that recurring charges are deferred by the appropriate interval (4 or 12 weeks).
 - **Scheduling Engine:** Validate 4-week and 12-week interval calculations.
 - **Date Offsets:** Verify "Trash Day = Service Day" logic and "Holiday Shift" (+24h) calculations.
 

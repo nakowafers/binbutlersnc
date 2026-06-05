@@ -4,7 +4,7 @@ export interface PricingResult {
 }
 
 export function calculatePricing(binQuantity: number, frequency: 'monthly' | 'quarterly'): PricingResult {
-    const DEFAULT_SETUP_FEE = 100;
+    const DEFAULT_SETUP_FEE = 60;
     const MONTHLY_RATE = 30;
     const QUARTERLY_RATE = 50;
 

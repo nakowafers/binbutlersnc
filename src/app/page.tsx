@@ -222,7 +222,7 @@ export default async function Home() {
               <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group">
                 <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">One-Time</h3>
                 <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-4xl font-extrabold text-[#1C3D5A]">$100</span>
+                  <span className="text-4xl font-extrabold text-[#1C3D5A]">$60</span>
                   <span className="text-slate-500">/clean</span>
                 </div>
                 <p className="text-slate-600 mb-8">Great for a deep spring cleaning</p>
