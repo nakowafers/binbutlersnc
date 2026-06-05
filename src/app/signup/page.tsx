@@ -67,7 +67,7 @@ function SignupForm() {
             frequency: (initialFrequency === 'monthly' || initialFrequency === 'quarterly' || initialFrequency === 'one-time') ? initialFrequency : 'monthly',
             bin_quantity: 1,
             trash_day: 'MON',
-            setup_fee_override: 100,
+            setup_fee_override: 60,
             tos_accepted: false,
             age_confirmed: false,
             contact_consent: false,
@@ -78,7 +78,7 @@ function SignupForm() {
     const frequency = useWatch({ control, name: 'frequency' });
     const binQuantity = useWatch({ control, name: 'bin_quantity' });
     const salesRepId = useWatch({ control, name: 'sales_rep_id' });
-    const setupFeeOverride = useWatch({ control, name: 'setup_fee_override' }) ?? 100;
+    const setupFeeOverride = useWatch({ control, name: 'setup_fee_override' }) ?? 60;
     const tosAccepted = useWatch({ control, name: 'tos_accepted' });
     const ageConfirmed = useWatch({ control, name: 'age_confirmed' });
     const contactConsent = useWatch({ control, name: 'contact_consent' });
