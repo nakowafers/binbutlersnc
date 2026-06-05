@@ -161,7 +161,7 @@ export async function POST(request: Request) {
     } catch (error) {
         console.error('Checkout failure:', error);
         const status = error instanceof z.ZodError ? 400 : 500;
-        const msg = error instanceof z.ZodError ? error.issues : ((error as Error).message || 'Internal Server Error');
+        const msg = error instanceof z.ZodError ? error.issues.map(i => i.message).join('; ') : ((error as Error).message || 'Internal Server Error');
         return new Response(JSON.stringify({ error: msg }), { 
             status, 
             headers: { 'Content-Type': 'application/json' } 
