@@ -35,8 +35,19 @@ const signupSchema = z.object({
     sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined).optional(),
     setup_fee_override: z.number().min(0, "Setup fee must be at least $0").optional(),
     tos_accepted: z.boolean().optional(),
-    age_confirmed: z.boolean().refine(v => v === true, { message: "You must confirm you are 18 or older" }),
-    contact_consent: z.boolean().refine(v => v === true, { message: "You must agree to be contacted" }),
+    age_confirmed: z.boolean().optional(),
+    contact_consent: z.boolean().optional(),
+}).superRefine((data, ctx) => {
+    if (data.frequency === 'one-time') return;
+    if (!data.tos_accepted) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tos_accepted'], message: 'You must accept the Terms of Service' });
+    }
+    if (!data.age_confirmed) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['age_confirmed'], message: 'You must confirm you are 18 or older' });
+    }
+    if (!data.contact_consent) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['contact_consent'], message: 'You must agree to be contacted' });
+    }
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
