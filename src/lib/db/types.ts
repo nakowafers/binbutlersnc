@@ -1,4 +1,4 @@
-import { Lead, Customer, Address, Subscription, ServiceHistory } from '@/lib/types';
+import { Lead, Customer, Address, Subscription, ServiceHistory, CustomerWithDetails } from '@/lib/types';
 
 export interface DueSubscriptionResult extends Subscription {
     raw_address: string;
@@ -105,4 +105,9 @@ export interface IDatabaseService {
     storeRoutificDispatch(id: string, subscriptionId: string, routificOrderId: string, serviceDate: string): Promise<void>;
     getRoutificOrderIdsBySubscription(subscriptionId: string): Promise<string[]>;
     deleteRoutificDispatch(id: string): Promise<void>;
+
+    // Admin Customer Management
+    getAllCustomersWithDetails(): Promise<CustomerWithDetails[]>;
+    updateAddressNotes(addressId: string, notes: string): Promise<void>;
+    deleteCustomerCascade(customerId: string): Promise<void>;
 }
