@@ -1,6 +1,7 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { z } from 'zod';
 import { Env } from '@/lib/types';
+import { normalizeEmail, normalizeAddress } from '@/lib/utils';
 import { StripeAdapter } from '@/lib/payment/StripeAdapter';
 import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { normalizeSalesRepId } from '@/lib/sales-rep';
@@ -83,7 +84,16 @@ export async function POST(request: Request) {
             });
         }
 
-        const validatedData = checkoutSchema.parse(body);
+        const rawBody = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+        if (typeof rawBody.email === 'string') {
+            rawBody.email = normalizeEmail(rawBody.email);
+        }
+        if (typeof rawBody.address === 'string') {
+            rawBody.address = normalizeAddress(rawBody.address);
+        }
+        const validatedData = checkoutSchema.parse(rawBody);
+        validatedData.email = normalizeEmail(validatedData.email);
+        validatedData.address = normalizeAddress(validatedData.address);
 
         // Silently use default fee unless a sales rep is authorized to override it.
         if (validatedData.setup_fee_override !== undefined) {
@@ -105,19 +115,37 @@ export async function POST(request: Request) {
             }
         }
 
-        const leadId = crypto.randomUUID();
         const tosAcceptedAt = validatedData.tos_accepted ? new Date().toISOString() : null;
+        let leadId: string = '';
 
-        // 1. Capture Lead in Database via Adapter
+        // 1. Get or create Lead in Database via Adapter
         if (env.DB) {
             try {
                 const db = new D1DatabaseAdapter(env.DB);
-                await db.createLead(leadId, validatedData.email, validatedData.address, validatedData.first_name, validatedData.last_name, validatedData.sales_rep_id || null, tosAcceptedAt);
+                const existingLead = await db.getLeadByEmail(validatedData.email);
+                if (existingLead) {
+                    leadId = existingLead.id;
+                    await db.updateLeadMetadata(
+                        leadId,
+                        validatedData.first_name,
+                        validatedData.last_name,
+                        validatedData.address,
+                        validatedData.sales_rep_id || null,
+                        tosAcceptedAt
+                    );
+                } else {
+                    leadId = crypto.randomUUID();
+                    await db.createLead(leadId, validatedData.email, validatedData.address, validatedData.first_name, validatedData.last_name, validatedData.sales_rep_id || null, tosAcceptedAt);
+                }
             } catch (dbError) {
                 console.error('Lead capture failed:', dbError);
             }
         } else {
             console.warn('DB binding missing, skipping lead capture');
+        }
+
+        if (!leadId) {
+            leadId = crypto.randomUUID();
         }
 
         // 2. Initialize Payment Service

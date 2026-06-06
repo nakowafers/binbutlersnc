@@ -117,14 +117,14 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         const address = simulator.db.prepare('SELECT * FROM addresses WHERE id = ?').get(customer.address_id) as any;
         expect(address).toBeDefined();
         expect(address.customer_id).toBe(customer.id);
-        expect(address.raw_address).toBe('123 Organic St');
+        expect(address.raw_address).toBe('123 organic st');
         expect(address.trash_day).toBe('MON');
         expect(address.service_day).toBe('MON');
         expect(address.notes).toBe('Waste Co');
 
         expect(mockCustomerUpdate).toHaveBeenCalledWith('cus_123', {
             metadata: expect.objectContaining({
-                service_address: '123 Organic St',
+                service_address: '123 organic st',
                 trash_day: 'MON',
                 notes: 'Waste Co',
                 phone_number: '555-5555',
@@ -446,7 +446,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
             headers: { 'stripe-signature': 'sig_123' },
         }));
 
-        const addrBefore = simulator.db.prepare('SELECT * FROM addresses WHERE raw_address = ?').get('555 Upsert Ln') as any;
+        const addrBefore = simulator.db.prepare('SELECT * FROM addresses WHERE raw_address = ?').get('555 upsert ln') as any;
         expect(addrBefore.trash_day).toBe('MON');
 
         // 2. Second conversion (same address, same email -> same customer_id, new lead)
@@ -481,7 +481,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         }));
 
         // Verify address was updated, not duplicated
-        const addresses = simulator.db.prepare('SELECT * FROM addresses WHERE raw_address = ?').all('555 Upsert Ln') as any[];
+        const addresses = simulator.db.prepare('SELECT * FROM addresses WHERE raw_address = ?').all('555 upsert ln') as any[];
         expect(addresses.length).toBe(1);
         expect(addresses[0].trash_day).toBe('TUE');
         expect(addresses[0].service_day).toBe('TUE');
@@ -571,5 +571,201 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         // Verify status in DB is past_due
         const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE id = ?').get(subscriptionId) as any;
         expect(subscription.status).toBe('past_due');
+    });
+
+    describe('Customer identity (one-time -> subscription) hardening', () => {
+        const leadBody = (leadId: string, overrides: Record<string, unknown> = {}) => ({
+            id: leadId,
+            email: 'identity@example.com',
+            address: '123 Identity Ln',
+            first_name: 'Ident',
+            last_name: 'Ity',
+            sales_rep_id: null,
+            tos_accepted_at: null,
+            converted: 0,
+            created_at: new Date().toISOString(),
+        });
+
+        async function postCheckout(metadata: Record<string, string | null>, stripeCustomer: string, subscription: string | null) {
+            mockConstructEventAsync.mockResolvedValue({
+                type: 'checkout.session.completed',
+                data: {
+                    object: {
+                        customer: stripeCustomer,
+                        subscription: subscription,
+                        metadata,
+                    },
+                },
+            });
+            await POST(new Request('http://localhost/api/webhooks/stripe', {
+                method: 'POST',
+                body: JSON.stringify({}),
+                headers: { 'stripe-signature': 'sig_123' },
+            }));
+        }
+
+        function insertLead(leadId: string, overrides: Record<string, unknown> = {}) {
+            const merged = { ...leadBody(leadId), ...overrides };
+            simulator.db.prepare(
+                'INSERT INTO leads (id, email, address, first_name, last_name, sales_rep_id, tos_accepted_at, converted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            ).run(
+                merged.id,
+                merged.email,
+                merged.address,
+                merged.first_name,
+                merged.last_name,
+                merged.sales_rep_id ?? null,
+                merged.tos_accepted_at ?? null,
+                merged.converted,
+                merged.created_at
+            );
+        }
+
+        it('preserves D2D sales rep on a later organic subscription', async () => {
+            insertLead('lead_d2d_first', {
+                email: 'identity@example.com',
+                sales_rep_id: 'alice',
+            });
+            await postCheckout({
+                lead_id: 'lead_d2d_first',
+                sales_rep_id: 'alice',
+                phone_number: '555-1111',
+                trash_day: 'MON',
+                notes: '',
+                bin_quantity: '1',
+                frequency: 'one-time',
+                tos_accepted_at: null,
+            }, 'cus_d2d', null);
+
+            // Now: same email, no rep, different lead
+            insertLead('lead_org_second', {
+                email: 'identity@example.com',
+                sales_rep_id: null,
+            });
+            await postCheckout({
+                lead_id: 'lead_org_second',
+                phone_number: '555-2222',
+                trash_day: 'TUE',
+                notes: '',
+                bin_quantity: '2',
+                frequency: 'monthly',
+                tos_accepted_at: new Date().toISOString(),
+            }, 'cus_d2d', 'sub_d2d_second');
+
+            const customers = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').all('identity@example.com') as any[];
+            expect(customers.length).toBe(1);
+            expect(customers[0].sales_rep_id).toBe('ALICE');
+
+            const subs = simulator.db.prepare('SELECT * FROM subscriptions WHERE customer_id = ? ORDER BY rowid').all(customers[0].id) as any[];
+            expect(subs.length).toBe(2);
+            expect(subs.map(s => s.status).sort()).toEqual(['active', 'one-time']);
+        });
+
+        it('preserves first TOS acceptance across later checkouts with null TOS', async () => {
+            const tosTime = new Date().toISOString();
+            insertLead('lead_tos_first', {
+                email: 'tos@example.com',
+                tos_accepted_at: tosTime,
+            });
+            await postCheckout({
+                lead_id: 'lead_tos_first',
+                phone_number: '555-1111',
+                trash_day: 'MON',
+                notes: '',
+                bin_quantity: '1',
+                frequency: 'one-time',
+                tos_accepted_at: tosTime,
+            }, 'cus_tos', null);
+
+            insertLead('lead_tos_second', {
+                email: 'tos@example.com',
+                tos_accepted_at: null,
+            });
+            await postCheckout({
+                lead_id: 'lead_tos_second',
+                phone_number: '555-1111',
+                trash_day: 'MON',
+                notes: '',
+                bin_quantity: '1',
+                frequency: 'monthly',
+                tos_accepted_at: null,
+            }, 'cus_tos', 'sub_tos_second');
+
+            const customers = simulator.db.prepare('SELECT * FROM customers WHERE email = ?').all('tos@example.com') as any[];
+            expect(customers.length).toBe(1);
+            expect(customers[0].tos_accepted_at).toBe(tosTime);
+        });
+
+        it('dedupes customers when email casing differs', async () => {
+            insertLead('lead_case_first', {
+                email: 'mixedcase@example.com',
+                sales_rep_id: null,
+            });
+            await postCheckout({
+                lead_id: 'lead_case_first',
+                phone_number: '555-1111',
+                trash_day: 'MON',
+                notes: '',
+                bin_quantity: '1',
+                frequency: 'one-time',
+                tos_accepted_at: null,
+            }, 'cus_case', null);
+
+            // The webhook normalizes defensively, so a different case in the
+            // stored lead must still resolve to the same customer.
+            insertLead('lead_case_second', {
+                email: 'MIXEDCASE@EXAMPLE.COM',
+                sales_rep_id: null,
+            });
+            await postCheckout({
+                lead_id: 'lead_case_second',
+                phone_number: '555-1111',
+                trash_day: 'TUE',
+                notes: '',
+                bin_quantity: '1',
+                frequency: 'monthly',
+                tos_accepted_at: new Date().toISOString(),
+            }, 'cus_case', 'sub_case_second');
+
+            const customers = simulator.db.prepare('SELECT * FROM customers').all() as any[];
+            const allEmails = customers.map(c => c.email);
+            // Both should be the canonical lowercase form.
+            expect(allEmails.filter(e => e && e.toLowerCase() === 'mixedcase@example.com').length).toBe(1);
+        });
+
+        it('dedupes addresses when whitespace differs', async () => {
+            insertLead('lead_addr_first', {
+                email: 'addr@example.com',
+                address: '123 Identity Ln',
+            });
+            await postCheckout({
+                lead_id: 'lead_addr_first',
+                phone_number: '555-1111',
+                trash_day: 'MON',
+                notes: '',
+                bin_quantity: '1',
+                frequency: 'one-time',
+                tos_accepted_at: null,
+            }, 'cus_addr', null);
+
+            insertLead('lead_addr_second', {
+                email: 'addr@example.com',
+                address: '  123 IDENTITY LN  ',
+            });
+            await postCheckout({
+                lead_id: 'lead_addr_second',
+                phone_number: '555-1111',
+                trash_day: 'TUE',
+                notes: '',
+                bin_quantity: '2',
+                frequency: 'monthly',
+                tos_accepted_at: new Date().toISOString(),
+            }, 'cus_addr', 'sub_addr_second');
+
+            const addrs = simulator.db.prepare('SELECT * FROM addresses WHERE customer_id IN (SELECT id FROM customers WHERE email = ?)').all('addr@example.com') as any[];
+            expect(addrs.length).toBe(1);
+            // Whitespace must be collapsed, not just trimmed.
+            expect(addrs[0].raw_address).toBe('123 identity ln');
+        });
     });
 });

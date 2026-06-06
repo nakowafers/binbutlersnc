@@ -92,7 +92,7 @@ describe('Checkout API - Integration Tests', () => {
         // 1. Verify lead insertion
         const lead = simulator.db.prepare('SELECT * FROM leads WHERE email = ?').get('test@example.com') as any;
         expect(lead).toBeDefined();
-        expect(lead.address).toBe('123 Test St');
+        expect(lead.address).toBe('123 test st');
         expect(lead.tos_accepted_at).toBeDefined();
 
         // 2. Verify Stripe session creation
@@ -239,6 +239,62 @@ describe('Checkout API - Integration Tests', () => {
             metadata: expect.objectContaining({
                 next_service_date: '2026-06-19',
             }),
+        }));
+    });
+
+    it('should reuse an existing lead by normalized email and refresh its metadata', async () => {
+        mockCreateSession.mockResolvedValue({ url: 'https://stripe.com/checkout/session/reused' });
+        mockRetrievePrice.mockResolvedValue({ product: 'prod_setup' });
+
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, first_name, last_name, sales_rep_id, tos_accepted_at, converted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        ).run(
+            'existing_lead_1',
+            'reuse@example.com',
+            '123 Old St',
+            'Jane',
+            'Doe',
+            'alice',
+            null,
+            0,
+            new Date().toISOString()
+        );
+
+        const body = {
+            email: '  REUSE@Example.COM  ',
+            first_name: 'Janet',
+            last_name: 'Doe',
+            address: '  123 New St  ',
+            phone_number: '555-9999',
+            trash_day: 'WED',
+            notes: 'updated',
+            bin_quantity: 3,
+            frequency: 'monthly',
+            tos_accepted: true,
+            age_confirmed: true,
+            contact_consent: true,
+        };
+
+        const request = new Request('http://localhost/api/checkout', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+
+        const response = await POST(request);
+        expect(response.status).toBe(200);
+
+        const leads = simulator.db.prepare('SELECT * FROM leads WHERE email = ?').all('reuse@example.com') as any[];
+        expect(leads.length).toBe(1);
+        expect(leads[0].id).toBe('existing_lead_1');
+
+        expect(leads[0].first_name).toBe('Janet');
+        expect(leads[0].last_name).toBe('Doe');
+        expect(leads[0].address).toBe('123 new st');
+        expect(leads[0].sales_rep_id).toBe('alice');
+        expect(leads[0].tos_accepted_at).toBeTruthy();
+
+        expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({
+            customer_email: 'reuse@example.com',
         }));
     });
 });

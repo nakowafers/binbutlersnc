@@ -5,6 +5,7 @@ import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { StripeAdapter } from '@/lib/payment/StripeAdapter';
 import { normalizeSalesRepId } from '@/lib/sales-rep';
 import { RoutificAdapter } from '@/lib/routing/RoutificAdapter';
+import { normalizeEmail, normalizeAddress } from '@/lib/utils';
 
 export const runtime = 'edge';
 
@@ -50,6 +51,9 @@ async function processStripeEvent(
         if (!lead) {
             throw new WebhookHttpError(404, 'Lead not found');
         }
+
+        lead.email = normalizeEmail(lead.email);
+        lead.address = normalizeAddress(lead.address);
 
         const isSubscription = !!session.subscription;
 
