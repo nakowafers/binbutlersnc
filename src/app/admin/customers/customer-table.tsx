@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,11 +78,11 @@ export function CustomerTable() {
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [deleting, setDeleting] = useState(false);
 
-    if (loading) {
+    useEffect(() => {
         fetch('/api/admin/customers')
             .then(res => {
                 if (!res.ok) throw new Error('Failed to fetch');
-                return res.json();
+                return res.json() as Promise<CustomerWithDetails[]>;
             })
             .then(data => {
                 setCustomers(data);
@@ -93,7 +93,7 @@ export function CustomerTable() {
                 toast.error('Failed to load customers');
                 setLoading(false);
             });
-    }
+    }, []);
 
     const handleSaveNotes = async (addressId: string) => {
         setSavingNotes(true);
@@ -128,7 +128,7 @@ export function CustomerTable() {
                 body: JSON.stringify({ customerId }),
             });
             if (!res.ok) {
-                const data = await res.json();
+                const data = await res.json() as { error?: string };
                 throw new Error(data.error || 'Failed to delete');
             }
             setCustomers(prev => prev.filter(c => c.id !== customerId));
@@ -268,7 +268,7 @@ export function CustomerTable() {
                                 />
                             </div>
 
-                            <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? 'all')}>
                                 <SelectTrigger className="w-full sm:w-36 rounded-xl border-slate-200">
                                     <SelectValue placeholder="Status" />
                                 </SelectTrigger>
@@ -281,7 +281,7 @@ export function CustomerTable() {
                                 </SelectContent>
                             </Select>
 
-                            <Select value={dayFilter} onValueChange={setDayFilter}>
+                            <Select value={dayFilter} onValueChange={(value) => setDayFilter(value ?? 'all')}>
                                 <SelectTrigger className="w-full sm:w-36 rounded-xl border-slate-200">
                                     <SelectValue placeholder="Service Day" />
                                 </SelectTrigger>
