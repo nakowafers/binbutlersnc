@@ -1,3 +1,11 @@
+export interface SalesRep {
+    id: string;
+    email?: string;
+    can_override_fee: number;
+    is_admin: number;
+    created_at: string;
+}
+
 export interface Lead {
     id: string;
     email: string;
@@ -73,4 +81,26 @@ export interface Env {
     RESEND_API_KEY: string;
     GOOGLE_MAPS_API_KEY: string;
     AUTH_SECRET: string;
+}
+
+export interface CustomerWithDetails {
+    id: string;
+    email: string;
+    first_name?: string;
+    last_name?: string;
+    phone_number?: string;
+    bin_quantity?: number;
+    sales_rep_id?: string;
+    created_at: string;
+    address_id?: string;
+    raw_address?: string;
+    trash_day?: string;
+    service_day?: string;
+    notes?: string;
+    subscription_id?: string;
+    subscription_status?: string;
+    frequency_days?: number;
+    current_period_end?: string;
+    next_service_date?: string;
+    is_paused?: boolean;
 }

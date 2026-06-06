@@ -74,12 +74,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       }),
     ],
     callbacks: {
+      authorized({ request, auth: session }) {
+        const isLoggedIn = !!session?.user;
+        const { nextUrl } = request;
+
+        if (nextUrl.pathname.startsWith('/admin') || nextUrl.pathname.startsWith('/api/admin')) {
+          if (!isLoggedIn) return false;
+          const role = (session?.user as { role?: string })?.role;
+          if (role !== 'ADMIN') return Response.redirect(new URL("/", nextUrl));
+        }
+        return true;
+      },
       async session({ session, user }) {
         if (session.user) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (session.user as any).id = user.id;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (session.user as any).role = (user as any).role;
+          const sessionUser = session.user as any;
+          sessionUser.id = user.id;
+          sessionUser.role = 'CUSTOMER';
+          const rep = await env.DB.prepare(
+            'SELECT is_admin FROM sales_reps WHERE LOWER(email) = LOWER(?)'
+          ).bind(user.email as string).first<{ is_admin: number }>();
+          if (rep?.is_admin) sessionUser.role = 'ADMIN';
         }
         return session;
       },
