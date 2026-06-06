@@ -22,6 +22,24 @@ export class D1DatabaseAdapter implements IDatabaseService {
             .first<Lead>();
     }
 
+    async getLeadByEmail(email: string): Promise<Lead | null> {
+        return await this.db.prepare('SELECT * FROM leads WHERE email = ? ORDER BY created_at DESC LIMIT 1')
+            .bind(email)
+            .first<Lead>();
+    }
+
+    async updateLeadMetadata(id: string, firstName: string, lastName: string, address: string, salesRepId: string | null, tosAcceptedAt: string | null): Promise<void> {
+        await this.db.prepare(
+            `UPDATE leads 
+             SET first_name = ?, last_name = ?, address = ?, 
+                 sales_rep_id = COALESCE(?, sales_rep_id), 
+                 tos_accepted_at = COALESCE(?, tos_accepted_at) 
+             WHERE id = ?`
+        )
+        .bind(firstName, lastName, address, salesRepId, tosAcceptedAt, id)
+        .run();
+    }
+
     async getCustomerByEmail(email: string): Promise<Customer | null> {
         return await this.db.prepare('SELECT * FROM customers WHERE email = ?')
             .bind(email)
@@ -218,8 +236,8 @@ export class D1DatabaseAdapter implements IDatabaseService {
                     stripe_customer_id = excluded.stripe_customer_id,
                     phone_number = excluded.phone_number,
                     bin_quantity = excluded.bin_quantity,
-                    sales_rep_id = excluded.sales_rep_id,
-                    tos_accepted_at = excluded.tos_accepted_at`
+                    sales_rep_id = COALESCE(customers.sales_rep_id, excluded.sales_rep_id),
+                    tos_accepted_at = COALESCE(customers.tos_accepted_at, excluded.tos_accepted_at)`
             ).bind(
                 params.customerId,
                 params.email,
