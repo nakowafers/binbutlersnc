@@ -47,7 +47,7 @@ describe('StripeAdapter', () => {
         binQuantity: 1,
         phoneNumber: '555-1234',
         trashDay: 'MON',
-        providerName: 'Waste Co',
+        notes: 'Waste Co',
         leadId: 'lead_123',
         successUrl: 'https://example.com/success',
         cancelUrl: 'https://example.com/cancel',

@@ -192,7 +192,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
         longitude: number | null;
         trashDay: string;
         serviceDay: string;
-        providerName: string;
+        notes: string;
         subscriptionId: string;
         addressId: string;
         customerId: string;
@@ -235,14 +235,14 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
             // 3. UPSERT address
             this.db.prepare(
-                `INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day, provider_name) 
+                `INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day, notes) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(raw_address, customer_id) DO UPDATE SET
                     latitude = excluded.latitude,
                     longitude = excluded.longitude,
                     trash_day = excluded.trash_day,
                     service_day = excluded.service_day,
-                    provider_name = excluded.provider_name`
+                    notes = excluded.notes`
             ).bind(
                 params.addressId,
                 params.customerId,
@@ -251,7 +251,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
                 params.longitude,
                 params.trashDay,
                 params.serviceDay,
-                params.providerName
+                params.notes
             ),
 
             // 4. Update customer to link the address_id
