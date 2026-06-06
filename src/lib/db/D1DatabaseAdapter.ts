@@ -359,7 +359,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
                 GROUP BY subscription_id
             ) sh_last ON sh_last.subscription_id = s.id
             WHERE (
-              (s.status IN ('active', 'cancelled') AND s.is_paused = FALSE AND s.current_period_end > ?)
+              (s.status IN ('active', 'canceled') AND s.is_paused = FALSE AND s.current_period_end > ?)
               OR
               (s.status = 'one-time' AND sh_last.service_date IS NULL)
             )
