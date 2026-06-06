@@ -1,4 +1,4 @@
-import { Lead, Customer, Address, Subscription, ServiceHistory } from '@/lib/types';
+import { Lead, Customer, Address, Subscription, ServiceHistory, CustomerWithDetails } from '@/lib/types';
 import { IDatabaseService, DueSubscriptionResult, PendingDispatchResult } from './types';
 
 export class D1DatabaseAdapter implements IDatabaseService {
@@ -459,5 +459,38 @@ export class D1DatabaseAdapter implements IDatabaseService {
         await this.db.prepare(
             'DELETE FROM routific_dispatches WHERE id = ?'
         ).bind(id).run();
+    }
+
+    async getAllCustomersWithDetails(): Promise<CustomerWithDetails[]> {
+        const { results } = await this.db.prepare(
+            `SELECT 
+                c.id, c.email, c.first_name, c.last_name, c.phone_number,
+                c.bin_quantity, c.sales_rep_id, c.created_at,
+                a.id as address_id, a.raw_address, a.trash_day, a.service_day, a.notes,
+                s.id as subscription_id, s.status as subscription_status,
+                s.frequency_days, s.current_period_end, s.next_service_date, s.is_paused
+             FROM customers c
+             LEFT JOIN addresses a ON c.address_id = a.id
+             LEFT JOIN subscriptions s ON s.customer_id = c.id
+             ORDER BY c.created_at DESC`
+        ).all<CustomerWithDetails>();
+        return results || [];
+    }
+
+    async updateAddressNotes(addressId: string, notes: string): Promise<void> {
+        await this.db.prepare('UPDATE addresses SET notes = ? WHERE id = ?')
+            .bind(notes, addressId)
+            .run();
+    }
+
+    async deleteCustomerCascade(customerId: string): Promise<void> {
+        await this.db.batch([
+            this.db.prepare('DELETE FROM routific_dispatches WHERE subscription_id IN (SELECT id FROM subscriptions WHERE customer_id = ?)').bind(customerId),
+            this.db.prepare('DELETE FROM pending_dispatches WHERE subscription_id IN (SELECT id FROM subscriptions WHERE customer_id = ?)').bind(customerId),
+            this.db.prepare('DELETE FROM service_history WHERE subscription_id IN (SELECT id FROM subscriptions WHERE customer_id = ?)').bind(customerId),
+            this.db.prepare('DELETE FROM subscriptions WHERE customer_id = ?').bind(customerId),
+            this.db.prepare('DELETE FROM addresses WHERE customer_id = ?').bind(customerId),
+            this.db.prepare('DELETE FROM customers WHERE id = ?').bind(customerId),
+        ]);
     }
 }
