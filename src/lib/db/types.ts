@@ -77,7 +77,7 @@ export interface IDatabaseService {
         longitude: number | null;
         trashDay: string;
         serviceDay: string;
-        providerName: string;
+        notes: string;
         subscriptionId: string;
         addressId: string;
         customerId: string;

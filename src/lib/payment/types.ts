@@ -6,7 +6,7 @@ export interface CheckoutSessionParams {
     binQuantity: number;
     phoneNumber: string;
     trashDay: string;
-    providerName: string;
+    notes: string;
     salesRepId?: string;
     setup_fee_override?: number;
     tosAcceptedAt?: string | null;
@@ -24,7 +24,7 @@ export interface CustomerServiceDetails {
     lastName?: string;
     address: string;
     trashDay: string;
-    providerName?: string;
+    notes?: string;
     phoneNumber?: string;
     salesRepId?: string;
     lat?: number | null;

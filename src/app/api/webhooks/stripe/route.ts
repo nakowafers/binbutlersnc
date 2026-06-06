@@ -34,7 +34,7 @@ async function processStripeEvent(
         const lastName = metadata.last_name || '';
         const phoneNumber = metadata.phone_number;
         const trashDay = metadata.trash_day;
-        const providerName = metadata.provider_name || '';
+        const notes = metadata.notes || '';
         const binQuantity = parseInt(metadata.bin_quantity || '1', 10);
         const lat = metadata.lat ? parseFloat(metadata.lat) : null;
         const lng = metadata.lng ? parseFloat(metadata.lng) : null;
@@ -81,7 +81,7 @@ async function processStripeEvent(
                 lastName,
                 address: lead.address,
                 trashDay,
-                providerName,
+                notes,
                 phoneNumber,
                 salesRepId: salesRepId || undefined,
                 lat,
@@ -111,7 +111,7 @@ async function processStripeEvent(
             longitude: lng,
             trashDay,
             serviceDay: trashDay,
-            providerName,
+            notes,
             subscriptionId,
             addressId,
             customerId,

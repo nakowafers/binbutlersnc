@@ -33,7 +33,7 @@ export interface Address {
     longitude?: number;
     trash_day?: 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI';
     service_day?: string;
-    provider_name?: string;
+    notes?: string;
     created_at: string;
 }
 

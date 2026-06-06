@@ -38,7 +38,7 @@ const signupSchema = z.object({
     email: z.string().email("Please enter a valid email"),
     phone_number: z.string().min(10, "Please enter a valid phone number"),
     trash_day: z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI']),
-    provider_name: z.string().optional(),
+    notes: z.string().optional(),
     bin_quantity: z.number().min(1, "Minimum 1 bin").max(10, "Maximum 10 bins"),
     sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined).optional(),
     setup_fee_override: z.number().min(0, "Setup fee must be at least $0").optional(),
@@ -303,11 +303,11 @@ function SignupForm() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <Label htmlFor="provider_name" className="text-[#1C3D5A] font-bold">Service Provider <span className="text-slate-400 font-normal text-sm">(optional)</span></Label>
+                                    <Label htmlFor="notes" className="text-[#1C3D5A] font-bold">Notes / Special Instructions <span className="text-slate-400 font-normal text-sm">(optional)</span></Label>
                                     <Input
-                                        id="provider_name"
-                                        {...register('provider_name')}
-                                        placeholder="e.g. Waste Management, City of Charlotte"
+                                        id="notes"
+                                        {...register('notes')}
+                                        placeholder="e.g. Gate code: #1234, leave bins by garage"
                                         className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
                                     />
                                 </div>

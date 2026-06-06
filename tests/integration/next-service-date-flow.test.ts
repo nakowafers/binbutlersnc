@@ -49,7 +49,7 @@ function createEvent(leadId: string, overrides: Record<string, string> = {}) {
                     lead_id: leadId,
                     phone_number: '555-1234',
                     trash_day: 'MON',
-                    provider_name: 'Waste Co',
+                    notes: 'Waste Co',
                     bin_quantity: '1',
                     frequency,
                     ...overrides,

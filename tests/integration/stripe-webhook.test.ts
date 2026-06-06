@@ -82,7 +82,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
                         lead_id: leadId,
                         phone_number: '555-5555',
                         trash_day: 'MON',
-                        provider_name: 'Waste Co',
+                        notes: 'Waste Co',
                         bin_quantity: '2',
                         frequency: 'monthly',
                     },
@@ -120,13 +120,13 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         expect(address.raw_address).toBe('123 Organic St');
         expect(address.trash_day).toBe('MON');
         expect(address.service_day).toBe('MON');
-        expect(address.provider_name).toBe('Waste Co');
+        expect(address.notes).toBe('Waste Co');
 
         expect(mockCustomerUpdate).toHaveBeenCalledWith('cus_123', {
             metadata: expect.objectContaining({
                 service_address: '123 Organic St',
                 trash_day: 'MON',
-                provider_name: 'Waste Co',
+                notes: 'Waste Co',
                 phone_number: '555-5555',
             }),
         });
@@ -162,7 +162,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
                         sales_rep_id: 'REP_007',
                         phone_number: '555-5555',
                         trash_day: 'TUE',
-                        provider_name: 'Waste Co',
+                        notes: 'Waste Co',
                         bin_quantity: '1',
                         frequency: 'monthly',
                     },
@@ -212,7 +212,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
                         lead_id: leadId,
                         phone_number: '555-8989',
                         trash_day: 'FRI',
-                        provider_name: 'Waste Co',
+                        notes: 'Waste Co',
                         bin_quantity: '1',
                         frequency: 'monthly',
                     },
@@ -250,7 +250,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
                         lead_id: leadId,
                         phone_number: '555-1212',
                         trash_day: 'THU',
-                        provider_name: 'Waste Co',
+                        notes: 'Waste Co',
                         bin_quantity: '1',
                         frequency: 'monthly',
                     },
@@ -306,7 +306,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
                         lead_id: leadId,
                         phone_number: '555-3434',
                         trash_day: 'MON',
-                        provider_name: 'Waste Co',
+                        notes: 'Waste Co',
                         bin_quantity: '2',
                         frequency: 'monthly',
                     },
@@ -351,7 +351,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
                         lead_id: leadId,
                         phone_number: '555-4444',
                         trash_day: 'THU',
-                        provider_name: 'Waste Co',
+                        notes: 'Waste Co',
                         bin_quantity: '1',
                         frequency: 'monthly',
                     },
@@ -391,7 +391,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
                         lead_id: leadId,
                         phone_number: '555-5555',
                         trash_day: 'WED',
-                        provider_name: 'Waste Co',
+                        notes: 'Waste Co',
                         bin_quantity: '1',
                         frequency: 'quarterly',
                         tos_accepted_at: '2026-05-14T01:00:00.000Z',

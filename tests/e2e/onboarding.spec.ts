@@ -36,7 +36,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.fill('#address', '123 Organic St, Charlotte, NC');
         await page.selectOption('#trash_day', 'MON');
         await page.fill('#bin_quantity', '2');
-        await page.fill('#provider_name', 'Waste Co');
+        await page.fill('#notes', 'Waste Co');
 
         // Verify monthly is selected by default
         const monthlyRadio = page.locator('#monthly');
@@ -103,7 +103,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.fill('#address', '456 D2D Rd, Charlotte, NC');
         await page.selectOption('#trash_day', 'TUE');
         await page.fill('#bin_quantity', '1');
-        await page.fill('#provider_name', 'Waste Management');
+        await page.fill('#notes', 'Waste Management');
 
         await page.getByRole('button', { name: 'Next Step' }).click();
 
@@ -157,7 +157,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.fill('#address', '789 OneTime Rd, Charlotte, NC');
         await page.selectOption('#trash_day', 'WED');
         await page.fill('#bin_quantity', '1');
-        await page.fill('#provider_name', 'City of Charlotte');
+        await page.fill('#notes', 'City of Charlotte');
 
         await page.getByRole('button', { name: 'Next Step' }).click();
 
@@ -195,14 +195,14 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
 
         await page.goto('/signup');
 
-        // Step 1: Fill all required fields EXCEPT provider_name
+        // Step 1: Fill all required fields EXCEPT notes
         await page.fill('#address', '999 Optional Ln, Charlotte, NC');
         await page.selectOption('#trash_day', 'THU');
         await page.fill('#bin_quantity', '1');
 
-        // provider_name is NOT filled — verifying it's optional
+        // notes is NOT filled — verifying it's optional
 
-        // Verify progress is not blocked (no validation error for missing provider)
+        // Verify progress is not blocked (no validation error for missing notes)
         await page.getByRole('button', { name: 'Next Step' }).click();
 
         // Step 2: Fill contact details
@@ -217,9 +217,9 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
 
         await page.waitForURL('**/success**');
 
-        // Verify the captured payload has provider_name as empty string
+        // Verify the captured payload has notes as empty string
         expect(capturedPayload).not.toBeNull();
-        expect(capturedPayload!.provider_name).toBe('');
+        expect(capturedPayload!.notes).toBe('');
     });
 
     test('Form validation - Step 1 should block progress with empty required fields', async ({ page }) => {
@@ -239,7 +239,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.fill('#address', '100 Valid St, Charlotte, NC');
         await page.selectOption('#trash_day', 'FRI');
         await page.fill('#bin_quantity', '1');
-        await page.fill('#provider_name', 'Some Provider');
+        await page.fill('#notes', 'Some Provider');
         await page.getByRole('button', { name: 'Next Step' }).click();
 
         // Step 2: Fill invalid email
@@ -281,7 +281,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.fill('#address', '123 Persist Fee St, Charlotte, NC');
         await page.selectOption('#trash_day', 'WED');
         await page.fill('#bin_quantity', '1');
-        await page.fill('#provider_name', 'Waste Co');
+        await page.fill('#notes', 'Waste Co');
         await page.getByRole('button', { name: 'Next Step' }).click();
 
         // Step 2: Contact info + sales rep ID
