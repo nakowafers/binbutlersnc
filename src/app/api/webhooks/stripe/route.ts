@@ -144,7 +144,7 @@ async function processStripeEvent(
         const stripeSubscriptionId = sub.id;
         const currentPeriodEnd = new Date(periodEnd * 1000).toISOString();
 
-        await db.updateSubscriptionStatus(stripeSubscriptionId, 'cancelled', currentPeriodEnd);
+        await db.updateSubscriptionStatus(stripeSubscriptionId, 'canceled', currentPeriodEnd);
         console.log(`Successfully cancelled subscription immediately: ${stripeSubscriptionId}`);
         return;
     }
@@ -166,7 +166,7 @@ async function processStripeEvent(
         const currentPeriodEnd = new Date(periodEnd * 1000).toISOString();
 
         if (sub.cancel_at_period_end) {
-            await db.updateSubscriptionStatus(stripeSubscriptionId, 'cancelled', currentPeriodEnd);
+            await db.updateSubscriptionStatus(stripeSubscriptionId, 'canceled', currentPeriodEnd);
             console.log(`Successfully marked subscription as cancelled at period end: ${stripeSubscriptionId}`);
         } else {
             await db.updateSubscriptionStatus(stripeSubscriptionId, sub.status, currentPeriodEnd);

@@ -4,19 +4,16 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
-    Calendar,
     Users,
-    Truck,
-    History,
     Settings,
 } from 'lucide-react';
 import { SignOutButton } from './sign-out-button';
 
 const navItems = [
-    { href: '/admin', label: 'Schedule', icon: Calendar },
+    // { href: '/admin', label: 'Schedule', icon: Calendar },
     { href: '/admin/customers', label: 'Customers', icon: Users },
-    { href: '/admin', label: 'Routes', icon: Truck },
-    { href: '/admin', label: 'History', icon: History },
+    // { href: '/admin', label: 'Routes', icon: Truck },
+    // { href: '/admin', label: 'History', icon: History },
 ];
 
 export function AdminSidebar() {

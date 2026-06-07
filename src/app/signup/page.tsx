@@ -47,6 +47,9 @@ const signupSchema = z.object({
     age_confirmed: z.boolean().optional(),
     contact_consent: z.boolean().optional(),
 }).superRefine((data, ctx) => {
+    if (data.address && data.address.length >= 5 && (data.lat === undefined || data.lng === undefined)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['address'], message: 'Please select an address from the autocomplete suggestions' });
+    }
     if (data.next_service_date) {
         if (data.next_service_date < todayStr) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: 'Service date cannot be in the past' });
@@ -267,8 +270,12 @@ function SignupForm() {
                                         {...register('address')}
                                         onAddressSelected={(formatted, lat, lng) => {
                                             setValue('address', formatted, { shouldValidate: true });
-                                            if (lat !== undefined) setValue('lat', lat);
-                                            if (lng !== undefined) setValue('lng', lng);
+                                            setValue('lat', lat);
+                                            setValue('lng', lng);
+                                        }}
+                                        onAddressCleared={() => {
+                                            setValue('lat', undefined);
+                                            setValue('lng', undefined);
                                         }}
                                         placeholder="123 Butler Ln, Charlotte, NC"
                                         className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
