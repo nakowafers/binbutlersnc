@@ -306,6 +306,7 @@ export function CustomerTable() {
                                     <SortableHeader field="name" sortField={sortField} onToggleSort={toggleSort}>Name</SortableHeader>
                                     <SortableHeader field="email" sortField={sortField} onToggleSort={toggleSort}>Email</SortableHeader>
                                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Phone</th>
+                                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Bins</th>
                                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Address</th>
                                     <SortableHeader field="subscription_status" sortField={sortField} onToggleSort={toggleSort}>Status</SortableHeader>
                                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Freq.</th>
@@ -318,7 +319,7 @@ export function CustomerTable() {
                             <tbody className="divide-y divide-slate-100">
                                 {filteredAndSorted.length === 0 ? (
                                     <tr>
-                                        <td colSpan={10} className="px-4 py-12 text-center text-slate-400">
+                                        <td colSpan={11} className="px-4 py-12 text-center text-slate-400">
                                             No customers found.
                                         </td>
                                     </tr>
@@ -336,6 +337,9 @@ export function CustomerTable() {
                                             <td className="px-4 py-3 text-sm text-slate-600">{customer.email}</td>
                                             <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">
                                                 {customer.phone_number || '—'}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap text-center">
+                                                {customer.bin_quantity ? `${customer.bin_quantity}` : '—'}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-slate-600 max-w-[200px] truncate" title={customer.raw_address || ''}>
                                                 {customer.raw_address || '—'}

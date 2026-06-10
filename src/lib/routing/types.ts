@@ -5,6 +5,7 @@ export interface Stop {
     lng?: number;
     customer_id: string;
     subscription_id: string;
+    bin_quantity?: number;
 }
 
 export interface RoutingJob {

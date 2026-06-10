@@ -30,6 +30,7 @@ export interface CustomerServiceDetails {
     lat?: number | null;
     lng?: number | null;
     nextServiceDate?: string | null;
+    binQuantity?: string;
 }
 
 export interface IPaymentService {

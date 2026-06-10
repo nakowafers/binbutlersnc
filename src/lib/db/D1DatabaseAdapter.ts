@@ -295,26 +295,28 @@ export class D1DatabaseAdapter implements IDatabaseService {
             // Next service date provided: same-day -> Completed, future -> Pending
             batchStatements.push(
                 this.db.prepare(
-                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, sales_rep_id) VALUES (?, ?, ?, ?, ?)'
+                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, sales_rep_id, bin_quantity) VALUES (?, ?, ?, ?, ?, ?)'
                 ).bind(
                     params.serviceHistoryId,
                     params.subscriptionId,
                     params.nextServiceDate,
                     params.serviceHistoryStatus || 'Pending',
-                    params.salesRepId
+                    params.salesRepId,
+                    params.binQuantity
                 )
             );
         } else if (params.salesRepId) {
             // Fallback for D2D without next_service_date: immediate Completed (old behavior)
             batchStatements.push(
                 this.db.prepare(
-                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, sales_rep_id) VALUES (?, ?, ?, ?, ?)'
+                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, sales_rep_id, bin_quantity) VALUES (?, ?, ?, ?, ?, ?)'
                 ).bind(
                     params.serviceHistoryId,
                     params.subscriptionId,
                     new Date().toISOString(),
                     'Completed',
-                    params.salesRepId
+                    params.salesRepId,
+                    params.binQuantity
                 )
             );
         }
@@ -348,7 +350,8 @@ export class D1DatabaseAdapter implements IDatabaseService {
                 a.latitude,
                 a.longitude,
                 a.service_day,
-                c.email
+                c.email,
+                c.bin_quantity
             FROM subscriptions s
             JOIN customers c ON s.customer_id = c.id
             JOIN addresses a ON c.address_id = a.id
@@ -394,7 +397,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
     }
 
     async logDispatchedJobs(
-        historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string }>,
+        historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number }>,
         retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }>,
         routificDispatches?: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }>
     ): Promise<void> {
@@ -403,8 +406,8 @@ export class D1DatabaseAdapter implements IDatabaseService {
         for (const item of historyInserts) {
             batchStatements.push(
                 this.db.prepare(
-                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES (?, ?, ?, ?)'
-                ).bind(item.id, item.subscriptionId, item.date, item.status)
+                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, bin_quantity) VALUES (?, ?, ?, ?, ?)'
+                ).bind(item.id, item.subscriptionId, item.date, item.status, item.binQuantity ?? null)
             );
         }
 

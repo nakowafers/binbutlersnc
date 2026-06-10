@@ -88,6 +88,7 @@ async function processStripeEvent(
                 notes,
                 phoneNumber,
                 salesRepId: salesRepId || undefined,
+                binQuantity: binQuantity.toString(),
                 lat,
                 lng,
                 nextServiceDate,

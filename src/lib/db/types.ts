@@ -6,6 +6,7 @@ export interface DueSubscriptionResult extends Subscription {
     longitude: number | null;
     service_day: string;
     email: string;
+    bin_quantity?: number;
 }
 
 export interface PendingDispatchResult {
@@ -94,7 +95,7 @@ export interface IDatabaseService {
     getDueSubscriptions(nowIso: string): Promise<DueSubscriptionResult[]>;
     getPendingDispatches(maxRetries: number): Promise<PendingDispatchResult[]>;
     logDispatchedJobs(
-        historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string }>,
+        historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number }>,
         retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }>,
         routificDispatches?: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }>
     ): Promise<void>;

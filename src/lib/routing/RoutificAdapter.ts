@@ -33,7 +33,7 @@ export class RoutificAdapter implements IRoutingService {
                 lng: stop.lng,
             }],
             // Consolidate everything into instructions since notes/metadata are rejected
-            instructions: `Sub: ${stop.subscription_id} | Cust: ${stop.customer_id}`,
+            instructions: `Sub: ${stop.subscription_id} | Cust: ${stop.customer_id}${stop.bin_quantity ? ` | Bins: ${stop.bin_quantity}` : ''}`,
             deliveryDate: job.date,
             customerOrderNumber: stop.id
         }));
@@ -93,7 +93,7 @@ export class RoutificAdapter implements IRoutingService {
                     lat: customerData.lat,
                     lng: customerData.lng,
                 }],
-                instructions: `Subscription ID: ${customerData.subscription_id}`,
+                instructions: `Sub: ${customerData.subscription_id} | Cust: ${customerData.customer_id.substring(0, 8)}${customerData.bin_quantity ? ` | Bins: ${customerData.bin_quantity}` : ''}`,
             }),
         });
         if (!response.ok) {

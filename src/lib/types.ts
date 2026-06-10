@@ -63,6 +63,7 @@ export interface ServiceHistory {
     service_date: string;
     dispatch_status: string;
     sales_rep_id?: string;
+    bin_quantity?: number;
     created_at: string;
 }
 
