@@ -494,7 +494,7 @@ export function CustomerTable() {
                                                     {new Date(customer.created_at).toLocaleDateString()}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {customer.subscription_status === 'canceled' && (
+                                                    {(!customer.subscription_status || customer.subscription_status === 'canceled') && (
                                                         <Button
                                                             size="sm"
                                                             variant="ghost"
@@ -679,7 +679,7 @@ export function CustomerTable() {
                                 )}
 
                                 {/* Delete (only if canceled) */}
-                                {detailCustomer.subscription_status === 'canceled' && (
+                                {(!detailCustomer.subscription_status || detailCustomer.subscription_status === 'canceled') && (
                                     <div className="pt-4 border-t border-slate-100">
                                         <Button
                                             variant="destructive"
