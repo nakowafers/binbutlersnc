@@ -2,7 +2,7 @@ export interface CheckoutSessionParams {
     email: string;
     firstName: string;
     lastName: string;
-    frequency: 'monthly' | 'quarterly' | 'one-time';
+    frequency: 'monthly' | 'bimonthly' | 'quarterly' | 'one-time';
     binQuantity: number;
     phoneNumber: string;
     trashDay: string;

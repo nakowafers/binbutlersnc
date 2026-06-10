@@ -149,7 +149,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
     async calculateEstimatedWeeklyRevenue(): Promise<number> {
         const result = await this.db.prepare(
-            "SELECT SUM(CASE WHEN frequency_days = 28 THEN 7.50 WHEN frequency_days = 84 THEN 3.33 ELSE 0 END) as total_revenue FROM subscriptions WHERE status = 'active'"
+            "SELECT SUM(CASE WHEN frequency_days = 28 THEN 7.50 WHEN frequency_days = 56 THEN 5.00 WHEN frequency_days = 84 THEN 3.33 ELSE 0 END) as total_revenue FROM subscriptions WHERE status = 'active'"
         ).first<{ total_revenue: number }>();
         return result?.total_revenue || 0;
     }
@@ -216,7 +216,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
         customerId: string;
         currentPeriodEnd: string | null;
         serviceHistoryId: string;
-        frequency: 'monthly' | 'quarterly' | 'one-time';
+        frequency: 'monthly' | 'bimonthly' | 'quarterly' | 'one-time';
         nextServiceDate?: string | null;
         serviceHistoryStatus?: string;
     }): Promise<void> {
@@ -284,7 +284,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
                 params.customerId,
                 params.stripeSubscriptionId,
                 params.stripeSubscriptionId ? 'active' : 'one-time',
-                params.frequency === 'monthly' ? 28 : params.frequency === 'quarterly' ? 84 : 0,
+                params.frequency === 'monthly' ? 28 : params.frequency === 'bimonthly' ? 56 : params.frequency === 'quarterly' ? 84 : 0,
                 params.currentPeriodEnd,
                 params.nextServiceDate || null
             )

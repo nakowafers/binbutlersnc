@@ -19,7 +19,7 @@ const checkoutSchema = z.object({
     trash_day: z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI']),
     notes: z.string().optional(),
     bin_quantity: z.number().min(1),
-    frequency: z.enum(['monthly', 'quarterly', 'one-time']),
+    frequency: z.enum(['monthly', 'bimonthly', 'quarterly', 'one-time']),
     sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined),
     setup_fee_override: z.number().min(0).optional(),
     next_service_date: z.string().optional(),
@@ -160,6 +160,7 @@ export async function POST(request: Request) {
         const paymentService = new StripeAdapter({
             secretKey: stripeKey,
             monthlyPriceId: env.STRIPE_MONTHLY_PRICE_ID,
+            bimonthlyPriceId: env.STRIPE_BIMONTHLY_PRICE_ID,
             quarterlyPriceId: env.STRIPE_QUARTERLY_PRICE_ID,
             oneTimePriceId: env.STRIPE_ONETIME_PRICE_ID,
             setupFeePriceId: env.STRIPE_SETUP_FEE_PRICE_ID,

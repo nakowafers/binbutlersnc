@@ -248,6 +248,7 @@ export async function POST(request: Request) {
         const paymentService = new StripeAdapter({
             secretKey: env.STRIPE_SECRET_KEY,
             monthlyPriceId: env.STRIPE_MONTHLY_PRICE_ID,
+            bimonthlyPriceId: env.STRIPE_BIMONTHLY_PRICE_ID,
             quarterlyPriceId: env.STRIPE_QUARTERLY_PRICE_ID,
             oneTimePriceId: env.STRIPE_ONETIME_PRICE_ID,
             setupFeePriceId: env.STRIPE_SETUP_FEE_PRICE_ID,

@@ -7,6 +7,7 @@ import { getRecurringBillingStartTimestamp } from '@/lib/date-utils';
 export interface StripeConfig {
     secretKey: string;
     monthlyPriceId: string;
+    bimonthlyPriceId: string;
     quarterlyPriceId: string;
     oneTimePriceId: string;
     setupFeePriceId: string;
@@ -28,6 +29,9 @@ export class StripeAdapter implements IPaymentService {
 
         if (params.frequency === 'monthly') {
             priceId = this.config.monthlyPriceId;
+            mode = 'subscription';
+        } else if (params.frequency === 'bimonthly') {
+            priceId = this.config.bimonthlyPriceId;
             mode = 'subscription';
         } else if (params.frequency === 'quarterly') {
             priceId = this.config.quarterlyPriceId;
@@ -104,10 +108,10 @@ export class StripeAdapter implements IPaymentService {
         if (mode === 'subscription') {
             subscriptionData = {};
             if (params.nextServiceDate) {
-                const frequencyDays = params.frequency === 'monthly' ? 28 : 84;
+                const frequencyDays = params.frequency === 'monthly' ? 28 : params.frequency === 'bimonthly' ? 56 : 84;
                 subscriptionData.trial_end = getRecurringBillingStartTimestamp(params.nextServiceDate, frequencyDays);
             } else {
-                subscriptionData.trial_period_days = params.frequency === 'monthly' ? 28 : 84;
+                subscriptionData.trial_period_days = params.frequency === 'monthly' ? 28 : params.frequency === 'bimonthly' ? 56 : 84;
             }
         }
 
