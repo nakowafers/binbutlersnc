@@ -211,6 +211,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
         trashDay: string;
         serviceDay: string;
         notes: string;
+        scentPreference: string;
         subscriptionId: string;
         addressId: string;
         customerId: string;
@@ -253,14 +254,15 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
             // 3. UPSERT address
             this.db.prepare(
-                `INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day, notes) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `INSERT INTO addresses (id, customer_id, raw_address, latitude, longitude, trash_day, service_day, notes, scent_preference) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(raw_address, customer_id) DO UPDATE SET
                     latitude = excluded.latitude,
                     longitude = excluded.longitude,
                     trash_day = excluded.trash_day,
                     service_day = excluded.service_day,
-                    notes = excluded.notes`
+                    notes = excluded.notes,
+                    scent_preference = excluded.scent_preference`
             ).bind(
                 params.addressId,
                 params.customerId,
@@ -269,7 +271,8 @@ export class D1DatabaseAdapter implements IDatabaseService {
                 params.longitude,
                 params.trashDay,
                 params.serviceDay,
-                params.notes
+                params.notes,
+                params.scentPreference
             ),
 
             // 4. Update customer to link the address_id
@@ -487,7 +490,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
             `SELECT 
                 c.id, c.email, c.first_name, c.last_name, c.phone_number,
                 c.bin_quantity, c.sales_rep_id, c.created_at,
-                a.id as address_id, a.raw_address, a.trash_day, a.service_day, a.notes,
+                a.id as address_id, a.raw_address, a.trash_day, a.service_day, a.notes, a.scent_preference,
                 s.id as subscription_id, s.status as subscription_status,
                 s.frequency_days, s.current_period_end, s.next_service_date, s.is_paused
              FROM customers c

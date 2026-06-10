@@ -79,6 +79,7 @@ export interface IDatabaseService {
         trashDay: string;
         serviceDay: string;
         notes: string;
+        scentPreference: string;
         subscriptionId: string;
         addressId: string;
         customerId: string;

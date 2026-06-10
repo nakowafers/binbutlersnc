@@ -407,6 +407,7 @@ export function CustomerTable() {
                                         <SortableHeader field="email" sortField={sortField} onToggleSort={toggleSort}>Email</SortableHeader>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Phone</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Bins</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Scent</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Address</th>
                                         <SortableHeader field="subscription_status" sortField={sortField} onToggleSort={toggleSort}>Status</SortableHeader>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Freq.</th>
@@ -438,6 +439,9 @@ export function CustomerTable() {
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap text-center">
                                                     {customer.bin_quantity ? `${customer.bin_quantity}` : '—'}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap capitalize">
+                                                    {customer.scent_preference?.replace(/_/g, ' ') || '—'}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-slate-600 max-w-[200px] truncate" title={customer.raw_address || ''}>
                                                     {customer.raw_address || '—'}
@@ -540,6 +544,8 @@ export function CustomerTable() {
                                         </p>
                                         <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
                                             <span>🗑️ {customer.bin_quantity ?? '—'} bin{customer.bin_quantity !== 1 ? 's' : ''}</span>
+                                            <span className="text-slate-300">·</span>
+                                            <span className="capitalize">{customer.scent_preference?.replace(/_/g, ' ') || 'No scent'}</span>
                                             <span className="text-slate-300">·</span>
                                             <span>{getFrequencyLabel(customer.frequency_days)}</span>
                                             <span className="text-slate-300">·</span>
@@ -651,6 +657,7 @@ export function CustomerTable() {
                                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Details</h4>
                                     <div className="bg-slate-50 rounded-xl p-4 space-y-3">
                                         <DetailRow label="Bins" value={detailCustomer.bin_quantity ? `${detailCustomer.bin_quantity}` : '—'} />
+                                        <DetailRow label="Scent" value={detailCustomer.scent_preference?.replace(/_/g, ' ') || '—'} />
                                         <DetailRow label="Service Day" value={getDayLabel(detailCustomer.service_day)} />
                                         <DetailRow label="Frequency" value={getFrequencyLabel(detailCustomer.frequency_days)} />
                                         <DetailRow label="Trash Day" value={getDayLabel(detailCustomer.trash_day)} />
