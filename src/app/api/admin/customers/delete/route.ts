@@ -36,9 +36,9 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
         }
 
-        if (customer.subscription_status !== 'canceled') {
+        if (customer.subscription_status && customer.subscription_status !== 'canceled') {
             return NextResponse.json(
-                { error: 'Only customers with canceled subscriptions can be deleted' },
+                { error: 'Only customers with no subscription or a canceled subscription can be deleted' },
                 { status: 403 }
             );
         }
