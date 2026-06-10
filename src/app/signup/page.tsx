@@ -14,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { normalizeSalesRepId } from "@/lib/sales-rep";
@@ -88,16 +88,17 @@ export default function SignupPage() {
 
 function SignupForm() {
     const searchParams = useSearchParams();
+    const router = useRouter();
     const initialFrequency = searchParams.get('frequency') as 'monthly' | 'bimonthly' | 'quarterly' | null;
-
-    const [step, setStep] = useState(1);
+    const stepParam = searchParams.get('step');
+    const step = stepParam ? Math.max(1, Math.min(3, parseInt(stepParam, 10) || 1)) : 1;
     const [isLoading, setIsLoading] = useState(false);
     const [canOverrideFee, setCanOverrideFee] = useState<boolean | null>(null);
     const [calendarOpen, setCalendarOpen] = useState(false);
     const checkRepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
-    const { register, handleSubmit, control, setValue, trigger, formState: { errors } } = useForm<SignupFormValues>({
+    const { register, handleSubmit, control, setValue, trigger, watch, reset, formState: { errors } } = useForm<SignupFormValues>({
         resolver: zodResolver(signupSchema),
         defaultValues: {
             first_name: '',
@@ -152,6 +153,31 @@ function SignupForm() {
         };
     }, [salesRepId]);
 
+    const STORAGE_KEY = 'signup_form_data';
+
+    useEffect(() => {
+        const sub = watch((values) => {
+            try {
+                sessionStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+            } catch {
+                // sessionStorage may be full or unavailable
+            }
+        });
+        return () => sub.unsubscribe();
+    }, [watch]);
+
+    useEffect(() => {
+        try {
+            const saved = sessionStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved) as SignupFormValues;
+                reset(parsed);
+            }
+        } catch {
+            // Invalid stored data — start fresh
+        }
+    }, [reset]);
+
     const onSubmit = async (data: SignupFormValues) => {
         setIsLoading(true);
         try {
@@ -175,6 +201,7 @@ function SignupForm() {
 
             const result = await response.json() as { url?: string };
             if (result.url) {
+                sessionStorage.removeItem(STORAGE_KEY);
                 window.location.assign(result.url);
             } else {
                 toast.error('Something went wrong. Please try again.');
@@ -189,6 +216,12 @@ function SignupForm() {
 
 
 
+    const goToStep = (newStep: number) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('step', String(newStep));
+        router.replace(`/signup?${params.toString()}`, { scroll: false });
+    };
+
     const nextStep = async () => {
         const fieldsToValidate = step === 1
             ? ['first_name', 'last_name', 'address', 'trash_day', 'bin_quantity'] as const
@@ -196,10 +229,10 @@ function SignupForm() {
 
         const isValid = await trigger(fieldsToValidate);
         if (isValid) {
-            setStep(step + 1);
+            goToStep(step + 1);
         }
     };
-    const prevStep = () => setStep(step - 1);
+    const prevStep = () => goToStep(step - 1);
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 flex flex-col items-center">
