@@ -105,7 +105,7 @@ function SignupForm() {
             frequency: (initialFrequency === 'monthly' || initialFrequency === 'bimonthly' || initialFrequency === 'quarterly' || initialFrequency === 'one-time') ? initialFrequency : 'monthly',
             bin_quantity: 1,
             trash_day: 'MON',
-            setup_fee_override: 60,
+            setup_fee_override: 45,
             tos_accepted: false,
             age_confirmed: false,
             contact_consent: false,
@@ -117,15 +117,13 @@ function SignupForm() {
     const frequency = useWatch({ control, name: 'frequency' });
     const binQuantity = useWatch({ control, name: 'bin_quantity' });
     const salesRepId = useWatch({ control, name: 'sales_rep_id' });
-    const setupFeeOverride = useWatch({ control, name: 'setup_fee_override' }) ?? 60;
+    const setupFeeOverride = useWatch({ control, name: 'setup_fee_override' }) ?? 45;
     const tosAccepted = useWatch({ control, name: 'tos_accepted' });
     const ageConfirmed = useWatch({ control, name: 'age_confirmed' });
     const contactConsent = useWatch({ control, name: 'contact_consent' });
     const trashDay = useWatch({ control, name: 'trash_day' });
     const nextServiceDate = useWatch({ control, name: 'next_service_date' });
-    const recurringPrice = frequency === 'one-time'
-        ? 0
-        : calculatePricing(binQuantity, frequency).recurringPrice;
+    const { recurringPrice } = calculatePricing(binQuantity, frequency);
     useEffect(() => {
         if (checkRepTimerRef.current) {
             clearTimeout(checkRepTimerRef.current);
@@ -385,7 +383,7 @@ function SignupForm() {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'monthly').setupFee}</p>
+                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'one-time').setupFee}</p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
