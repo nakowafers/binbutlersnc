@@ -34,7 +34,7 @@ const signupSchema = z.object({
     address: z.string().min(5, "Please enter a valid address"),
     lat: z.number().optional(),
     lng: z.number().optional(),
-    frequency: z.enum(['monthly', 'quarterly', 'one-time']),
+    frequency: z.enum(['monthly', 'bimonthly', 'quarterly', 'one-time']),
     email: z.string().email("Please enter a valid email"),
     phone_number: z.string().min(10, "Please enter a valid phone number"),
     trash_day: z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI']),
@@ -88,7 +88,7 @@ export default function SignupPage() {
 
 function SignupForm() {
     const searchParams = useSearchParams();
-    const initialFrequency = searchParams.get('frequency') as 'monthly' | 'quarterly' | null;
+    const initialFrequency = searchParams.get('frequency') as 'monthly' | 'bimonthly' | 'quarterly' | null;
 
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
@@ -102,7 +102,7 @@ function SignupForm() {
         defaultValues: {
             first_name: '',
             last_name: '',
-            frequency: (initialFrequency === 'monthly' || initialFrequency === 'quarterly' || initialFrequency === 'one-time') ? initialFrequency : 'monthly',
+            frequency: (initialFrequency === 'monthly' || initialFrequency === 'bimonthly' || initialFrequency === 'quarterly' || initialFrequency === 'one-time') ? initialFrequency : 'monthly',
             bin_quantity: 1,
             trash_day: 'MON',
             setup_fee_override: 60,
@@ -323,7 +323,7 @@ function SignupForm() {
                                     <Label className="text-[#1C3D5A] font-bold">Service Frequency</Label>
                                     <RadioGroup
                                         value={frequency}
-                                        onValueChange={(val) => setValue('frequency', val as "monthly" | "quarterly" | "one-time")}
+                                        onValueChange={(val) => setValue('frequency', val as "monthly" | "bimonthly" | "quarterly" | "one-time")}
                                         className="grid gap-4"
                                     >
                                         <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${
@@ -338,6 +338,22 @@ function SignupForm() {
                                             </div>
                                             <div className="text-right">
                                                 <p className="font-extrabold text-[#1C3D5A]">$30</p>
+                                                <p className="text-xs text-slate-400">flat rate</p>
+                                            </div>
+                                        </div>
+
+                                        <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                                            frequency === 'bimonthly' ? 'border-[#7AC142] bg-lime-50' : 'border-slate-100 hover:border-slate-200'
+                                        }`} onClick={() => setValue('frequency', 'bimonthly')}>
+                                            <div className="flex items-center gap-4">
+                                                <RadioGroupItem value="bimonthly" id="bimonthly" className="text-[#7AC142]" />
+                                                <div>
+                                                    <p className="font-bold text-[#1C3D5A]">Bi-Monthly Plan</p>
+                                                    <p className="text-sm text-slate-500">Cleaned every 8 weeks</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'bimonthly').recurringPrice}</p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
@@ -502,7 +518,7 @@ function SignupForm() {
                                         <span className="text-xs text-slate-500 block mt-1">
                                             {frequency === 'one-time'
                                                 ? `($${setupFeeOverride} flat-rate one-time clean${nextServiceDate ? ' on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : ''})`
-                                                : `($${setupFeeOverride} initial fee today + $${recurringPrice} flat-rate service ${nextServiceDate ? 'starting on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : 'starting in ' + (frequency === 'monthly' ? 4 : 12) + ' weeks'})`}
+                                                : `($${setupFeeOverride} initial fee today + $${recurringPrice} flat-rate service ${nextServiceDate ? 'starting on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : 'starting in ' + (frequency === 'monthly' ? 4 : frequency === 'bimonthly' ? 8 : 12) + ' weeks'})`}
                                         </span>
                                     </p>
                                 </div>

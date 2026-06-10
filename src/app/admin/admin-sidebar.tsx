@@ -8,6 +8,7 @@ import {
     Settings,
 } from 'lucide-react';
 import { SignOutButton } from './sign-out-button';
+import { cn } from '@/lib/utils';
 
 const navItems = [
     // { href: '/admin', label: 'Schedule', icon: Calendar },
@@ -16,11 +17,11 @@ const navItems = [
     // { href: '/admin', label: 'History', icon: History },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({ className, onClose }: { className?: string; onClose?: () => void }) {
     const pathname = usePathname();
 
     return (
-        <aside className="w-64 bg-[#1C3D5A] text-white p-6 flex flex-col">
+        <aside className={cn("w-64 bg-[#1C3D5A] text-white p-6 flex flex-col shrink-0", className)}>
             <div className="flex items-center gap-3 mb-10">
                 <Image src="/assets/logo.png" alt="Logo" width={1189} height={1251} className="h-8 w-auto brightness-0 invert" />
                 <span className="font-bold text-xl">Admin</span>
@@ -33,7 +34,8 @@ export function AdminSidebar() {
                         <Link
                             key={item.label}
                             href={item.href}
-                            className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
+                            onClick={onClose}
+                            className={`flex items-center gap-3 p-3 rounded-xl transition-all min-h-[44px] ${
                                 isActive
                                     ? 'bg-[#7AC142] font-bold'
                                     : 'hover:bg-white/10'
@@ -47,7 +49,11 @@ export function AdminSidebar() {
             </nav>
 
             <div className="pt-6 border-t border-white/10">
-                <Link href="/admin" className="flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl transition-all">
+                <Link
+                    href="/admin"
+                    onClick={onClose}
+                    className="flex items-center gap-3 p-3 min-h-[44px] hover:bg-white/10 rounded-xl transition-all"
+                >
                     <Settings size={20} /> Settings
                 </Link>
                 <div className="mt-2 w-full flex items-center justify-start text-white/70 hover:text-white">

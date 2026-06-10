@@ -72,6 +72,7 @@ export interface Env {
     STRIPE_SECRET_KEY: string;
     STRIPE_WEBHOOK_SECRET: string;
     STRIPE_MONTHLY_PRICE_ID: string;
+    STRIPE_BIMONTHLY_PRICE_ID: string;
     STRIPE_QUARTERLY_PRICE_ID: string;
     STRIPE_ONETIME_PRICE_ID: string;
     STRIPE_SETUP_FEE_PRICE_ID: string;

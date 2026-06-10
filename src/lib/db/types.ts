@@ -84,7 +84,7 @@ export interface IDatabaseService {
         customerId: string;
         currentPeriodEnd: string | null;
         serviceHistoryId: string;
-        frequency: 'monthly' | 'quarterly' | 'one-time';
+        frequency: 'monthly' | 'bimonthly' | 'quarterly' | 'one-time';
         nextServiceDate?: string | null;
     }): Promise<void>;
 

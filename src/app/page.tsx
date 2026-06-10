@@ -24,6 +24,7 @@ export default async function Home() {
   }
 
   const monthlyPrice = calculatePricing(1, 'monthly').recurringPrice;
+  const bimonthlyPrice = calculatePricing(1, 'bimonthly').recurringPrice;
   const quarterlyPrice = calculatePricing(1, 'quarterly').recurringPrice;
   return (
     <div className="flex flex-col min-h-screen font-sans bg-[#F8FAFC]">
@@ -189,20 +190,20 @@ export default async function Home() {
                 </Link>
               </div>
 
-              {/* Quarterly - Featured */}
+              {/* Bi-Monthly - Featured */}
               <div className="flex flex-col p-10 bg-[#1C3D5A] rounded-[2.5rem] text-white shadow-2xl relative scale-105">
                 <div className="absolute top-0 right-10 -translate-y-1/2 bg-[#7AC142] text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
                   Most Popular
                 </div>
-                <h3 className="text-2xl font-bold mb-2">Quarterly</h3>
+                <h3 className="text-2xl font-bold mb-2">Bi-Monthly</h3>
                 <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-4xl font-extrabold text-white">${quarterlyPrice}</span>
-                  <span className="text-slate-400">/qtr</span>
+                  <span className="text-4xl font-extrabold text-white">${bimonthlyPrice}</span>
+                  <span className="text-slate-400">/2 months</span>
                 </div>
-                <p className="text-slate-300 mb-8">Perfect balance of value and hygiene</p>
+                <p className="text-slate-300 mb-8">Great middle-ground for regular maintenance</p>
                 <ul className="space-y-4 mb-10 flex-grow">
                   <li className="flex items-center gap-3 text-slate-200">
-                    <CheckCircle2 size={18} className="text-[#7AC142]" /> Cleaned every 12 weeks
+                    <CheckCircle2 size={18} className="text-[#7AC142]" /> Cleaned every 8 weeks
                   </li>
                   <li className="flex items-center gap-3 text-slate-200">
                     <CheckCircle2 size={18} className="text-[#7AC142]" /> Sanitized & Deodorized
@@ -211,29 +212,57 @@ export default async function Home() {
                     <CheckCircle2 size={18} className="text-[#7AC142]" /> Eco-friendly process
                   </li>
                 </ul>
-                <Link href="/signup?frequency=quarterly" className="w-full">
+                <Link href="/signup?frequency=bimonthly" className="w-full">
                   <Button className="w-full bg-[#7AC142] hover:bg-[#68a638] text-white rounded-xl h-12 font-bold transition-all shadow-lg shadow-lime-500/20 active:scale-95">
                     Select Plan
                   </Button>
                 </Link>
               </div>
 
-              {/* One-Time */}
+              {/* Quarterly */}
               <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group">
-                <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">One-Time</h3>
+                <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">Quarterly</h3>
                 <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-4xl font-extrabold text-[#1C3D5A]">$60</span>
-                  <span className="text-slate-500">/clean</span>
+                  <span className="text-4xl font-extrabold text-[#1C3D5A]">${quarterlyPrice}</span>
+                  <span className="text-slate-500">/qtr</span>
                 </div>
-                <p className="text-slate-600 mb-8">Great for a deep spring cleaning</p>
+                <p className="text-slate-600 mb-8">Perfect balance of value and hygiene</p>
                 <ul className="space-y-4 mb-10 flex-grow">
                   <li className="flex items-center gap-3 text-slate-600">
-                    <CheckCircle2 size={18} className="text-[#7AC142]" /> Single deep clean
+                    <CheckCircle2 size={18} className="text-[#7AC142]" /> Cleaned every 12 weeks
                   </li>
                   <li className="flex items-center gap-3 text-slate-600">
                     <CheckCircle2 size={18} className="text-[#7AC142]" /> Sanitized & Deodorized
                   </li>
                   <li className="flex items-center gap-3 text-slate-600">
+                    <CheckCircle2 size={18} className="text-[#7AC142]" /> Eco-friendly process
+                  </li>
+                </ul>
+                <Link href="/signup?frequency=quarterly" className="w-full">
+                  <Button className="w-full bg-[#1C3D5A] group-hover:bg-[#7AC142] text-white rounded-xl h-12 font-bold transition-all active:scale-95">
+                    Select Plan
+                  </Button>
+                </Link>
+              </div>
+            </div>
+
+            {/* One-Time */}
+            <div className="max-w-sm mx-auto mt-8">
+              <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group text-center">
+                <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">One-Time</h3>
+                <div className="flex items-baseline justify-center gap-1 mb-6">
+                  <span className="text-4xl font-extrabold text-[#1C3D5A]">$60</span>
+                  <span className="text-slate-500">/clean</span>
+                </div>
+                <p className="text-slate-600 mb-8">Great for a deep spring cleaning</p>
+                <ul className="space-y-4 mb-10">
+                  <li className="flex items-center justify-center gap-3 text-slate-600">
+                    <CheckCircle2 size={18} className="text-[#7AC142]" /> Single deep clean
+                  </li>
+                  <li className="flex items-center justify-center gap-3 text-slate-600">
+                    <CheckCircle2 size={18} className="text-[#7AC142]" /> Sanitized & Deodorized
+                  </li>
+                  <li className="flex items-center justify-center gap-3 text-slate-600">
                     <CheckCircle2 size={18} className="text-[#7AC142]" /> No commitment
                   </li>
                 </ul>
