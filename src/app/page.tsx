@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Header } from '@/components/Header';
 import Link from 'next/link';
 import Image from 'next/image';
-import { calculatePricing } from '@/lib/pricing';
+import { calculatePricing, ONE_TIME_PRICE } from '@/lib/pricing';
 
 export const runtime = 'edge';
 import { Button } from '@/components/ui/button';
@@ -251,7 +251,7 @@ export default async function Home() {
               <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group text-center">
                 <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">One-Time</h3>
                 <div className="flex items-baseline justify-center gap-1 mb-6">
-                  <span className="text-4xl font-extrabold text-[#1C3D5A]">$60</span>
+                  <span className="text-4xl font-extrabold text-[#1C3D5A]">${ONE_TIME_PRICE}</span>
                   <span className="text-slate-500">/clean</span>
                 </div>
                 <p className="text-slate-600 mb-8">Great for a deep spring cleaning</p>

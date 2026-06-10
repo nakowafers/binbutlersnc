@@ -82,6 +82,8 @@ export interface Env {
     ROUTIFIC_WEBHOOK_SECRET: string;
     RESEND_API_KEY: string;
     GOOGLE_MAPS_API_KEY: string;
+    AUTH_GOOGLE_ID: string;
+    AUTH_GOOGLE_SECRET: string;
     AUTH_SECRET: string;
 }
 

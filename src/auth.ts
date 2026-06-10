@@ -1,26 +1,9 @@
 import NextAuth from "next-auth";
+import Google from "next-auth/providers/google";
 import Resend from "next-auth/providers/resend";
-import { D1Adapter } from "@auth/d1-adapter";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { Env } from "./lib/types";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createD1AdapterWithRetry(db: D1Database): any {
-  const base = D1Adapter(db);
-  return {
-    ...base,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async createUser(user: any) {
-      try {
-        return await base.createUser!(user);
-      } catch {
-        const existing = await db.prepare('SELECT * FROM users WHERE email = ?').bind(user.email).first();
-        if (existing) return existing;
-        throw new Error('Failed to create user and no existing user found');
-      }
-    },
-  };
-}
+import { createAuthUsersAdapter } from "./lib/auth/custom-adapter";
 
 export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   const { env } = (getRequestContext() as unknown) as { env: Env };
@@ -28,16 +11,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   return {
     trustHost: true,
     secret: env.AUTH_SECRET,
-    adapter: createD1AdapterWithRetry(env.DB),
+    adapter: createAuthUsersAdapter(env.DB),
+    session: { strategy: 'jwt' },
     providers: [
+      Google({
+        clientId: env.AUTH_GOOGLE_ID,
+        clientSecret: env.AUTH_GOOGLE_SECRET,
+        allowDangerousEmailAccountLinking: true,
+      }),
       Resend({
         apiKey: env.RESEND_API_KEY,
-        from: "onboarding@resend.dev", // Default for testing
+        from: "onboarding@resend.dev",
         sendVerificationRequest: async (params) => {
           const { identifier, url, provider } = params;
-          
-          // Since npm run preview does a production build, NODE_ENV is 'production'.
-          // We bypass Resend if the API key is missing or is just a placeholder (starts with "re_...")
+
           if (!provider.apiKey || provider.apiKey === "re_..." || provider.apiKey.includes("...")) {
             console.log("====================================================");
             console.log("MAGIC LINK GENERATED (Fake API Key Mode):");
@@ -46,7 +33,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
             return;
           }
 
-          // Otherwise, proceed with normal Resend email logic
           try {
             const response = await fetch("https://api.resend.com/emails", {
               method: "POST",
@@ -85,16 +71,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
         }
         return true;
       },
-      async session({ session, user }) {
+      async jwt({ token, user }) {
+        if (user) {
+          token.id = user.id;
+          try {
+            const rep = await env.DB.prepare(
+              'SELECT is_admin FROM sales_reps WHERE LOWER(email) = LOWER(?)'
+            ).bind(user.email as string).first<{ is_admin: number }>();
+            token.role = rep?.is_admin ? 'ADMIN' : 'CUSTOMER';
+          } catch (e) {
+            console.error('jwt callback: failed to query sales_reps', e);
+            token.role = 'CUSTOMER';
+          }
+        }
+        return token;
+      },
+      async session({ session, token }) {
         if (session.user) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const sessionUser = session.user as any;
-          sessionUser.id = user.id;
-          sessionUser.role = 'CUSTOMER';
-          const rep = await env.DB.prepare(
-            'SELECT is_admin FROM sales_reps WHERE LOWER(email) = LOWER(?)'
-          ).bind(user.email as string).first<{ is_admin: number }>();
-          if (rep?.is_admin) sessionUser.role = 'ADMIN';
+          const sessionUser = session.user as unknown as Record<string, unknown>;
+          sessionUser.id = token.id as string;
+          sessionUser.role = token.role as string;
         }
         return session;
       },

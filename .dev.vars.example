@@ -14,12 +14,17 @@ STRIPE_MONTHLY_PRICE_ID=price_your_monthly_price_id
 STRIPE_BIMONTHLY_PRICE_ID=price_1Tgdhm9YOp5QQHCl01esKma2
 STRIPE_QUARTERLY_PRICE_ID=price_your_quarterly_price_id
 STRIPE_ONETIME_PRICE_ID=price_your_onetime_price_id
+# Should correspond to a $45 Stripe Price (updated for $45 default setup fee)
 STRIPE_SETUP_FEE_PRICE_ID=price_your_setup_fee_price_id
 
 # Routific — Get from https://beta.routific.com/settings?view=integrations
 ROUTIFIC_API_KEY=your_routific_api_key_here
 ROUTIFIC_WORKSPACE_ID=your_workspace_id_here
 ROUTIFIC_WEBHOOK_SECRET=your_routific_webhook_secret
+
+# Google OAuth — https://console.cloud.google.com/apis/credentials
+AUTH_GOOGLE_ID=your_google_client_id
+AUTH_GOOGLE_SECRET=your_google_client_secret
 
 # Auth.js — Generate with: openssl rand -hex 32
 AUTH_SECRET=your_auth_secret_here
