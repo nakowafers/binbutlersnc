@@ -510,6 +510,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
             this.db.prepare('DELETE FROM pending_dispatches WHERE subscription_id IN (SELECT id FROM subscriptions WHERE customer_id = ?)').bind(customerId),
             this.db.prepare('DELETE FROM service_history WHERE subscription_id IN (SELECT id FROM subscriptions WHERE customer_id = ?)').bind(customerId),
             this.db.prepare('DELETE FROM subscriptions WHERE customer_id = ?').bind(customerId),
+            this.db.prepare('UPDATE customers SET address_id = NULL WHERE id = ?').bind(customerId),
             this.db.prepare('DELETE FROM addresses WHERE customer_id = ?').bind(customerId),
             this.db.prepare('DELETE FROM customers WHERE id = ?').bind(customerId),
         ]);
