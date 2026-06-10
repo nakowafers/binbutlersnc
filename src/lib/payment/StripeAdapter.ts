@@ -164,6 +164,7 @@ export class StripeAdapter implements IPaymentService {
                 notes: details.notes || '',
                 phone_number: details.phoneNumber || '',
                 sales_rep_id: details.salesRepId || '',
+                bin_quantity: details.binQuantity || '',
                 service_lat: details.lat?.toString() || '',
                 service_lng: details.lng?.toString() || '',
                 next_service_date: details.nextServiceDate || '',

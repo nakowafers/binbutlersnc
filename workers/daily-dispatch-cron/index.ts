@@ -64,6 +64,7 @@ const dailyDispatchCron = {
             lng?: number;
             customer_id: string;
             subscription_id: string;
+            bin_quantity?: number;
         }> = [];
 
         let tomorrowDate = '';
@@ -98,7 +99,8 @@ const dailyDispatchCron = {
                 lat: row.latitude || undefined,
                 lng: row.longitude || undefined,
                 customer_id: row.customer_id,
-                subscription_id: row.id
+                subscription_id: row.id,
+                bin_quantity: row.bin_quantity ?? undefined,
             });
         }
 
@@ -111,7 +113,7 @@ const dailyDispatchCron = {
 
         const routingService = new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
 
-        const historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string }> = [];
+        const historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number }> = [];
         const retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }> = [];
         const routificDispatches: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }> = [];
 
@@ -129,7 +131,8 @@ const dailyDispatchCron = {
                     id: historyId,
                     subscriptionId: stop.subscription_id,
                     date: tomorrowDate,
-                    status: 'Pending'
+                    status: 'Pending',
+                    binQuantity: stop.bin_quantity,
                 });
                 routificDispatches.push({
                     id: crypto.randomUUID(),
