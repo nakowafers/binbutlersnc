@@ -40,9 +40,12 @@ jobs:
           accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
           command: d1 migrations apply binbutlersnc-db --remote
 
-      - name: Set AUTH_SECRET (required by Auth.js magic link flow)
+      - name: Set Auth.js secrets
         if: github.ref == 'refs/heads/main'
-        run: echo "${{ secrets.AUTH_SECRET }}" | npx wrangler versions secret put AUTH_SECRET
+        run: |
+          echo "${{ secrets.AUTH_SECRET }}" | npx wrangler versions secret put AUTH_SECRET
+          echo "${{ secrets.AUTH_GOOGLE_ID }}" | npx wrangler versions secret put AUTH_GOOGLE_ID
+          echo "${{ secrets.AUTH_GOOGLE_SECRET }}" | npx wrangler versions secret put AUTH_GOOGLE_SECRET
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "4cd5940e1e98aa5f07d422904bc3cfa4"

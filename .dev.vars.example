@@ -21,6 +21,10 @@ ROUTIFIC_API_KEY=your_routific_api_key_here
 ROUTIFIC_WORKSPACE_ID=your_workspace_id_here
 ROUTIFIC_WEBHOOK_SECRET=your_routific_webhook_secret
 
+# Google OAuth — https://console.cloud.google.com/apis/credentials
+AUTH_GOOGLE_ID=your_google_client_id
+AUTH_GOOGLE_SECRET=your_google_client_secret
+
 # Auth.js — Generate with: openssl rand -hex 32
 AUTH_SECRET=your_auth_secret_here
 
