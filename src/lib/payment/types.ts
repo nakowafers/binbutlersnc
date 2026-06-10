@@ -7,6 +7,7 @@ export interface CheckoutSessionParams {
     phoneNumber: string;
     trashDay: string;
     notes: string;
+    scentPreference: string;
     salesRepId?: string;
     setup_fee_override?: number;
     tosAcceptedAt?: string | null;
@@ -25,6 +26,7 @@ export interface CustomerServiceDetails {
     address: string;
     trashDay: string;
     notes?: string;
+    scentPreference?: string;
     phoneNumber?: string;
     salesRepId?: string;
     lat?: number | null;

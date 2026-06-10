@@ -42,6 +42,7 @@ export interface Address {
     trash_day?: 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI';
     service_day?: string;
     notes?: string;
+    scent_preference?: string;
     created_at: string;
 }
 
@@ -101,6 +102,7 @@ export interface CustomerWithDetails {
     trash_day?: string;
     service_day?: string;
     notes?: string;
+    scent_preference?: string;
     subscription_id?: string;
     subscription_status?: string;
     frequency_days?: number;

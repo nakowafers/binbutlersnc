@@ -40,6 +40,7 @@ const signupSchema = z.object({
     trash_day: z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI']),
     notes: z.string().optional(),
     bin_quantity: z.number().min(1, "Minimum 1 bin").max(10, "Maximum 10 bins"),
+    scent_preference: z.enum(['lavender', 'ocean_breeze', 'tropical']),
     sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined).optional(),
     setup_fee_override: z.number().min(0, "Setup fee must be at least $0").optional(),
     next_service_date: z.string().optional(),
@@ -105,6 +106,7 @@ function SignupForm() {
             last_name: '',
             frequency: (initialFrequency === 'monthly' || initialFrequency === 'bimonthly' || initialFrequency === 'quarterly' || initialFrequency === 'one-time') ? initialFrequency : 'monthly',
             bin_quantity: 1,
+            scent_preference: 'lavender',
             trash_day: 'MON',
             setup_fee_override: 45,
             tos_accepted: false,
@@ -117,6 +119,7 @@ function SignupForm() {
     const address = useWatch({ control, name: 'address' });
     const frequency = useWatch({ control, name: 'frequency' });
     const binQuantity = useWatch({ control, name: 'bin_quantity' });
+    const scentPreference = useWatch({ control, name: 'scent_preference' });
     const salesRepId = useWatch({ control, name: 'sales_rep_id' });
     const setupFeeOverride = useWatch({ control, name: 'setup_fee_override' }) ?? 45;
     const tosAccepted = useWatch({ control, name: 'tos_accepted' });
@@ -224,7 +227,7 @@ function SignupForm() {
 
     const nextStep = async () => {
         const fieldsToValidate = step === 1
-            ? ['first_name', 'last_name', 'address', 'trash_day', 'bin_quantity'] as const
+            ? ['first_name', 'last_name', 'address', 'trash_day', 'bin_quantity', 'scent_preference'] as const
             : ['email', 'phone_number'] as const;
 
         const isValid = await trigger(fieldsToValidate);
@@ -348,6 +351,33 @@ function SignupForm() {
                                         placeholder="e.g. Gate code: #1234, leave bins by garage"
                                         className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
                                     />
+                                </div>
+
+                                <div className="space-y-4">
+                                    <Label className="text-[#1C3D5A] font-bold">Trash Can Scent</Label>
+                                    <RadioGroup
+                                        value={scentPreference}
+                                        onValueChange={(val) => setValue('scent_preference', val as "lavender" | "ocean_breeze" | "tropical")}
+                                        className="grid gap-3"
+                                    >
+                                        {[
+                                            { value: 'lavender', label: 'Lavender', description: 'Calming floral scent' },
+                                            { value: 'ocean_breeze', label: 'Ocean Breeze', description: 'Fresh coastal air' },
+                                            { value: 'tropical', label: 'Tropical', description: 'Exotic fruit medley' },
+                                        ].map((scent) => (
+                                            <div key={scent.value} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                                                scentPreference === scent.value ? 'border-[#7AC142] bg-lime-50' : 'border-slate-100 hover:border-slate-200'
+                                            }`} onClick={() => setValue('scent_preference', scent.value as "lavender" | "ocean_breeze" | "tropical")}>
+                                                <div className="flex items-center gap-4">
+                                                    <RadioGroupItem value={scent.value} id={scent.value} className="text-[#7AC142]" />
+                                                    <div>
+                                                        <p className="font-bold text-[#1C3D5A]">{scent.label}</p>
+                                                        <p className="text-sm text-slate-500">{scent.description}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </RadioGroup>
                                 </div>
 
                                 <div className="space-y-4">

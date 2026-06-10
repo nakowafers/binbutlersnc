@@ -36,6 +36,7 @@ async function processStripeEvent(
         const phoneNumber = metadata.phone_number;
         const trashDay = metadata.trash_day;
         const notes = metadata.notes || '';
+        const scentPreference = metadata.scent_preference || '';
         const binQuantity = parseInt(metadata.bin_quantity || '1', 10);
         const lat = metadata.lat ? parseFloat(metadata.lat) : null;
         const lng = metadata.lng ? parseFloat(metadata.lng) : null;
@@ -86,6 +87,7 @@ async function processStripeEvent(
                 address: lead.address,
                 trashDay,
                 notes,
+                scentPreference,
                 phoneNumber,
                 salesRepId: salesRepId || undefined,
                 binQuantity: binQuantity.toString(),
@@ -117,6 +119,7 @@ async function processStripeEvent(
             trashDay,
             serviceDay: trashDay,
             notes,
+            scentPreference,
             subscriptionId,
             addressId,
             customerId,

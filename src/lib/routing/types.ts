@@ -6,6 +6,7 @@ export interface Stop {
     customer_id: string;
     subscription_id: string;
     bin_quantity?: number;
+    scent_preference?: string;
 }
 
 export interface RoutingJob {

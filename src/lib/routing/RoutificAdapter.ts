@@ -1,5 +1,18 @@
 import { IRoutingService, RoutingJob, Stop } from './types';
 
+function formatInstructions(stop: Stop): string {
+    const parts = [
+        `Sub: ${stop.subscription_id} | Cust: ${stop.customer_id}`,
+    ];
+    if (stop.bin_quantity) {
+        parts.push(`Bins: ${stop.bin_quantity}`);
+    }
+    if (stop.scent_preference) {
+        parts.push(`Scent: ${stop.scent_preference.replace(/_/g, ' ')}`);
+    }
+    return parts.join(' | ');
+}
+
 export class RoutificAdapter implements IRoutingService {
     private apiKey: string;
     private workspaceId?: string;
@@ -33,7 +46,7 @@ export class RoutificAdapter implements IRoutingService {
                 lng: stop.lng,
             }],
             // Consolidate everything into instructions since notes/metadata are rejected
-            instructions: `Sub: ${stop.subscription_id} | Cust: ${stop.customer_id}${stop.bin_quantity ? ` | Bins: ${stop.bin_quantity}` : ''}`,
+            instructions: formatInstructions(stop),
             deliveryDate: job.date,
             customerOrderNumber: stop.id
         }));
@@ -93,7 +106,7 @@ export class RoutificAdapter implements IRoutingService {
                     lat: customerData.lat,
                     lng: customerData.lng,
                 }],
-                instructions: `Sub: ${customerData.subscription_id} | Cust: ${customerData.customer_id.substring(0, 8)}${customerData.bin_quantity ? ` | Bins: ${customerData.bin_quantity}` : ''}`,
+                instructions: formatInstructions(customerData),
             }),
         });
         if (!response.ok) {
