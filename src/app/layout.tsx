@@ -12,6 +12,9 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: "Bin Butlers NC | Premier Trash Bin Cleaning",
   description: "Professional, eco-friendly trash bin cleaning services in North Carolina.",
+  alternates: {
+    canonical: "https://binbutlersnc.com",
+  },
 };
 
 import { Toaster } from "@/components/ui/sonner";
