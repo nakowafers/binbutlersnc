@@ -15,6 +15,7 @@ const checkoutSchema = z.object({
     address: z.string().min(5),
     lat: z.number(),
     lng: z.number(),
+    zip_code: z.string().length(5).optional(),
     phone_number: z.string(),
     trash_day: z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI']),
     notes: z.string().optional(),
@@ -95,6 +96,16 @@ export async function POST(request: Request) {
         const validatedData = checkoutSchema.parse(rawBody);
         validatedData.email = normalizeEmail(validatedData.email);
         validatedData.address = normalizeAddress(validatedData.address);
+
+        if (validatedData.zip_code) {
+            const serviceableZips = (env.SERVICEABLE_ZIP_CODES || '').split(',').map(z => z.trim());
+            if (!serviceableZips.includes(validatedData.zip_code)) {
+                return new Response(JSON.stringify({ error: 'Sorry, we don\'t service this area yet' }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
 
         // Silently use default fee unless a sales rep is authorized to override it.
         if (validatedData.setup_fee_override !== undefined) {

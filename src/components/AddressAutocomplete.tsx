@@ -13,6 +13,7 @@ interface AddressAutocompleteProps {
     ref?: unknown;
     onAddressSelected: (address: string, lat?: number, lng?: number) => void;
     onAddressCleared?: () => void;
+    onZipDetected?: (zip: string) => void;
     placeholder?: string;
     className?: string;
 }
@@ -25,6 +26,7 @@ export function AddressAutocomplete({
     ref: forwardedRef,
     onAddressSelected,
     onAddressCleared,
+    onZipDetected,
     placeholder,
     className
 }: AddressAutocompleteProps) {
@@ -56,10 +58,14 @@ export function AddressAutocomplete({
             const formatted = place.properties.formatted || '';
             const lat = place.properties.lat;
             const lng = place.properties.lon;
+            const postcode = place.properties.postcode || '';
 
             if (formatted) {
                 selectedFromAutocomplete.current = true;
                 onAddressSelected(formatted, lat, lng);
+                if (onZipDetected && postcode) {
+                    onZipDetected(postcode);
+                }
             }
         }
     };

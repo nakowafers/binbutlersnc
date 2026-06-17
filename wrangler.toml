@@ -24,3 +24,6 @@ migrations_dir = "migrations"
 [[routes]]
 pattern = "binbutlersnc.com"
 custom_domain = true
+
+[vars]
+SERVICEABLE_ZIP_CODES = "28031,28078,28070"
