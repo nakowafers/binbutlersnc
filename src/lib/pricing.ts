@@ -10,6 +10,8 @@ export function calculatePricing(binQuantity: number, frequency: 'monthly' | 'bi
     const MONTHLY_RATE = 30;
     const BIMONTHLY_RATE = 40;
     const QUARTERLY_RATE = 50;
+    const INCLUDED_BINS = 2;
+    const EXTRA_BIN_RATE = 5;
 
     if (frequency === 'one-time') {
         return {
@@ -18,11 +20,12 @@ export function calculatePricing(binQuantity: number, frequency: 'monthly' | 'bi
         };
     }
 
-    const setupFee = DEFAULT_SETUP_FEE;
-    const recurringPrice = frequency === 'monthly' ? MONTHLY_RATE : frequency === 'bimonthly' ? BIMONTHLY_RATE : QUARTERLY_RATE;
+    const baseRate = frequency === 'monthly' ? MONTHLY_RATE : frequency === 'bimonthly' ? BIMONTHLY_RATE : QUARTERLY_RATE;
+    const extraBins = Math.max(0, binQuantity - INCLUDED_BINS);
+    const recurringPrice = baseRate + extraBins * EXTRA_BIN_RATE;
 
     return {
-        setupFee,
-        recurringPrice
+        setupFee: DEFAULT_SETUP_FEE,
+        recurringPrice,
     };
 }

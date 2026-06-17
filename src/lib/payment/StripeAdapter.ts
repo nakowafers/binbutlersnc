@@ -11,6 +11,9 @@ export interface StripeConfig {
     quarterlyPriceId: string;
     oneTimePriceId: string;
     setupFeePriceId: string;
+    extraBinMonthlyPriceId?: string;
+    extraBinBimonthlyPriceId?: string;
+    extraBinQuarterlyPriceId?: string;
 }
 
 export class StripeAdapter implements IPaymentService {
@@ -93,6 +96,24 @@ export class StripeAdapter implements IPaymentService {
                     quantity: 1,
                 });
             }
+        }
+
+        // Add extra bin surcharge for subscriptions with more than 2 bins
+        if (mode === 'subscription' && params.binQuantity > 2) {
+            const extraBinPriceId = params.frequency === 'monthly'
+                ? this.config.extraBinMonthlyPriceId
+                : params.frequency === 'bimonthly'
+                    ? this.config.extraBinBimonthlyPriceId
+                    : this.config.extraBinQuarterlyPriceId;
+
+            if (!extraBinPriceId) {
+                throw new Error(`Extra bin price ID not configured for frequency ${params.frequency}`);
+            }
+
+            lineItems.push({
+                price: extraBinPriceId,
+                quantity: params.binQuantity - 2,
+            });
         }
 
         const customerEmail = params.email;
