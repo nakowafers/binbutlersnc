@@ -167,10 +167,13 @@ export default async function Home() {
               {/* Monthly */}
               <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group">
                 <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">Monthly</h3>
-                <div className="flex items-baseline gap-1 mb-6">
+                <div className="flex items-baseline gap-1 mb-1">
                   <span className="text-4xl font-extrabold text-[#1C3D5A]">${monthlyPrice}</span>
                   <span className="text-slate-500">/mo</span>
                 </div>
+                <p className="text-xs text-muted-foreground mt-1 mb-6">
+                  Up to 2 bins included. $5/mo per extra bin.
+                </p>
                 <p className="text-slate-600 mb-8">Best for keeping bins fresh year-round</p>
                 <ul className="space-y-4 mb-10 flex-grow">
                   <li className="flex items-center gap-3 text-slate-600">
@@ -196,10 +199,13 @@ export default async function Home() {
                   Most Popular
                 </div>
                 <h3 className="text-2xl font-bold mb-2">Bi-Monthly</h3>
-                <div className="flex items-baseline gap-1 mb-6">
+                <div className="flex items-baseline gap-1 mb-1">
                   <span className="text-4xl font-extrabold text-white">${bimonthlyPrice}</span>
                   <span className="text-slate-400">/2 months</span>
                 </div>
+                <p className="text-xs text-muted-foreground mt-1 mb-6">
+                  Up to 2 bins included. $5/mo per extra bin.
+                </p>
                 <p className="text-slate-300 mb-8">Great middle-ground for regular maintenance</p>
                 <ul className="space-y-4 mb-10 flex-grow">
                   <li className="flex items-center gap-3 text-slate-200">
@@ -222,10 +228,13 @@ export default async function Home() {
               {/* Quarterly */}
               <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group">
                 <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">Quarterly</h3>
-                <div className="flex items-baseline gap-1 mb-6">
+                <div className="flex items-baseline gap-1 mb-1">
                   <span className="text-4xl font-extrabold text-[#1C3D5A]">${quarterlyPrice}</span>
                   <span className="text-slate-500">/qtr</span>
                 </div>
+                <p className="text-xs text-muted-foreground mt-1 mb-6">
+                  Up to 2 bins included. $5/mo per extra bin.
+                </p>
                 <p className="text-slate-600 mb-8">Perfect balance of value and hygiene</p>
                 <ul className="space-y-4 mb-10 flex-grow">
                   <li className="flex items-center gap-3 text-slate-600">
