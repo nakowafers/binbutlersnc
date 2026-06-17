@@ -58,7 +58,7 @@ export function AddressAutocomplete({
             const formatted = place.properties.formatted || '';
             const lat = place.properties.lat;
             const lng = place.properties.lon;
-            const postcode = place.properties.postcode || '';
+            const postcode = (place.properties.postcode || '').slice(0, 5);
 
             if (formatted) {
                 selectedFromAutocomplete.current = true;

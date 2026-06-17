@@ -15,7 +15,7 @@ const checkoutSchema = z.object({
     address: z.string().min(5),
     lat: z.number(),
     lng: z.number(),
-    zip_code: z.string().length(5).optional(),
+    zip_code: z.string().optional(),
     phone_number: z.string(),
     trash_day: z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI']),
     notes: z.string().optional(),
