@@ -27,6 +27,9 @@ import { getTodayDateString, getMaximumDate, isTrashDayMatch, isWeekday } from "
 
 const todayStr = getTodayDateString();
 const maxDate = getMaximumDate();
+const serviceableZips = (process.env.NEXT_PUBLIC_SERVICEABLE_ZIP_CODES || '')
+    .split(',')
+    .map(z => z.trim());
 
 const signupSchema = z.object({
     first_name: z.string().trim().min(1, "First name is required").max(100),
@@ -34,6 +37,7 @@ const signupSchema = z.object({
     address: z.string().min(5, "Please enter a valid address"),
     lat: z.number().optional(),
     lng: z.number().optional(),
+    zip_code: z.string().optional(),
     frequency: z.enum(['monthly', 'bimonthly', 'quarterly', 'one-time']),
     email: z.string().email("Please enter a valid email"),
     phone_number: z.string().min(10, "Please enter a valid phone number"),
@@ -50,6 +54,9 @@ const signupSchema = z.object({
 }).superRefine((data, ctx) => {
     if (data.address && data.address.length >= 5 && (data.lat === undefined || data.lng === undefined)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['address'], message: 'Please select an address from the autocomplete suggestions' });
+    }
+    if (data.zip_code && !serviceableZips.includes(data.zip_code)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['address'], message: 'Sorry, we don\'t service this area yet' });
     }
     if (data.next_service_date) {
         if (data.next_service_date < todayStr) {
@@ -310,6 +317,10 @@ function SignupForm() {
                                         onAddressCleared={() => {
                                             setValue('lat', undefined);
                                             setValue('lng', undefined);
+                                            setValue('zip_code', '');
+                                        }}
+                                        onZipDetected={(zip) => {
+                                            setValue('zip_code', zip, { shouldValidate: true });
                                         }}
                                         placeholder="123 Butler Ln, Charlotte, NC"
                                         className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
