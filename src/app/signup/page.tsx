@@ -27,9 +27,7 @@ import { getTodayDateString, getMaximumDate, isTrashDayMatch, isWeekday } from "
 
 const todayStr = getTodayDateString();
 const maxDate = getMaximumDate();
-const serviceableZips = (process.env.NEXT_PUBLIC_SERVICEABLE_ZIP_CODES || '')
-    .split(',')
-    .map(z => z.trim());
+let serviceableZips: string[] = [];
 
 const signupSchema = z.object({
     first_name: z.string().trim().min(1, "First name is required").max(100),
@@ -135,6 +133,14 @@ function SignupForm() {
     const trashDay = useWatch({ control, name: 'trash_day' });
     const nextServiceDate = useWatch({ control, name: 'next_service_date' });
     const { recurringPrice } = calculatePricing(binQuantity, frequency);
+
+    useEffect(() => {
+        fetch('/api/serviceable-zips')
+            .then(r => r.json() as Promise<{ zips: string[] }>)
+            .then(data => { serviceableZips = data.zips; })
+            .catch(() => {});
+    }, []);
+
     useEffect(() => {
         if (checkRepTimerRef.current) {
             clearTimeout(checkRepTimerRef.current);
