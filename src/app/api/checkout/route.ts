@@ -165,6 +165,9 @@ export async function POST(request: Request) {
             quarterlyPriceId: env.STRIPE_QUARTERLY_PRICE_ID,
             oneTimePriceId: env.STRIPE_ONETIME_PRICE_ID,
             setupFeePriceId: env.STRIPE_SETUP_FEE_PRICE_ID,
+            extraBinMonthlyPriceId: env.STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID,
+            extraBinBimonthlyPriceId: env.STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID,
+            extraBinQuarterlyPriceId: env.STRIPE_EXTRA_BIN_QUARTERLY_PRICE_ID,
         });
 
         // 3. Create Payment/Checkout Session via Adapter
