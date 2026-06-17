@@ -13,7 +13,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { CheckCircle2, MousePointer2, Truck, Sparkles } from "lucide-react";
+import { CheckCircle2, MousePointer2, Truck, Sparkles, Camera, MessageCircle, Star } from "lucide-react";
 
 export default async function Home() {
   const session = await auth();
@@ -365,6 +365,26 @@ export default async function Home() {
                 <li><a href="tel:9802408078" className="hover:text-white transition-colors">980-240-8078</a></li>
                 <li><a href="mailto:info@binbutlersnc.com" className="hover:text-white transition-colors">info@binbutlersnc.com</a></li>
                 <li>Greater Charlotte Area</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-bold text-lg mb-6 text-[#7AC142]">Follow Us</h4>
+              <ul className="space-y-4 text-slate-400">
+                <li>
+                  <a href="https://instagram.com/binbutlersnc" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors flex items-center gap-2">
+                    <Camera size={18} /> Instagram
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors flex items-center gap-2 text-slate-600 cursor-not-allowed">
+                    <MessageCircle size={18} /> Facebook
+                  </a>
+                </li>
+                <li>
+                  <a href="https://g.page/r/Cb0EUvVH2bAyEAI/review" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors flex items-center gap-2">
+                    <Star size={18} /> Leave a Review
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
