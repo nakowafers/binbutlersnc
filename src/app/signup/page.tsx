@@ -104,7 +104,7 @@ function SignupForm() {
     const checkRepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
-    const { register, handleSubmit, control, setValue, trigger, watch, reset, formState: { errors } } = useForm<SignupFormValues>({
+    const { register, handleSubmit, control, setValue, trigger, watch, reset, clearErrors, formState: { errors } } = useForm<SignupFormValues>({
         resolver: zodResolver(signupSchema),
         defaultValues: {
             first_name: '',
@@ -316,14 +316,15 @@ function SignupForm() {
                                         id="address"
                                         {...register('address')}
                                         onAddressSelected={(formatted, lat, lng) => {
-                                            setValue('address', formatted, { shouldValidate: true });
                                             setValue('lat', lat);
                                             setValue('lng', lng);
+                                            setValue('address', formatted, { shouldValidate: true });
                                         }}
                                         onAddressCleared={() => {
                                             setValue('lat', undefined);
                                             setValue('lng', undefined);
                                             setValue('zip_code', '');
+                                            clearErrors('address');
                                         }}
                                         onZipDetected={(zip) => {
                                             setValue('zip_code', zip, { shouldValidate: true });
