@@ -204,7 +204,7 @@ export default async function Home() {
                   <span className="text-slate-400">/2 months</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 mb-6">
-                  Up to 2 bins included. $5/mo per extra bin.
+                  Up to 2 bins included. $5/2mo per extra bin.
                 </p>
                 <p className="text-slate-300 mb-8">Great middle-ground for regular maintenance</p>
                 <ul className="space-y-4 mb-10 flex-grow">
@@ -233,7 +233,7 @@ export default async function Home() {
                   <span className="text-slate-500">/qtr</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 mb-6">
-                  Up to 2 bins included. $5/mo per extra bin.
+                  Up to 2 bins included. $5/qtr per extra bin.
                 </p>
                 <p className="text-slate-600 mb-8">Perfect balance of value and hygiene</p>
                 <ul className="space-y-4 mb-10 flex-grow">
