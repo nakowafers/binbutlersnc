@@ -68,7 +68,14 @@ export function createAuthUsersAdapter(db: D1Database): Adapter {
                 'SELECT userId FROM accounts WHERE providerAccountId = ? AND provider = ?'
             ).bind(providerAccountId, provider).first<{ userId: string }>();
             if (!account) return null;
-            return this.getUser!(account.userId);
+            let row = await db.prepare(
+                'SELECT id, name, email, emailVerified, image FROM auth_users WHERE id = ?'
+            ).bind(account.userId).first<Record<string, unknown>>();
+            if (row) return toUser(row);
+            row = await db.prepare(
+                'SELECT id, name, email, emailVerified, image FROM customers WHERE id = ?'
+            ).bind(account.userId).first<Record<string, unknown>>();
+            return toUser(row);
         },
 
         async updateUser(user) {
@@ -161,7 +168,15 @@ export function createAuthUsersAdapter(db: D1Database): Adapter {
             if (!session) return null;
             const parsedSession = toSession(session);
             if (!parsedSession) return null;
-            const user = await this.getUser!(parsedSession.userId);
+            let userRow = await db.prepare(
+                'SELECT id, name, email, emailVerified, image FROM auth_users WHERE id = ?'
+            ).bind(parsedSession.userId).first<Record<string, unknown>>();
+            if (!userRow) {
+                userRow = await db.prepare(
+                    'SELECT id, name, email, emailVerified, image FROM customers WHERE id = ?'
+                ).bind(parsedSession.userId).first<Record<string, unknown>>();
+            }
+            const user = toUser(userRow);
             if (!user) return null;
             return { session: parsedSession, user };
         },
