@@ -26,4 +26,4 @@ pattern = "binbutlersnc.com"
 custom_domain = true
 
 [vars]
-SERVICEABLE_ZIP_CODES = "28031,28078,28070"
+SERVICEABLE_ZIP_CODES = "28031,28078,28070,28036,28115,28117"

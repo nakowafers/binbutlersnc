@@ -26,9 +26,15 @@ export interface IDatabaseService {
     getLeadById(id: string): Promise<Lead | null>;
 
     // Customer Operations
+    getCustomerById(id: string): Promise<Customer | null>;
     getCustomerByEmail(email: string): Promise<Customer | null>;
     updateCustomerStripeId(customerId: string, stripeCustomerId: string): Promise<void>;
     updateCustomerAddressId(customerId: string, addressId: string): Promise<void>;
+    updateCustomer(customerId: string, details: {
+        firstName?: string;
+        lastName?: string;
+        phoneNumber?: string;
+    }): Promise<void>;
 
     // Address Operations
     getAddressById(id: string): Promise<Address | null>;
@@ -37,6 +43,15 @@ export interface IDatabaseService {
         serviceDay?: string;
         trashDay?: string;
     }): Promise<void>;
+    updateAddress(addressId: string, details: {
+        rawAddress?: string;
+        latitude?: number | null;
+        longitude?: number | null;
+        trashDay?: string;
+        notes?: string;
+        scentPreference?: string;
+    }): Promise<void>;
+    getStripeCustomerId(customerId: string): Promise<string | null>;
 
     // Subscription Operations
     getSubscriptionByCustomerId(customerId: string): Promise<Subscription | null>;

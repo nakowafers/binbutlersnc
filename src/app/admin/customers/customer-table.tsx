@@ -37,10 +37,12 @@ import {
     ChevronDown,
     ChevronUp,
     X,
+    Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CustomerWithDetails } from '@/lib/types';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { EditCustomerDialog } from './edit-customer-dialog';
 
 type SortField = 'name' | 'email' | 'subscription_status' | 'created_at';
 type SortDirection = 'asc' | 'desc';
@@ -88,6 +90,10 @@ export function CustomerTable() {
     const [editingNotesValue, setEditingNotesValue] = useState('');
     const [savingNotes, setSavingNotes] = useState(false);
 
+    // Edit customer state
+    const [editCustomer, setEditCustomer] = useState<CustomerWithDetails | null>(null);
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+
     // Delete confirmation state
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [deleting, setDeleting] = useState(false);
@@ -102,7 +108,7 @@ export function CustomerTable() {
     const [mobileNotesValue, setMobileNotesValue] = useState('');
     const [savingMobileNotes, setSavingMobileNotes] = useState(false);
 
-    useEffect(() => {
+    const fetchCustomers = () => {
         fetch('/api/admin/customers')
             .then(res => {
                 if (!res.ok) throw new Error('Failed to fetch');
@@ -117,6 +123,10 @@ export function CustomerTable() {
                 toast.error('Failed to load customers');
                 setLoading(false);
             });
+    };
+
+    useEffect(() => {
+        fetchCustomers();
     }, []);
 
     const handleSaveNotes = async (addressId: string) => {
@@ -498,17 +508,31 @@ export function CustomerTable() {
                                                     {new Date(customer.created_at).toLocaleDateString()}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {(!customer.subscription_status || customer.subscription_status === 'canceled') && (
+                                                    <div className="flex items-center gap-1">
                                                         <Button
                                                             size="sm"
                                                             variant="ghost"
-                                                            className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
-                                                            onClick={() => setDeleteConfirmId(customer.id)}
-                                                            title="Delete customer"
+                                                            className="h-8 w-8 p-0 text-slate-400 hover:text-[#7AC142] hover:bg-lime-50"
+                                                            onClick={() => {
+                                                                setEditCustomer(customer);
+                                                                setEditDialogOpen(true);
+                                                            }}
+                                                            title="Edit customer"
                                                         >
-                                                            <Trash2 size={16} />
+                                                            <Pencil size={16} />
                                                         </Button>
-                                                    )}
+                                                        {(!customer.subscription_status || customer.subscription_status === 'canceled') && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                                                onClick={() => setDeleteConfirmId(customer.id)}
+                                                                title="Delete customer"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </Button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -685,9 +709,20 @@ export function CustomerTable() {
                                     </div>
                                 )}
 
-                                {/* Delete (only if canceled) */}
-                                {(!detailCustomer.subscription_status || detailCustomer.subscription_status === 'canceled') && (
-                                    <div className="pt-4 border-t border-slate-100">
+                                {/* Edit */}
+                                <div className="pt-4 border-t border-slate-100 space-y-2">
+                                    <Button
+                                        variant="outline"
+                                        className="w-full rounded-xl h-12 text-sm font-bold border-[#7AC142] text-[#7AC142] hover:bg-lime-50"
+                                        onClick={() => {
+                                            setEditCustomer(detailCustomer);
+                                            setEditDialogOpen(true);
+                                        }}
+                                    >
+                                        <Pencil size={16} className="mr-2" />
+                                        Edit Customer
+                                    </Button>
+                                    {(!detailCustomer.subscription_status || detailCustomer.subscription_status === 'canceled') && (
                                         <Button
                                             variant="destructive"
                                             className="w-full rounded-xl h-12 text-sm font-bold"
@@ -696,8 +731,8 @@ export function CustomerTable() {
                                             <Trash2 size={16} className="mr-2" />
                                             Delete Customer
                                         </Button>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -743,6 +778,18 @@ export function CustomerTable() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* ─── Edit Customer Dialog ─── */}
+            <EditCustomerDialog
+                key={editCustomer?.id || 'no-customer'}
+                customer={editCustomer}
+                open={editDialogOpen}
+                onOpenChange={(open) => {
+                    setEditDialogOpen(open);
+                    if (!open) setEditCustomer(null);
+                }}
+                onSaved={fetchCustomers}
+            />
         </>
     );
 }
