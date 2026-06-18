@@ -40,6 +40,12 @@ export class D1DatabaseAdapter implements IDatabaseService {
         .run();
     }
 
+    async getCustomerById(id: string): Promise<Customer | null> {
+        return await this.db.prepare('SELECT * FROM customers WHERE id = ?')
+            .bind(id)
+            .first<Customer>();
+    }
+
     async getCustomerByEmail(email: string): Promise<Customer | null> {
         return await this.db.prepare('SELECT * FROM customers WHERE email = ?')
             .bind(email)
@@ -56,6 +62,30 @@ export class D1DatabaseAdapter implements IDatabaseService {
         await this.db.prepare('UPDATE customers SET address_id = ? WHERE id = ?')
             .bind(addressId, customerId)
             .run();
+    }
+
+    async updateCustomer(customerId: string, details: {
+        firstName?: string;
+        lastName?: string;
+        phoneNumber?: string;
+    }): Promise<void> {
+        const firstName = details.firstName ?? null;
+        const lastName = details.lastName ?? null;
+        const name = firstName || lastName ? `${firstName || ''} ${lastName || ''}`.trim() : null;
+        const phoneNumber = details.phoneNumber ?? null;
+
+        await this.db.prepare(
+            `UPDATE customers SET first_name = COALESCE(?, first_name), last_name = COALESCE(?, last_name), name = COALESCE(?, name), phone_number = COALESCE(?, phone_number) WHERE id = ?`
+        )
+        .bind(firstName, lastName, name, phoneNumber, customerId)
+        .run();
+    }
+
+    async getStripeCustomerId(customerId: string): Promise<string | null> {
+        const result = await this.db.prepare('SELECT stripe_customer_id FROM customers WHERE id = ?')
+            .bind(customerId)
+            .first<{ stripe_customer_id: string }>();
+        return result?.stripe_customer_id || null;
     }
 
     async getAddressById(id: string): Promise<Address | null> {
@@ -82,6 +112,36 @@ export class D1DatabaseAdapter implements IDatabaseService {
         .bind(
             details.serviceDay ?? null,
             details.trashDay ?? null,
+            addressId
+        )
+        .run();
+    }
+
+    async updateAddress(addressId: string, details: {
+        rawAddress?: string;
+        latitude?: number | null;
+        longitude?: number | null;
+        trashDay?: string;
+        notes?: string;
+        scentPreference?: string;
+    }): Promise<void> {
+        await this.db.prepare(
+            `UPDATE addresses 
+             SET raw_address = COALESCE(?, raw_address),
+                 latitude = COALESCE(?, latitude),
+                 longitude = COALESCE(?, longitude),
+                 trash_day = COALESCE(?, trash_day),
+                 notes = COALESCE(?, notes),
+                 scent_preference = COALESCE(?, scent_preference)
+             WHERE id = ?`
+        )
+        .bind(
+            details.rawAddress ?? null,
+            details.latitude !== undefined ? details.latitude : null,
+            details.longitude !== undefined ? details.longitude : null,
+            details.trashDay ?? null,
+            details.notes ?? null,
+            details.scentPreference ?? null,
             addressId
         )
         .run();
