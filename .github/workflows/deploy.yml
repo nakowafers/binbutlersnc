@@ -24,13 +24,15 @@ jobs:
         env:
           NEXT_PUBLIC_GEOAPIFY_API_KEY: ${{ secrets.NEXT_PUBLIC_GEOAPIFY_API_KEY }}
 
-      - name: Upload Workers preview version
-        if: github.ref != 'refs/heads/main'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
-          command: versions upload --preview-alias ${{ github.ref_name }}
+      - name: Set Auth.js secrets
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.AUTH_SECRET }}" | npx wrangler secret put AUTH_SECRET
+          echo "${{ secrets.AUTH_GOOGLE_ID }}" | npx wrangler secret put AUTH_GOOGLE_ID
+          echo "${{ secrets.AUTH_GOOGLE_SECRET }}" | npx wrangler secret put AUTH_GOOGLE_SECRET
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: "4cd5940e1e98aa5f07d422904bc3cfa4"
 
       - name: Apply D1 migrations
         if: github.ref == 'refs/heads/main'
@@ -40,15 +42,13 @@ jobs:
           accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
           command: d1 migrations apply binbutlersnc-db --remote
 
-      - name: Set Auth.js secrets
-        if: github.ref == 'refs/heads/main'
-        run: |
-          echo "${{ secrets.AUTH_SECRET }}" | npx wrangler versions secret put AUTH_SECRET
-          echo "${{ secrets.AUTH_GOOGLE_ID }}" | npx wrangler versions secret put AUTH_GOOGLE_ID
-          echo "${{ secrets.AUTH_GOOGLE_SECRET }}" | npx wrangler versions secret put AUTH_GOOGLE_SECRET
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: "4cd5940e1e98aa5f07d422904bc3cfa4"
+      - name: Upload Workers preview version
+        if: github.ref != 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
+          command: versions upload --preview-alias ${{ github.ref_name }}
 
       - name: Deploy main site
         if: github.ref == 'refs/heads/main'
