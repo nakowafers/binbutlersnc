@@ -534,7 +534,7 @@ function SignupForm() {
                                         <Input
                                             id="setup_fee_override"
                                             type="number"
-                                            min={1}
+                                            min={0}
                                             {...register('setup_fee_override', { valueAsNumber: true })}
                                             className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
                                         />
