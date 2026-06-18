@@ -32,22 +32,30 @@ jobs:
           accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
           command: d1 migrations apply binbutlersnc-db --remote
 
-      - name: Set Auth.js secrets
+      - name: Upload Worker version
         if: github.ref == 'refs/heads/main'
+        id: upload
         run: |
-          echo "${{ secrets.AUTH_SECRET }}" | npx wrangler secret put AUTH_SECRET
-          echo "${{ secrets.AUTH_GOOGLE_ID }}" | npx wrangler secret put AUTH_GOOGLE_ID
-          echo "${{ secrets.AUTH_GOOGLE_SECRET }}" | npx wrangler secret put AUTH_GOOGLE_SECRET
+          npx wrangler versions upload
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
-      - name: Deploy main site
+      - name: Set Auth.js secrets on version
         if: github.ref == 'refs/heads/main'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
-          command: deploy
+        id: secrets
+        run: |
+          echo "${{ secrets.AUTH_SECRET }}" | npx wrangler versions secret put AUTH_SECRET
+          echo "${{ secrets.AUTH_GOOGLE_ID }}" | npx wrangler versions secret put AUTH_GOOGLE_ID
+          VERSION_ID=$(echo "${{ secrets.AUTH_GOOGLE_SECRET }}" | npx wrangler versions secret put AUTH_GOOGLE_SECRET 2>&1 | grep -oE '[a-f0-9-]{36}')
+          echo "version-id=$VERSION_ID" >> "$GITHUB_OUTPUT"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Deploy Worker version
+        if: github.ref == 'refs/heads/main'
+        run: npx wrangler versions deploy --version-id "${{ steps.secrets.outputs.version-id }}" --yes
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Upload Workers preview version
         if: github.ref != 'refs/heads/main'
