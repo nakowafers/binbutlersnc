@@ -157,5 +157,17 @@ describe('StripeAdapter', () => {
             const callArgs = mockCreateCheckoutSession.mock.calls[0][0];
             expect(callArgs.subscription_data.trial_period_days).toBe(28);
         });
+
+        it('should throw a clear error when an extra bin price ID is missing', async () => {
+            adapter = new StripeAdapter({
+                ...config,
+                extraBinMonthlyPriceId: undefined,
+            });
+
+            await expect(adapter.createCheckoutSession({
+                ...baseParams,
+                binQuantity: 3,
+            })).rejects.toThrow('Missing Stripe extra bin price ID for monthly subscriptions');
+        });
     });
 });

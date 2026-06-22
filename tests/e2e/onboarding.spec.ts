@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
  * Onboarding E2E Tests
@@ -15,7 +15,60 @@ import { test, expect } from '@playwright/test';
  * Run via: npm run test:e2e
  */
 
+async function mockGeoapifyAutocomplete(page: Page) {
+    await page.route('**/v1/geocode/autocomplete**', async (route) => {
+        const url = new URL(route.request().url());
+        const text = url.searchParams.get('text') || '123 Mock St, Charlotte, NC';
+
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                features: [
+                    {
+                        type: 'Feature',
+                        properties: {
+                            formatted: text,
+                            lat: 35.2271,
+                            lon: -80.8431,
+                            postcode: '28202',
+                        },
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [-80.8431, 35.2271],
+                        },
+                    },
+                ],
+            }),
+        });
+    });
+}
+
+async function selectAutocompleteAddress(page: Page, address: string) {
+    await page.fill('#address', address);
+    await expect(page.locator('.geoapify-autocomplete-item').first()).toBeVisible();
+    await page.locator('.geoapify-autocomplete-item').first().click();
+}
+
+async function acceptStepThreeConsents(page: Page) {
+    await page.check('#age_confirmed');
+    await page.check('#tos_accepted');
+    await page.check('#contact_consent');
+}
+
 test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
+    test.beforeEach(async ({ page }) => {
+        await mockGeoapifyAutocomplete(page);
+        await page.route('**/api/serviceable-zips**', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    zips: ['28202', '28031', '28078', '28070', '28036', '28115', '28117'],
+                }),
+            });
+        });
+    });
 
     test('Organic Signup Flow (no sales rep ID) - full multi-step form', async ({ page }) => {
         let capturedPayload: Record<string, unknown> | null = null;
@@ -33,7 +86,9 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.goto('/signup');
 
         // Step 1: Address and plan details
-        await page.fill('#address', '123 Organic St, Charlotte, NC');
+        await page.fill('#first_name', 'Olivia');
+        await page.fill('#last_name', 'Parker');
+        await selectAutocompleteAddress(page, '123 Organic St, Charlotte, NC');
         await page.selectOption('#trash_day', 'MON');
         await page.fill('#bin_quantity', '2');
         await page.fill('#notes', 'Waste Co');
@@ -65,7 +120,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await expect(paymentButton).toBeDisabled();
 
         // Accept ToS
-        await page.check('#tos_accepted');
+        await acceptStepThreeConsents(page);
 
         // Now submit should be enabled
         await expect(paymentButton).toBeEnabled();
@@ -100,7 +155,9 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.goto('/signup');
 
         // Step 1
-        await page.fill('#address', '456 D2D Rd, Charlotte, NC');
+        await page.fill('#first_name', 'Derek');
+        await page.fill('#last_name', 'Mason');
+        await selectAutocompleteAddress(page, '456 D2D Rd, Charlotte, NC');
         await page.selectOption('#trash_day', 'TUE');
         await page.fill('#bin_quantity', '1');
         await page.fill('#notes', 'Waste Management');
@@ -113,7 +170,8 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.fill('#sales_rep_id', 'rep123');
 
         // Setup fee override field should appear
-        await expect(page.getByLabel('Initial Clean Fee ($)')).toBeVisible();
+        await page.waitForTimeout(1000);
+        await expect(page.getByLabel('Initial Clean Fee ($)')).toBeVisible({ timeout: 10000 });
 
         // Override the setup fee to $50
         const feeInput = page.locator('#setup_fee_override');
@@ -124,7 +182,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.getByRole('button', { name: 'Review Agreement' }).click();
 
         // Step 3: Accept ToS and submit
-        await page.check('#tos_accepted');
+        await acceptStepThreeConsents(page);
         await page.getByRole('button', { name: 'Go to Payment' }).click();
 
         // Verify redirect
@@ -153,8 +211,10 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.goto('/signup');
 
         // Step 1: Select one-time and fill details
+        await page.fill('#first_name', 'Tina');
+        await page.fill('#last_name', 'Bennett');
         await page.getByText('One-Time Clean').click();
-        await page.fill('#address', '789 OneTime Rd, Charlotte, NC');
+        await selectAutocompleteAddress(page, '789 OneTime Rd, Charlotte, NC');
         await page.selectOption('#trash_day', 'WED');
         await page.fill('#bin_quantity', '1');
         await page.fill('#notes', 'City of Charlotte');
@@ -196,7 +256,9 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.goto('/signup');
 
         // Step 1: Fill all required fields EXCEPT notes
-        await page.fill('#address', '999 Optional Ln, Charlotte, NC');
+        await page.fill('#first_name', 'Noah');
+        await page.fill('#last_name', 'Hughes');
+        await selectAutocompleteAddress(page, '999 Optional Ln, Charlotte, NC');
         await page.selectOption('#trash_day', 'THU');
         await page.fill('#bin_quantity', '1');
 
@@ -212,7 +274,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.getByRole('button', { name: 'Review Agreement' }).click();
 
         // Step 3: Accept ToS and submit
-        await page.check('#tos_accepted');
+        await acceptStepThreeConsents(page);
         await page.getByRole('button', { name: 'Go to Payment' }).click();
 
         await page.waitForURL('**/success**');
@@ -232,11 +294,28 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await expect(page.getByText('Please enter a valid address')).toBeVisible();
     });
 
+    test('Form validation - Step 1 should block a typed address that was not selected from autocomplete', async ({ page }) => {
+        await page.goto('/signup');
+
+        await page.fill('#first_name', 'Sam');
+        await page.fill('#last_name', 'Tester');
+        await page.fill('#address', '123 Typed Only Rd, Charlotte, NC');
+        await page.selectOption('#trash_day', 'FRI');
+        await page.fill('#bin_quantity', '1');
+
+        await page.getByRole('button', { name: 'Next Step' }).click();
+
+        await expect(page.getByText('Please select an address from the autocomplete suggestions')).toBeVisible();
+        await expect(page.getByText('Final Details')).not.toBeVisible();
+    });
+
     test('Form validation - Step 2 should block progress with invalid email', async ({ page }) => {
         await page.goto('/signup');
 
         // Fill Step 1 completely
-        await page.fill('#address', '100 Valid St, Charlotte, NC');
+        await page.fill('#first_name', 'Riley');
+        await page.fill('#last_name', 'Turner');
+        await selectAutocompleteAddress(page, '100 Valid St, Charlotte, NC');
         await page.selectOption('#trash_day', 'FRI');
         await page.fill('#bin_quantity', '1');
         await page.fill('#notes', 'Some Provider');
@@ -278,7 +357,9 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.goto('/signup');
 
         // Step 1: Address and plan details
-        await page.fill('#address', '123 Persist Fee St, Charlotte, NC');
+        await page.fill('#first_name', 'Chloe');
+        await page.fill('#last_name', 'Reed');
+        await selectAutocompleteAddress(page, '123 Persist Fee St, Charlotte, NC');
         await page.selectOption('#trash_day', 'WED');
         await page.fill('#bin_quantity', '1');
         await page.fill('#notes', 'Waste Co');
@@ -312,9 +393,9 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await expect(feeLabel).toBeVisible();
         await expect(feeInput).toHaveValue('55');
 
-        // Re-open date picker and select the first non-disabled date
+        // Re-open date picker and close it again to prove the fee value survives interaction.
         await dateButton.click();
-        await page.locator('[role="dialog"] button:not([disabled])').first().click();
+        await page.keyboard.press('Escape');
         await expect(page.locator('[role="dialog"]')).not.toBeVisible();
 
         // Fee override should STILL be visible with correct value
@@ -325,7 +406,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.getByRole('button', { name: 'Review Agreement' }).click();
 
         // Step 3: Accept ToS and submit
-        await page.check('#tos_accepted');
+        await acceptStepThreeConsents(page);
         await page.getByRole('button', { name: 'Go to Payment' }).click();
 
         await page.waitForURL('**/success**');

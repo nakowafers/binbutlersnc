@@ -6,11 +6,11 @@ import { getRecurringBillingStartTimestamp } from '@/lib/date-utils';
 
 export interface StripeConfig {
     secretKey: string;
-    monthlyPriceId: string;
-    bimonthlyPriceId: string;
-    quarterlyPriceId: string;
-    oneTimePriceId: string;
-    setupFeePriceId: string;
+    monthlyPriceId?: string;
+    bimonthlyPriceId?: string;
+    quarterlyPriceId?: string;
+    oneTimePriceId?: string;
+    setupFeePriceId?: string;
     extraBinMonthlyPriceId?: string;
     extraBinBimonthlyPriceId?: string;
     extraBinQuarterlyPriceId?: string;
@@ -25,27 +25,31 @@ export class StripeAdapter implements IPaymentService {
         this.stripe = new Stripe(config.secretKey);
     }
 
+    private requirePriceId(priceId: string | undefined, label: string): string {
+        if (!priceId) {
+            throw new Error(`Missing Stripe price ID for ${label}`);
+        }
+
+        return priceId;
+    }
+
     async createCheckoutSession(params: CheckoutSessionParams): Promise<{ url: string | null }> {
         let priceId: string | undefined;
         let mode: Stripe.Checkout.SessionCreateParams['mode'] = 'subscription';
         const lineItems: Stripe.Checkout.SessionCreateParams['line_items'] = [];
 
         if (params.frequency === 'monthly') {
-            priceId = this.config.monthlyPriceId;
+            priceId = this.requirePriceId(this.config.monthlyPriceId, 'monthly subscriptions');
             mode = 'subscription';
         } else if (params.frequency === 'bimonthly') {
-            priceId = this.config.bimonthlyPriceId;
+            priceId = this.requirePriceId(this.config.bimonthlyPriceId, 'bimonthly subscriptions');
             mode = 'subscription';
         } else if (params.frequency === 'quarterly') {
-            priceId = this.config.quarterlyPriceId;
+            priceId = this.requirePriceId(this.config.quarterlyPriceId, 'quarterly subscriptions');
             mode = 'subscription';
         } else {
-            priceId = this.config.oneTimePriceId;
+            priceId = this.requirePriceId(this.config.oneTimePriceId, 'one-time payments');
             mode = 'payment';
-        }
-
-        if (!priceId) {
-            throw new Error(`Price ID not configured for frequency ${params.frequency}`);
         }
 
         // Add main service item
@@ -75,10 +79,7 @@ export class StripeAdapter implements IPaymentService {
 
         // Add setup fee if it's a subscription
         if (mode === 'subscription') {
-            const setupFeePriceId = this.config.setupFeePriceId;
-            if (!setupFeePriceId) {
-                throw new Error('Setup fee price ID not configured');
-            }
+            const setupFeePriceId = this.requirePriceId(this.config.setupFeePriceId, 'subscription setup fees');
 
             if (params.setup_fee_override !== undefined) {
                 const price = await this.stripe.prices.retrieve(setupFeePriceId);
@@ -107,7 +108,7 @@ export class StripeAdapter implements IPaymentService {
                     : this.config.extraBinQuarterlyPriceId;
 
             if (!extraBinPriceId) {
-                throw new Error(`Extra bin price ID not configured for frequency ${params.frequency}`);
+                throw new Error(`Missing Stripe extra bin price ID for ${params.frequency} subscriptions`);
             }
 
             lineItems.push({

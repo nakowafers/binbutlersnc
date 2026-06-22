@@ -24,6 +24,7 @@ When implementing UI, screens, or user flows, the agent MUST leverage the Stitch
 
 ## Verification
 - After making any code changes, run `npm run lint` to check for ESLint violations before committing.
+- After making any code changes, run `npm run build` to verify there are no compile or type errors before considering the work complete.
 
 ## Deployment Prerequisites
 - `AUTH_SECRET` must be set as a **GitHub Actions secret** (`https://github.com/binbutlersnc/binbutlersnc/settings/secrets/actions`) and is deployed via CI to Cloudflare Workers as a secret. Do not hardcode it anywhere.

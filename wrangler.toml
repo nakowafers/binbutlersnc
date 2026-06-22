@@ -27,3 +27,11 @@ custom_domain = true
 
 [vars]
 SERVICEABLE_ZIP_CODES = "28031,28078,28070,28036,28115,28117"
+
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false

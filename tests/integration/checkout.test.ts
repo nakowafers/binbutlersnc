@@ -118,6 +118,40 @@ describe('Checkout API - Integration Tests', () => {
         }));
     });
 
+    it('should return a clear error when the requested Stripe config is missing', async () => {
+        delete mockEnv.STRIPE_BIMONTHLY_PRICE_ID;
+
+        const body = {
+            email: 'missing-config@example.com',
+            first_name: 'Missing',
+            last_name: 'Config',
+            address: '123 Missing Config St',
+            lat: 35.0,
+            lng: -80.0,
+            phone_number: '555-4444',
+            trash_day: 'MON',
+            notes: 'Waste Co',
+            scent_preference: 'lavender',
+            bin_quantity: 1,
+            frequency: 'bimonthly',
+            tos_accepted: true,
+            age_confirmed: true,
+            contact_consent: true,
+        };
+
+        const request = new Request('http://localhost/api/checkout', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+
+        const response = await POST(request);
+        const data = await response.json();
+
+        expect(response.status).toBe(500);
+        expect(data.error).toContain('STRIPE_BIMONTHLY_PRICE_ID');
+        expect(mockCreateSession).not.toHaveBeenCalled();
+    });
+
     it('should handle one-time frequency and custom setup fee override', async () => {
         mockCreateSession.mockResolvedValue({ url: 'https://stripe.com/checkout/session/456' });
         mockRetrievePrice.mockResolvedValue({ product: 'prod_onetime' });

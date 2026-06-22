@@ -3,7 +3,7 @@
 export const runtime = 'edge';
 
 import { useState, useEffect, useRef, Suspense } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm, useWatch, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Image from 'next/image';
@@ -99,12 +99,13 @@ function SignupForm() {
     const stepParam = searchParams.get('step');
     const step = stepParam ? Math.max(1, Math.min(3, parseInt(stepParam, 10) || 1)) : 1;
     const [isLoading, setIsLoading] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
     const [canOverrideFee, setCanOverrideFee] = useState<boolean | null>(null);
     const [calendarOpen, setCalendarOpen] = useState(false);
     const checkRepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
-    const { register, handleSubmit, control, setValue, trigger, watch, reset, clearErrors, formState: { errors } } = useForm<SignupFormValues>({
+    const { register, handleSubmit, control, setValue, trigger, reset, clearErrors, setError, setFocus, getValues, formState: { errors } } = useForm<SignupFormValues>({
         resolver: zodResolver(signupSchema),
         defaultValues: {
             first_name: '',
@@ -132,6 +133,7 @@ function SignupForm() {
     const contactConsent = useWatch({ control, name: 'contact_consent' });
     const trashDay = useWatch({ control, name: 'trash_day' });
     const nextServiceDate = useWatch({ control, name: 'next_service_date' });
+    const formValues = useWatch({ control });
     const { recurringPrice } = calculatePricing(binQuantity, frequency);
 
     useEffect(() => {
@@ -172,17 +174,6 @@ function SignupForm() {
     const STORAGE_KEY = 'signup_form_data';
 
     useEffect(() => {
-        const sub = watch((values) => {
-            try {
-                sessionStorage.setItem(STORAGE_KEY, JSON.stringify(values));
-            } catch {
-                // sessionStorage may be full or unavailable
-            }
-        });
-        return () => sub.unsubscribe();
-    }, [watch]);
-
-    useEffect(() => {
         try {
             const saved = sessionStorage.getItem(STORAGE_KEY);
             if (saved) {
@@ -194,7 +185,20 @@ function SignupForm() {
         }
     }, [reset]);
 
+    useEffect(() => {
+        if (!formValues) {
+            return;
+        }
+
+        try {
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(formValues));
+        } catch {
+            // sessionStorage may be full or unavailable
+        }
+    }, [formValues]);
+
     const onSubmit = async (data: SignupFormValues) => {
+        setSubmitError(null);
         setIsLoading(true);
         try {
             const response = await fetch('/api/checkout', {
@@ -220,19 +224,49 @@ function SignupForm() {
                 sessionStorage.removeItem(STORAGE_KEY);
                 window.location.assign(result.url);
             } else {
-                toast.error('Something went wrong. Please try again.');
+                const message = 'Something went wrong. Please try again.';
+                setSubmitError(message);
+                toast.error(message);
             }
         } catch (error) {
             console.error('Signup error:', error);
-            toast.error('Failed to initiate checkout.');
+            const message = 'Failed to initiate checkout.';
+            setSubmitError(message);
+            toast.error(message);
         } finally {
             setIsLoading(false);
         }
     };
 
+    const onInvalid = async (formErrors: FieldErrors<SignupFormValues>) => {
+        setSubmitError(null);
 
+        if (formErrors.address) {
+            goToStep(1);
+            setError('address', {
+                type: 'manual',
+                message: 'Please select an address from the autocomplete suggestions',
+            });
+            setFocus('address');
+            return;
+        }
+
+        if (formErrors.email || formErrors.phone_number || formErrors.sales_rep_id || formErrors.setup_fee_override || formErrors.next_service_date) {
+            if (step < 2) {
+                goToStep(2);
+            }
+            return;
+        }
+
+        if (formErrors.tos_accepted || formErrors.age_confirmed || formErrors.contact_consent) {
+            if (step < 3) {
+                goToStep(3);
+            }
+        }
+    };
 
     const goToStep = (newStep: number) => {
+        setSubmitError(null);
         const params = new URLSearchParams(searchParams.toString());
         params.set('step', String(newStep));
         router.replace(`/signup?${params.toString()}`, { scroll: false });
@@ -244,9 +278,23 @@ function SignupForm() {
             : ['email', 'phone_number'] as const;
 
         const isValid = await trigger(fieldsToValidate);
-        if (isValid) {
-            goToStep(step + 1);
+        if (!isValid) {
+            return;
         }
+
+        if (step === 1) {
+            const { lat, lng } = getValues();
+            if (typeof lat !== 'number' || typeof lng !== 'number') {
+                setError('address', {
+                    type: 'manual',
+                    message: 'Please select an address from the autocomplete suggestions',
+                });
+                setFocus('address');
+                return;
+            }
+        }
+
+        goToStep(step + 1);
     };
     const prevStep = () => goToStep(step - 1);
 
@@ -279,7 +327,7 @@ function SignupForm() {
                     ))}
                 </div>
 
-                <form onSubmit={handleSubmit(onSubmit)}>
+                <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
                     {step === 1 && (
                         <Card className="border-none shadow-xl rounded-[2rem] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <CardHeader className="bg-[#1C3D5A] text-white p-8">
@@ -316,13 +364,13 @@ function SignupForm() {
                                         id="address"
                                         {...register('address')}
                                         onAddressSelected={(formatted, lat, lng) => {
-                                            setValue('lat', lat);
-                                            setValue('lng', lng);
+                                            setValue('lat', lat, { shouldValidate: true, shouldDirty: true });
+                                            setValue('lng', lng, { shouldValidate: true, shouldDirty: true });
                                             setValue('address', formatted, { shouldValidate: true });
                                         }}
                                         onAddressCleared={() => {
-                                            setValue('lat', undefined);
-                                            setValue('lng', undefined);
+                                            setValue('lat', undefined, { shouldValidate: true, shouldDirty: true });
+                                            setValue('lng', undefined, { shouldValidate: true, shouldDirty: true });
                                             setValue('zip_code', '');
                                             clearErrors('address');
                                         }}
@@ -708,6 +756,11 @@ function SignupForm() {
                                     </Label>
                                 </div>
                                 {errors.contact_consent && <p className="text-red-500 text-xs font-medium pl-1">{errors.contact_consent.message}</p>}
+                                {submitError && (
+                                    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                                        {submitError}
+                                    </div>
+                                )}
                             </CardContent>
                             <CardFooter className="p-8 bg-slate-50 border-t flex gap-4">
                                 <Button
