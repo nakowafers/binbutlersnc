@@ -58,6 +58,49 @@ const checkoutSchema = z.object({
     }
 });
 
+function getMissingStripeConfig(env: Env, data: z.infer<typeof checkoutSchema>): string[] {
+    const missing: string[] = [];
+    const envRecord = env as Record<string, string | undefined>;
+
+    if (!env.STRIPE_SECRET_KEY || env.STRIPE_SECRET_KEY.includes('sk_test_...')) {
+        missing.push('STRIPE_SECRET_KEY');
+    }
+
+    if (data.frequency === 'monthly' && !env.STRIPE_MONTHLY_PRICE_ID) {
+        missing.push('STRIPE_MONTHLY_PRICE_ID');
+    }
+
+    if (data.frequency === 'bimonthly' && !env.STRIPE_BIMONTHLY_PRICE_ID) {
+        missing.push('STRIPE_BIMONTHLY_PRICE_ID');
+    }
+
+    if (data.frequency === 'quarterly' && !env.STRIPE_QUARTERLY_PRICE_ID) {
+        missing.push('STRIPE_QUARTERLY_PRICE_ID');
+    }
+
+    if (data.frequency === 'one-time' && !env.STRIPE_ONETIME_PRICE_ID) {
+        missing.push('STRIPE_ONETIME_PRICE_ID');
+    }
+
+    if (data.frequency !== 'one-time' && !env.STRIPE_SETUP_FEE_PRICE_ID) {
+        missing.push('STRIPE_SETUP_FEE_PRICE_ID');
+    }
+
+    if (data.frequency !== 'one-time' && data.bin_quantity > 2) {
+        const extraBinKey = data.frequency === 'monthly'
+            ? 'STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID'
+            : data.frequency === 'bimonthly'
+                ? 'STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID'
+                : 'STRIPE_EXTRA_BIN_QUARTERLY_PRICE_ID';
+
+        if (!envRecord[extraBinKey]) {
+            missing.push(extraBinKey);
+        }
+    }
+
+    return missing;
+}
+
 export async function POST(request: Request) {
     try {
         let env: Env | undefined;
@@ -96,6 +139,14 @@ export async function POST(request: Request) {
         const validatedData = checkoutSchema.parse(rawBody);
         validatedData.email = normalizeEmail(validatedData.email);
         validatedData.address = normalizeAddress(validatedData.address);
+
+        const missingStripeConfig = getMissingStripeConfig(env, validatedData);
+        if (missingStripeConfig.length > 0) {
+            return new Response(JSON.stringify({ error: `Missing Stripe configuration: ${missingStripeConfig.join(', ')}` }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
 
         if (validatedData.zip_code) {
             const serviceableZips = (env.SERVICEABLE_ZIP_CODES || '').split(',').map(z => z.trim());
