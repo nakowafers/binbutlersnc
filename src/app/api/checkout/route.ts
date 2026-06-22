@@ -60,7 +60,7 @@ const checkoutSchema = z.object({
 
 function getMissingStripeConfig(env: Env, data: z.infer<typeof checkoutSchema>): string[] {
     const missing: string[] = [];
-    const envRecord = env as Record<string, string | undefined>;
+    const envRecord = env as unknown as Record<string, string | undefined>;
 
     if (!env.STRIPE_SECRET_KEY || env.STRIPE_SECRET_KEY.includes('sk_test_...')) {
         missing.push('STRIPE_SECRET_KEY');

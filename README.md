@@ -51,3 +51,12 @@ To run cron workers locally:
 npx wrangler dev workers/daily-dispatch-cron/index.ts
 npx wrangler dev workers/retry-cron/index.ts
 ```
+
+## Verification
+
+After making code changes, run both checks before treating the work as complete:
+
+```bash
+npm run lint
+npm run build
+```
