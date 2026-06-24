@@ -72,13 +72,21 @@ export async function POST(request: Request) {
         eventId = event.id;
         await lifecycle.processEvent(event);
 
-        await env.DB.prepare(
-            'DELETE FROM webhook_events WHERE created_at < unixepoch() - 2592000'
-        ).run();
+        try {
+            await env.DB.prepare(
+                'DELETE FROM webhook_events WHERE created_at < unixepoch() - 2592000'
+            ).run();
+        } catch (cleanupError) {
+            console.error('Webhook events cleanup failed:', cleanupError);
+        }
 
-        await env.DB.prepare(
-            'DELETE FROM routific_dispatches WHERE service_date < ?'
-        ).bind(new Date().toISOString().split('T')[0]).run();
+        try {
+            await env.DB.prepare(
+                'DELETE FROM routific_dispatches WHERE service_date < ?'
+            ).bind(new Date().toISOString().split('T')[0]).run();
+        } catch (cleanupError) {
+            console.error('Routific dispatches cleanup failed:', cleanupError);
+        }
 
         return new Response(JSON.stringify({ received: true }), {
             status: 200,

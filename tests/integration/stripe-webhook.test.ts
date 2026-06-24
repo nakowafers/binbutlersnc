@@ -534,7 +534,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         expect(subscription.current_period_end).not.toBeNull();
     });
 
-    it('should release webhook claims when post-processing cleanup fails after a successful event', async () => {
+    it('should keep successful webhook claims when post-processing cleanup fails', async () => {
         const customerId = 'cust_cleanup_claim';
         const subscriptionId = 'sub_cleanup_claim';
         const stripeSubId = 'sub_stripe_cleanup_claim';
@@ -582,10 +582,10 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         });
 
         const firstResponse = await POST(firstRequest);
-        expect(firstResponse.status).toBe(500);
+        expect(firstResponse.status).toBe(200);
 
-        const claimAfterFailure = simulator.db.prepare('SELECT * FROM webhook_events WHERE id = ?').get(eventId);
-        expect(claimAfterFailure).toBeUndefined();
+        const claimAfterCleanupFailure = simulator.db.prepare('SELECT * FROM webhook_events WHERE id = ?').get(eventId);
+        expect(claimAfterCleanupFailure).toBeDefined();
 
         simulator.prepare = originalPrepare as any;
 

@@ -82,7 +82,7 @@ export class SubscriptionLifecycle {
         const binQuantity = parseInt(metadata.bin_quantity || '1', 10);
         const lat = metadata.lat ? parseFloat(metadata.lat) : null;
         const lng = metadata.lng ? parseFloat(metadata.lng) : null;
-        const frequency = (metadata.frequency || 'monthly') as 'monthly' | 'quarterly' | 'one-time';
+        const frequency = (metadata.frequency || 'monthly') as 'monthly' | 'bimonthly' | 'quarterly' | 'one-time';
         const tosAcceptedAt = metadata.tos_accepted_at || null;
         const combinedName = `${firstName} ${lastName}`.trim();
 
