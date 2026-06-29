@@ -52,6 +52,7 @@ function createEvent(leadId: string, overrides: Record<string, string> = {}) {
                     notes: 'Waste Co',
                     bin_quantity: '1',
                     frequency,
+                    scent_preference: 'lavender',
                     ...overrides,
                 },
             },

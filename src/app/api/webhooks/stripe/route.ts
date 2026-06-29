@@ -3,241 +3,15 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { Env } from '@/lib/types';
 import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { StripeAdapter } from '@/lib/payment/StripeAdapter';
-import { normalizeSalesRepId } from '@/lib/sales-rep';
 import { RoutificAdapter } from '@/lib/routing/RoutificAdapter';
-import { normalizeEmail, normalizeAddress } from '@/lib/utils';
+import { SubscriptionLifecycle } from '@/lib/payment/SubscriptionLifecycle';
+import { WebhookHttpError } from '@/lib/webhooks/WebhookHttpError';
 
 export const runtime = 'edge';
 
-class WebhookHttpError extends Error {
-    constructor(public status: number, message: string) {
-        super(message);
-        this.name = 'WebhookHttpError';
-    }
-}
-
-async function deleteWebhookEventClaim(db: D1Database, eventId: string): Promise<void> {
-    await db.prepare('DELETE FROM webhook_events WHERE id = ?').bind(eventId).run();
-}
-
-async function processStripeEvent(
-    event: Stripe.Event,
-    paymentService: StripeAdapter,
-    db: D1DatabaseAdapter,
-    env: Env
-): Promise<void> {
-    if (event.type === 'checkout.session.completed') {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const metadata = session.metadata || {};
-        const leadId = metadata.lead_id;
-        const salesRepId = normalizeSalesRepId(metadata.sales_rep_id);
-        const firstName = metadata.first_name || '';
-        const lastName = metadata.last_name || '';
-        const phoneNumber = metadata.phone_number;
-        const trashDay = metadata.trash_day;
-        const notes = metadata.notes || '';
-        const scentPreference = metadata.scent_preference || '';
-        const binQuantity = parseInt(metadata.bin_quantity || '1', 10);
-        const lat = metadata.lat ? parseFloat(metadata.lat) : null;
-        const lng = metadata.lng ? parseFloat(metadata.lng) : null;
-        const frequency = (metadata.frequency || 'monthly') as 'monthly' | 'quarterly' | 'one-time';
-        const tosAcceptedAt = metadata.tos_accepted_at || null;
-        const combinedName = `${firstName} ${lastName}`.trim();
-
-        if (!leadId) {
-            throw new WebhookHttpError(400, 'Missing lead_id in metadata');
-        }
-
-        const lead = await db.getLeadById(leadId);
-        if (!lead) {
-            throw new WebhookHttpError(404, 'Lead not found');
-        }
-
-        lead.email = normalizeEmail(lead.email);
-        lead.address = normalizeAddress(lead.address);
-
-        const isSubscription = !!session.subscription;
-
-        const existingCustomer = await db.getCustomerByEmail(lead.email);
-        const customerId = existingCustomer?.id || crypto.randomUUID();
-        const existingAddress = await db.getAddressByRawAndCustomer(lead.address, customerId);
-        const addressId = existingAddress?.id || crypto.randomUUID();
-        const subscriptionId = crypto.randomUUID();
-        const serviceHistoryId = crypto.randomUUID();
-        const nextServiceDate = metadata.next_service_date || null;
-
-        let currentPeriodEnd: string | null = null;
-        if (isSubscription) {
-            try {
-                const currentPeriodEndSecs = await paymentService.retrieveSubscriptionPeriodEnd(session.subscription as string);
-                if (!Number.isFinite(currentPeriodEndSecs)) {
-                    throw new Error(`Stripe returned an invalid current_period_end for subscription ${session.subscription}`);
-                }
-                currentPeriodEnd = new Date(currentPeriodEndSecs * 1000).toISOString();
-            } catch (error) {
-                throw new WebhookHttpError(502, `Failed to fetch subscription period end: ${(error as Error).message}`);
-            }
-        }
-
-        try {
-            await paymentService.updateCustomerServiceDetails(session.customer as string, {
-                name: combinedName,
-                firstName,
-                lastName,
-                address: lead.address,
-                trashDay,
-                notes,
-                scentPreference,
-                phoneNumber,
-                salesRepId: salesRepId || undefined,
-                binQuantity: binQuantity.toString(),
-                lat,
-                lng,
-                nextServiceDate,
-            });
-        } catch (error) {
-            throw new WebhookHttpError(502, `Failed to update Stripe customer service details: ${(error as Error).message}`);
-        }
-
-        const todayIso = new Date().toISOString().split('T')[0];
-        const isSameDay = nextServiceDate === todayIso;
-
-        await db.convertLeadToCustomerTransaction({
-            leadId,
-            email: lead.email,
-            firstName,
-            lastName,
-            stripeCustomerId: session.customer as string,
-            stripeSubscriptionId: isSubscription ? (session.subscription as string) : null,
-            phoneNumber: phoneNumber,
-            binQuantity: binQuantity,
-            salesRepId: salesRepId || null,
-            tosAcceptedAt,
-            rawAddress: lead.address,
-            latitude: lat,
-            longitude: lng,
-            trashDay,
-            serviceDay: trashDay,
-            notes,
-            scentPreference,
-            subscriptionId,
-            addressId,
-            customerId,
-            currentPeriodEnd,
-            serviceHistoryId,
-            frequency,
-            nextServiceDate,
-            serviceHistoryStatus: isSameDay ? 'Completed' : undefined,
-        });
-
-        console.log(`Successfully converted lead ${leadId} to customer ${customerId}`);
-        return;
-    }
-
-    if (event.type === 'customer.subscription.deleted') {
-        const sub = event.data.object as unknown as {
-            id: string;
-            current_period_end?: number;
-            items?: { data: Array<{ current_period_end?: number | null }> };
-        };
-        const periodEnd = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? undefined;
-        if (!periodEnd) {
-            throw new WebhookHttpError(500, 'Missing current period end on deleted subscription');
-        }
-
-        const stripeSubscriptionId = sub.id;
-        const currentPeriodEnd = new Date(periodEnd * 1000).toISOString();
-
-        await db.updateSubscriptionStatus(stripeSubscriptionId, 'canceled', currentPeriodEnd);
-        console.log(`Successfully cancelled subscription immediately: ${stripeSubscriptionId}`);
-        return;
-    }
-
-    if (event.type === 'customer.subscription.updated') {
-        const sub = event.data.object as unknown as {
-            id: string;
-            current_period_end?: number;
-            cancel_at_period_end: boolean;
-            status: string;
-            items?: { data: Array<{ current_period_end?: number | null }> };
-        };
-        const periodEnd = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? undefined;
-        if (!periodEnd) {
-            throw new WebhookHttpError(500, 'Missing current period end on updated subscription');
-        }
-
-        const stripeSubscriptionId = sub.id;
-        const currentPeriodEnd = new Date(periodEnd * 1000).toISOString();
-
-        if (sub.cancel_at_period_end) {
-            await db.updateSubscriptionStatus(stripeSubscriptionId, 'canceled', currentPeriodEnd);
-            console.log(`Successfully marked subscription as cancelled at period end: ${stripeSubscriptionId}`);
-        } else {
-            await db.updateSubscriptionStatus(stripeSubscriptionId, sub.status, currentPeriodEnd);
-            console.log(`Successfully updated subscription: ${stripeSubscriptionId}`);
-        }
-        return;
-    }
-
-    if (event.type === 'invoice.payment_succeeded') {
-        const invoice = event.data.object as unknown as { subscription: string | null };
-        const stripeSubscriptionId = invoice.subscription as string;
-
-        if (stripeSubscriptionId) {
-            const currentPeriodEndSecs = await paymentService.retrieveSubscriptionPeriodEnd(stripeSubscriptionId);
-            if (!Number.isFinite(currentPeriodEndSecs)) {
-                throw new WebhookHttpError(502, `Stripe returned an invalid current_period_end for subscription ${stripeSubscriptionId}`);
-            }
-            const currentPeriodEnd = new Date(currentPeriodEndSecs * 1000).toISOString();
-
-            await db.updateSubscriptionStatus(stripeSubscriptionId, 'active', currentPeriodEnd);
-            console.log(`Successfully updated subscription to active on payment success: ${stripeSubscriptionId}`);
-        }
-        return;
-    }
-
-    if (event.type === 'invoice.payment_failed') {
-        const invoice = event.data.object as unknown as { subscription: string | null; customer: string };
-        const stripeSubscriptionId = invoice.subscription as string;
-
-        if (stripeSubscriptionId) {
-            await db.updateSubscriptionStatus(stripeSubscriptionId, 'past_due', null);
-
-            const localSubscriptionId = await db.getSubscriptionIdByStripeId(stripeSubscriptionId);
-
-            if (localSubscriptionId) {
-                try {
-                    const routingService = new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
-                    const routificOrderIds = await db.getRoutificOrderIdsBySubscription(localSubscriptionId);
-                    for (const orderId of routificOrderIds) {
-                        try {
-                            await routingService.deleteTarget(orderId);
-                            console.log(`Deleted Routific order ${orderId} for subscription: ${stripeSubscriptionId}`);
-                        } catch (orderError) {
-                            console.error(`Failed to delete Routific order ${orderId}:`, orderError);
-                        }
-                    }
-                } catch (routingError) {
-                    console.error(`Failed to query Routific orders for ${stripeSubscriptionId}:`, routingError);
-                }
-
-                try {
-                    await env.DB.prepare(
-                        'DELETE FROM routific_dispatches WHERE subscription_id = ? AND service_date < ?'
-                    ).bind(localSubscriptionId, new Date().toISOString().split('T')[0]).run();
-                } catch (cleanupError) {
-                    console.error('Routific dispatches cleanup failed:', cleanupError);
-                }
-            }
-
-            console.log(`Successfully set subscription to past_due: ${stripeSubscriptionId}`);
-        }
-    }
-}
-
 export async function POST(request: Request) {
     let env: Env | undefined;
-    let claimedEventId: string | null = null;
+    let eventId: string | null = null;
 
     try {
         const context = getRequestContext() as unknown as { env: Env };
@@ -292,21 +66,11 @@ export async function POST(request: Request) {
         }
 
         const db = new D1DatabaseAdapter(env.DB);
+        const routing = new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
+        const lifecycle = new SubscriptionLifecycle(db, db, db, db, paymentService, routing);
 
-        const insertResult = await env.DB.prepare(
-            'INSERT OR IGNORE INTO webhook_events (id, event_type) VALUES (?, ?)'
-        ).bind(event.id, event.type).run();
-
-        if (insertResult.meta.changes === 0) {
-            console.log(`Skipping already-processed event: ${event.id}`);
-            return new Response(JSON.stringify({ received: true }), {
-                status: 200,
-                headers: { 'Content-Type': 'application/json' }
-            });
-        }
-
-        claimedEventId = event.id;
-        await processStripeEvent(event, paymentService, db, env);
+        eventId = event.id;
+        await lifecycle.processEvent(event);
 
         try {
             await env.DB.prepare(
@@ -329,9 +93,9 @@ export async function POST(request: Request) {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (error) {
-        if (claimedEventId && env) {
+        if (eventId && env) {
             try {
-                await deleteWebhookEventClaim(env.DB, claimedEventId);
+                await env.DB.prepare('DELETE FROM webhook_events WHERE id = ?').bind(eventId).run();
             } catch (cleanupError) {
                 console.error('Failed to release webhook event claim:', cleanupError);
             }

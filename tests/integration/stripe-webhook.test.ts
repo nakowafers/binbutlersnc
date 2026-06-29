@@ -530,8 +530,76 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
 
         // Verify status and current_period_end in DB are updated
         const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE id = ?').get(subscriptionId) as any;
-        expect(subscription.status).toBe('cancelled');
+        expect(subscription.status).toBe('canceled');
         expect(subscription.current_period_end).not.toBeNull();
+    });
+
+    it('should keep successful webhook claims when post-processing cleanup fails', async () => {
+        const customerId = 'cust_cleanup_claim';
+        const subscriptionId = 'sub_cleanup_claim';
+        const stripeSubId = 'sub_stripe_cleanup_claim';
+        const eventId = 'evt_cleanup_claim';
+
+        simulator.db.prepare(
+            'INSERT INTO customers (id, email, stripe_customer_id) VALUES (?, ?, ?)'
+        ).run(customerId, 'cleanup-claim@example.com', 'cus_cleanup_claim');
+
+        simulator.db.prepare(
+            'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days) VALUES (?, ?, ?, ?, ?)'
+        ).run(subscriptionId, customerId, stripeSubId, 'active', 28);
+
+        const originalPrepare = simulator.prepare.bind(simulator);
+        simulator.prepare = ((query: string) => {
+            if (query === 'DELETE FROM routific_dispatches WHERE service_date < ?') {
+                throw new Error('cleanup failed');
+            }
+            return originalPrepare(query);
+        }) as any;
+
+        const mockEvent = {
+            id: eventId,
+            type: 'customer.subscription.deleted',
+            data: {
+                object: {
+                    id: stripeSubId,
+                    items: {
+                        data: [
+                            {
+                                current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+                            },
+                        ],
+                    },
+                },
+            },
+        };
+
+        mockConstructEventAsync.mockResolvedValue(mockEvent);
+
+        const firstRequest = new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        });
+
+        const firstResponse = await POST(firstRequest);
+        expect(firstResponse.status).toBe(200);
+
+        const claimAfterCleanupFailure = simulator.db.prepare('SELECT * FROM webhook_events WHERE id = ?').get(eventId);
+        expect(claimAfterCleanupFailure).toBeDefined();
+
+        simulator.prepare = originalPrepare as any;
+
+        const secondRequest = new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: { 'stripe-signature': 'sig_123' },
+        });
+
+        const secondResponse = await POST(secondRequest);
+        expect(secondResponse.status).toBe(200);
+
+        const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE id = ?').get(subscriptionId) as any;
+        expect(subscription.status).toBe('canceled');
     });
 
     it('should handle invoice.payment_failed by updating subscription status to past_due', async () => {
