@@ -136,12 +136,20 @@ export class D1ServiceHistoryRepositoryAdapter implements IServiceHistoryReposit
     }
 
     async storeRoutificDispatch(id: string, subscriptionId: string, routificOrderId: string, serviceDate: string): Promise<void> {
+        return this.storeRoutingDispatch(id, subscriptionId, routificOrderId, serviceDate);
+    }
+
+    async storeRoutingDispatch(id: string, subscriptionId: string, routingTargetId: string, serviceDate: string): Promise<void> {
         await this.db.prepare(
             'INSERT INTO routific_dispatches (id, subscription_id, routific_order_id, service_date) VALUES (?, ?, ?, ?)'
-        ).bind(id, subscriptionId, routificOrderId, serviceDate).run();
+        ).bind(id, subscriptionId, routingTargetId, serviceDate).run();
     }
 
     async getRoutificOrderIdsBySubscription(subscriptionId: string): Promise<string[]> {
+        return this.getRoutingTargetIdsBySubscription(subscriptionId);
+    }
+
+    async getRoutingTargetIdsBySubscription(subscriptionId: string): Promise<string[]> {
         const today = new Date().toISOString().split('T')[0];
         const result = await this.db.prepare(
             'SELECT routific_order_id FROM routific_dispatches WHERE subscription_id = ? AND service_date >= ?'
@@ -150,12 +158,20 @@ export class D1ServiceHistoryRepositoryAdapter implements IServiceHistoryReposit
     }
 
     async deleteRoutificDispatch(id: string): Promise<void> {
+        return this.deleteRoutingDispatch(id);
+    }
+
+    async deleteRoutingDispatch(id: string): Promise<void> {
         await this.db.prepare(
             'DELETE FROM routific_dispatches WHERE id = ?'
         ).bind(id).run();
     }
 
     async cleanupFailedSubscriptionDispatches(subscriptionId: string, dateLimit: string): Promise<void> {
+        return this.cleanupFailedSubscriptionRoutingDispatches(subscriptionId, dateLimit);
+    }
+
+    async cleanupFailedSubscriptionRoutingDispatches(subscriptionId: string, dateLimit: string): Promise<void> {
         await this.db.prepare(
             'DELETE FROM routific_dispatches WHERE subscription_id = ? AND service_date < ?'
         ).bind(subscriptionId, dateLimit).run();

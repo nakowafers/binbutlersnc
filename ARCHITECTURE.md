@@ -12,6 +12,15 @@ The application is built on a high-performance, low-latency stack optimized for 
 
 ## 2. Core Implementation Patterns
 
+### 2.0 Backend Layers
+Backend code is split into small layers so request handlers stay thin:
+
+*   **Route Handlers:** `src/app/api/**/route.ts` parse requests, enforce Auth.js/CSRF where needed, map errors to HTTP responses, and call application services.
+*   **Application Services:** `src/lib/checkout/`, `src/lib/admin/`, and `src/lib/webhooks/` own workflow orchestration such as checkout lead capture, admin customer updates, settings changes, Stripe lifecycle processing, and routing webhook handling.
+*   **Composition:** `src/lib/backend/createServices.ts` centralizes construction of D1 repositories, payment adapters, routing adapters, dispatch coordinators, and lifecycle services from `Env`.
+*   **Repositories:** `src/lib/db/` exposes domain-oriented interfaces. Routing-dispatch methods use generic names while the existing `routific_dispatches` D1 table remains unchanged.
+*   **Adapters:** `StripeAdapter` and `RoutificAdapter` are the vendor-specific boundaries. Routes and workers should use composition helpers instead of constructing vendor adapters directly.
+
 ### 2.1. The Routing Adapter (Vendor Agnosticism)
 All interactions with the routing provider must pass through the `IRoutingService` interface.
 - **Location:** `src/lib/routing/`

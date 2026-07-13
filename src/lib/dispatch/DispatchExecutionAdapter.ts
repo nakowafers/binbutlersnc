@@ -74,9 +74,19 @@ export class DispatchExecutionAdapter {
 
         console.log(`Found ${results.length} due subscriptions. Checking for tomorrow's stops...`);
 
+        const activeResults: DueSubscriptionResult[] = [];
+        for (const row of results) {
+            const isPaused = await this.subscriptionRepo.isSubscriptionPaused(row.id);
+            if (isPaused) {
+                console.log(`Skipping ${row.id}: subscription paused during processing.`);
+                continue;
+            }
+            activeResults.push(row);
+        }
+
         const offsetRowVal = await this.settingsRepo.getGlobalSetting('holiday_offset_hours');
         const offsetHours = parseInt(offsetRowVal || '0', 10);
-        const plan = this.planner.planDueDispatches(now, results as DueSubscriptionResult[], offsetHours);
+        const plan = this.planner.planDueDispatches(now, activeResults, offsetHours);
 
         if (plan.stops.length === 0) {
             console.log('No due subscriptions scheduled for tomorrow.');
