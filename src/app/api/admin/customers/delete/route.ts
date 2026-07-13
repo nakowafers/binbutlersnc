@@ -2,8 +2,9 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { Env } from '@/lib/types';
-import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { validateOrigin } from '@/lib/csrf';
+import { AdminServiceError } from '@/lib/admin/AdminCustomerService';
+import { createAdminCustomerService } from '@/lib/admin/createAdminServices';
 
 export const runtime = 'edge';
 
@@ -26,27 +27,14 @@ export async function DELETE(request: Request) {
         }
 
         const { env } = (getRequestContext() as unknown) as { env: Env };
-        const db = new D1DatabaseAdapter(env.DB);
-
-        // Verify subscription is canceled before allowing delete
-        const customers = await db.getAllCustomersWithDetails();
-        const customer = customers.find(c => c.id === body.customerId);
-
-        if (!customer) {
-            return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-        }
-
-        if (customer.subscription_status && customer.subscription_status !== 'canceled') {
-            return NextResponse.json(
-                { error: 'Only customers with no subscription or a canceled subscription can be deleted' },
-                { status: 403 }
-            );
-        }
-
-        await db.deleteCustomerCascade(body.customerId);
+        await createAdminCustomerService(env).deleteCustomer(body.customerId);
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        if (error instanceof AdminServiceError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
+
         console.error('Admin customer delete error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }

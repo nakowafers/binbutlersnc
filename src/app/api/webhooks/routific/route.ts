@@ -1,35 +1,9 @@
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { Env } from '@/lib/types';
-import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
+import { createDatabase } from '@/lib/backend/createServices';
+import { RoutingWebhookEvent, RoutingWebhookService } from '@/lib/webhooks/routing/RoutingWebhookService';
 
 export const runtime = 'edge';
-
-async function verifySignature(payload: string, signature: string, secret: string): Promise<boolean> {
-    if (!signature || !secret) return false;
-    
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(secret),
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['verify']
-    );
-    
-    // Convert hex signature to Uint8Array safely
-    const match = signature.match(/.{1,2}/g);
-    if (!match) return false;
-    const sigArray = new Uint8Array(match.map(byte => parseInt(byte, 16)));
-    
-    const verified = await crypto.subtle.verify(
-        'HMAC',
-        key,
-        sigArray,
-        encoder.encode(payload)
-    );
-    
-    return verified;
-}
 
 export async function POST(request: Request) {
     try {
@@ -46,41 +20,19 @@ export async function POST(request: Request) {
                 headers: { 'Content-Type': 'application/json' } 
             });
         }
-        if (!(await verifySignature(payloadStr, signature, secret))) {
+
+        const db = createDatabase(env);
+        const webhookService = new RoutingWebhookService(db);
+
+        if (!(await webhookService.verifySignature(payloadStr, signature, secret))) {
             return new Response(JSON.stringify({ error: 'Invalid signature' }), { 
                 status: 401, 
                 headers: { 'Content-Type': 'application/json' } 
             });
         }
 
-        interface RoutificEvent {
-            event: string;
-            data: {
-                id: string;
-                customer_id: string;
-                subscription_id: string;
-                completed_at?: string;
-            }
-        }
-        const body = JSON.parse(payloadStr) as RoutificEvent;
-
-        const db = new D1DatabaseAdapter(env.DB);
-
-        if (body.event === 'stop.completed') {
-            const { data } = body;
-
-            // Webhook does an UPDATE instead of INSERT because daily-dispatch-cron already creates a Pending row
-            await db.updateServiceHistoryOnCompletion(data.subscription_id, data.completed_at || null);
-
-            console.log(`Logged service completion for subscription ${data.subscription_id}`);
-        } else if (body.event === 'stop.skipped') {
-            const { data } = body;
-
-            // Log as Skipped/Failed in service_history so they automatically reschedule for the following week
-            await db.updateServiceHistoryOnSkipped(data.subscription_id, data.completed_at || null);
-
-            console.log(`Logged service skip/failure for subscription ${data.subscription_id}`);
-        }
+        const body = JSON.parse(payloadStr) as RoutingWebhookEvent;
+        await webhookService.handleEvent(body);
 
         return new Response(JSON.stringify({ received: true }), { 
             status: 200, 

@@ -239,24 +239,24 @@ export class SubscriptionLifecycle {
             const localSubscriptionId = await this.subscriptionRepo.getSubscriptionIdByStripeId(stripeSubscriptionId);
             if (localSubscriptionId) {
                 try {
-                    const routificOrderIds = await this.serviceHistoryRepo.getRoutificOrderIdsBySubscription(localSubscriptionId);
-                    for (const orderId of routificOrderIds) {
+                    const routingTargetIds = await this.serviceHistoryRepo.getRoutingTargetIdsBySubscription(localSubscriptionId);
+                    for (const orderId of routingTargetIds) {
                         try {
                             await this.routingService.deleteTarget(orderId);
-                            console.log(`Deleted Routific order ${orderId} for subscription: ${stripeSubscriptionId}`);
+                            console.log(`Deleted routing target ${orderId} for subscription: ${stripeSubscriptionId}`);
                         } catch (orderError) {
-                            console.error(`Failed to delete Routific order ${orderId}:`, orderError);
+                            console.error(`Failed to delete routing target ${orderId}:`, orderError);
                         }
                     }
                 } catch (routingError) {
-                    console.error(`Failed to query Routific orders for ${stripeSubscriptionId}:`, routingError);
+                    console.error(`Failed to query routing targets for ${stripeSubscriptionId}:`, routingError);
                 }
 
                 try {
                     const todayIso = new Date().toISOString().split('T')[0];
-                    await this.serviceHistoryRepo.cleanupFailedSubscriptionDispatches(localSubscriptionId, todayIso);
+                    await this.serviceHistoryRepo.cleanupFailedSubscriptionRoutingDispatches(localSubscriptionId, todayIso);
                 } catch (cleanupError) {
-                    console.error('Routific dispatches cleanup failed:', cleanupError);
+                    console.error('Routing dispatch cleanup failed:', cleanupError);
                 }
             }
 

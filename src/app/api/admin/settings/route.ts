@@ -2,8 +2,9 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { Env } from '@/lib/types';
-import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { validateOrigin } from '@/lib/csrf';
+import { AdminSettingsError } from '@/lib/admin/AdminSettingsService';
+import { createAdminSettingsService } from '@/lib/admin/createAdminServices';
 
 export const runtime = 'edge';
 
@@ -26,17 +27,14 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing key or value' }, { status: 400 });
         }
 
-        // Whitelist allowed settings keys to prevent injection
-        const ALLOWED_KEYS = ['holiday_offset_hours'];
-        if (!ALLOWED_KEYS.includes(body.key)) {
-            return NextResponse.json({ error: 'Invalid setting key' }, { status: 400 });
-        }
-
-        const db = new D1DatabaseAdapter(env.DB);
-        await db.setGlobalSetting(body.key, body.value);
+        await createAdminSettingsService(env).updateSetting(body.key, body.value);
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        if (error instanceof AdminSettingsError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
+
         console.error('Admin settings error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }

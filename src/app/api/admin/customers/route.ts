@@ -2,7 +2,7 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { Env } from '@/lib/types';
-import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
+import { createAdminCustomerService } from '@/lib/admin/createAdminServices';
 
 export const runtime = 'edge';
 
@@ -15,8 +15,7 @@ export async function GET() {
         }
 
         const { env } = (getRequestContext() as unknown) as { env: Env };
-        const db = new D1DatabaseAdapter(env.DB);
-        const customers = await db.getAllCustomersWithDetails();
+        const customers = await createAdminCustomerService(env).listCustomers();
 
         return NextResponse.json(customers);
     } catch (error) {

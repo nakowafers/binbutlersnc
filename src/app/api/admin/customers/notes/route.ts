@@ -2,8 +2,9 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { Env } from '@/lib/types';
-import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { validateOrigin } from '@/lib/csrf';
+import { AdminServiceError } from '@/lib/admin/AdminCustomerService';
+import { createAdminCustomerService } from '@/lib/admin/createAdminServices';
 
 export const runtime = 'edge';
 
@@ -26,11 +27,14 @@ export async function PATCH(request: Request) {
         }
 
         const { env } = (getRequestContext() as unknown) as { env: Env };
-        const db = new D1DatabaseAdapter(env.DB);
-        await db.updateAddressNotes(body.addressId, body.notes);
+        await createAdminCustomerService(env).updateNotes(body.addressId, body.notes);
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        if (error instanceof AdminServiceError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
+
         console.error('Admin notes update error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
