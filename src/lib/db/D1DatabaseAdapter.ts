@@ -186,16 +186,32 @@ export class D1DatabaseAdapter implements IDatabaseService {
         return this.serviceHistory.storeRoutificDispatch(id, subscriptionId, routificOrderId, serviceDate);
     }
 
+    storeRoutingDispatch(id: string, subscriptionId: string, routingTargetId: string, serviceDate: string): Promise<void> {
+        return this.serviceHistory.storeRoutingDispatch(id, subscriptionId, routingTargetId, serviceDate);
+    }
+
     getRoutificOrderIdsBySubscription(subscriptionId: string): Promise<string[]> {
         return this.serviceHistory.getRoutificOrderIdsBySubscription(subscriptionId);
+    }
+
+    getRoutingTargetIdsBySubscription(subscriptionId: string): Promise<string[]> {
+        return this.serviceHistory.getRoutingTargetIdsBySubscription(subscriptionId);
     }
 
     deleteRoutificDispatch(id: string): Promise<void> {
         return this.serviceHistory.deleteRoutificDispatch(id);
     }
 
+    deleteRoutingDispatch(id: string): Promise<void> {
+        return this.serviceHistory.deleteRoutingDispatch(id);
+    }
+
     cleanupFailedSubscriptionDispatches(subscriptionId: string, dateLimit: string): Promise<void> {
         return this.serviceHistory.cleanupFailedSubscriptionDispatches(subscriptionId, dateLimit);
+    }
+
+    cleanupFailedSubscriptionRoutingDispatches(subscriptionId: string, dateLimit: string): Promise<void> {
+        return this.serviceHistory.cleanupFailedSubscriptionRoutingDispatches(subscriptionId, dateLimit);
     }
 
     getGlobalSetting(key: string): Promise<string | null> {

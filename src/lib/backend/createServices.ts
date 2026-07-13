@@ -1,0 +1,38 @@
+import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
+import { DispatchCoordinator } from '@/lib/dispatch/DispatchCoordinator';
+import { StripeAdapter } from '@/lib/payment/StripeAdapter';
+import { SubscriptionLifecycle } from '@/lib/payment/SubscriptionLifecycle';
+import { RoutificAdapter } from '@/lib/routing/RoutificAdapter';
+import { Env } from '@/lib/types';
+
+export function createDatabase(env: Env): D1DatabaseAdapter {
+    return new D1DatabaseAdapter(env.DB);
+}
+
+export function createPaymentService(env: Env): StripeAdapter {
+    return new StripeAdapter({
+        secretKey: env.STRIPE_SECRET_KEY,
+        monthlyPriceId: env.STRIPE_MONTHLY_PRICE_ID,
+        bimonthlyPriceId: env.STRIPE_BIMONTHLY_PRICE_ID,
+        quarterlyPriceId: env.STRIPE_QUARTERLY_PRICE_ID,
+        oneTimePriceId: env.STRIPE_ONETIME_PRICE_ID,
+        setupFeePriceId: env.STRIPE_SETUP_FEE_PRICE_ID,
+        extraBinMonthlyPriceId: env.STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID,
+        extraBinBimonthlyPriceId: env.STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID,
+        extraBinQuarterlyPriceId: env.STRIPE_EXTRA_BIN_QUARTERLY_PRICE_ID,
+    });
+}
+
+export function createRoutingService(env: Env): RoutificAdapter {
+    return new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
+}
+
+export function createDispatchCoordinator(env: Env): DispatchCoordinator {
+    const db = createDatabase(env);
+    return new DispatchCoordinator(db, db, db, createRoutingService(env));
+}
+
+export function createSubscriptionLifecycle(env: Env): SubscriptionLifecycle {
+    const db = createDatabase(env);
+    return new SubscriptionLifecycle(db, db, db, db, createPaymentService(env), createRoutingService(env));
+}

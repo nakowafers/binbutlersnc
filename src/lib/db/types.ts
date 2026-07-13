@@ -129,6 +129,10 @@ export interface IServiceHistoryRepository {
     getRoutificOrderIdsBySubscription(subscriptionId: string): Promise<string[]>;
     deleteRoutificDispatch(id: string): Promise<void>;
     cleanupFailedSubscriptionDispatches(subscriptionId: string, dateLimit: string): Promise<void>;
+    storeRoutingDispatch(id: string, subscriptionId: string, routingTargetId: string, serviceDate: string): Promise<void>;
+    getRoutingTargetIdsBySubscription(subscriptionId: string): Promise<string[]>;
+    deleteRoutingDispatch(id: string): Promise<void>;
+    cleanupFailedSubscriptionRoutingDispatches(subscriptionId: string, dateLimit: string): Promise<void>;
 }
 
 // 5. Global Settings Operations
