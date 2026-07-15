@@ -550,7 +550,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
 
         const originalPrepare = simulator.prepare.bind(simulator);
         simulator.prepare = ((query: string) => {
-            if (query === 'DELETE FROM routific_dispatches WHERE service_date < ?') {
+            if (query === "DELETE FROM dispatch_stops WHERE service_date < ? AND dispatch_status IN ('completed', 'skipped')") {
                 throw new Error('cleanup failed');
             }
             return originalPrepare(query);

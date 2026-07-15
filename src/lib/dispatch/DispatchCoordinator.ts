@@ -1,7 +1,8 @@
-import { ISubscriptionRepository, IServiceHistoryRepository, ISettingsRepository } from '../db/types';
-import { IRoutingService } from '../routing/types';
+import { ISubscriptionRepository, IServiceHistoryRepository, ISettingsRepository, IDispatchStopRepository } from '../db/types';
+import { GeoapifyGeocoder } from '../geocoding/GeoapifyGeocoder';
 import { DispatchExecutionAdapter } from './DispatchExecutionAdapter';
 import { DispatchPlanner } from './DispatchPlanner';
+import { RouteOptimizer } from './RouteOptimizer';
 
 export class DispatchCoordinator {
     private readonly executionAdapter: DispatchExecutionAdapter;
@@ -10,14 +11,17 @@ export class DispatchCoordinator {
         subscriptionRepo: ISubscriptionRepository,
         serviceHistoryRepo: IServiceHistoryRepository,
         settingsRepo: ISettingsRepository,
-        routingService: IRoutingService
+        dispatchStopRepo: IDispatchStopRepository,
+        geocoder: GeoapifyGeocoder = new GeoapifyGeocoder()
     ) {
         this.executionAdapter = new DispatchExecutionAdapter(
             subscriptionRepo,
             serviceHistoryRepo,
             settingsRepo,
-            routingService,
-            new DispatchPlanner()
+            dispatchStopRepo,
+            new DispatchPlanner(),
+            new RouteOptimizer(),
+            geocoder
         );
     }
 
@@ -25,7 +29,4 @@ export class DispatchCoordinator {
         return this.executionAdapter.dispatchDueStops(anchorDate);
     }
 
-    retryFailedDispatches(maxRetries: number = 5): Promise<void> {
-        return this.executionAdapter.retryFailedDispatches(maxRetries);
-    }
 }

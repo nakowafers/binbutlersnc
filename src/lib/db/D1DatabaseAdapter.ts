@@ -1,11 +1,12 @@
-import { Lead, Customer, Address, Subscription, ServiceHistory, CustomerWithDetails } from '@/lib/types';
-import { IDatabaseService, DueSubscriptionResult, PendingDispatchResult } from './types';
+import { Lead, Customer, Address, Subscription, ServiceHistory, CustomerWithDetails, DispatchStop, SalesRep } from '@/lib/types';
+import { IDatabaseService, DueSubscriptionResult, CreateDispatchRouteInput, CreateDispatchStopInput, DispatchSetupStatus } from './types';
 import { D1LeadRepositoryAdapter } from './adapters/D1LeadRepositoryAdapter';
 import { D1CustomerRepositoryAdapter } from './adapters/D1CustomerRepositoryAdapter';
 import { D1SubscriptionRepositoryAdapter } from './adapters/D1SubscriptionRepositoryAdapter';
 import { D1ServiceHistoryRepositoryAdapter } from './adapters/D1ServiceHistoryRepositoryAdapter';
 import { D1SettingsRepositoryAdapter } from './adapters/D1SettingsRepositoryAdapter';
 import { D1SalesRepRepositoryAdapter } from './adapters/D1SalesRepRepositoryAdapter';
+import { D1DispatchStopRepositoryAdapter } from './adapters/D1DispatchStopRepositoryAdapter';
 
 export class D1DatabaseAdapter implements IDatabaseService {
     private readonly leads: D1LeadRepositoryAdapter;
@@ -14,6 +15,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
     private readonly serviceHistory: D1ServiceHistoryRepositoryAdapter;
     private readonly settings: D1SettingsRepositoryAdapter;
     private readonly salesReps: D1SalesRepRepositoryAdapter;
+    private readonly dispatchStops: D1DispatchStopRepositoryAdapter;
 
     constructor(db: D1Database) {
         this.leads = new D1LeadRepositoryAdapter(db);
@@ -22,6 +24,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
         this.serviceHistory = new D1ServiceHistoryRepositoryAdapter(db);
         this.settings = new D1SettingsRepositoryAdapter(db);
         this.salesReps = new D1SalesRepRepositoryAdapter(db);
+        this.dispatchStops = new D1DispatchStopRepositoryAdapter(db);
     }
 
     createLead(id: string, email: string, address: string, firstName: string, lastName: string, salesRepId: string | null, tosAcceptedAt: string | null): Promise<void> {
@@ -164,52 +167,11 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
     logDispatchedJobs(
         historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number }>,
-        retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }>,
-        routificDispatches?: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }>
+        retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }>
     ): Promise<void> {
-        return this.serviceHistory.logDispatchedJobs(historyInserts, retryInserts, routificDispatches);
+        return this.serviceHistory.logDispatchedJobs(historyInserts, retryInserts);
     }
 
-    deletePendingDispatchAndLogSuccess(id: string, historyId: string, subscriptionId: string, date: string, routificDispatchId?: string, routificOrderId?: string): Promise<void> {
-        return this.serviceHistory.deletePendingDispatchAndLogSuccess(id, historyId, subscriptionId, date, routificDispatchId, routificOrderId);
-    }
-
-    incrementPendingDispatchRetryCount(id: string, errorMsg: string): Promise<void> {
-        return this.serviceHistory.incrementPendingDispatchRetryCount(id, errorMsg);
-    }
-
-    getPendingDispatches(maxRetries: number): Promise<PendingDispatchResult[]> {
-        return this.serviceHistory.getPendingDispatches(maxRetries);
-    }
-
-    storeRoutificDispatch(id: string, subscriptionId: string, routificOrderId: string, serviceDate: string): Promise<void> {
-        return this.serviceHistory.storeRoutificDispatch(id, subscriptionId, routificOrderId, serviceDate);
-    }
-
-    storeRoutingDispatch(id: string, subscriptionId: string, routingTargetId: string, serviceDate: string): Promise<void> {
-        return this.serviceHistory.storeRoutingDispatch(id, subscriptionId, routingTargetId, serviceDate);
-    }
-    getRoutificOrderIdsBySubscription(subscriptionId: string): Promise<string[]> {
-        return this.serviceHistory.getRoutificOrderIdsBySubscription(subscriptionId);
-    }
-
-    getRoutingTargetIdsBySubscription(subscriptionId: string): Promise<string[]> {
-        return this.serviceHistory.getRoutingTargetIdsBySubscription(subscriptionId);
-    }
-    deleteRoutificDispatch(id: string): Promise<void> {
-        return this.serviceHistory.deleteRoutificDispatch(id);
-    }
-
-    deleteRoutingDispatch(id: string): Promise<void> {
-        return this.serviceHistory.deleteRoutingDispatch(id);
-    }
-    cleanupFailedSubscriptionDispatches(subscriptionId: string, dateLimit: string): Promise<void> {
-        return this.serviceHistory.cleanupFailedSubscriptionDispatches(subscriptionId, dateLimit);
-    }
-
-    cleanupFailedSubscriptionRoutingDispatches(subscriptionId: string, dateLimit: string): Promise<void> {
-        return this.serviceHistory.cleanupFailedSubscriptionRoutingDispatches(subscriptionId, dateLimit);
-    }
     getGlobalSetting(key: string): Promise<string | null> {
         return this.settings.getGlobalSetting(key);
     }
@@ -224,6 +186,46 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
     isSalesRepAllowedToOverrideFee(salesRepId: string): Promise<boolean> {
         return this.salesReps.isSalesRepAllowedToOverrideFee(salesRepId);
+    }
+
+    createDispatchStops(stops: CreateDispatchStopInput[]): Promise<void> {
+        return this.dispatchStops.createDispatchStops(stops);
+    }
+
+    createDispatchRoute(route: CreateDispatchRouteInput): Promise<void> {
+        return this.dispatchStops.createDispatchRoute(route);
+    }
+
+    getRouteStops(driverSalesRepId: string, serviceDate: string, includeTerminal?: boolean): Promise<DispatchStop[]> {
+        return this.dispatchStops.getRouteStops(driverSalesRepId, serviceDate, includeTerminal);
+    }
+
+    getStopById(id: string): Promise<DispatchStop | null> {
+        return this.dispatchStops.getStopById(id);
+    }
+
+    markDispatchStopCompleted(id: string, updatedBySalesRepId: string, completedAt: string): Promise<void> {
+        return this.dispatchStops.markDispatchStopCompleted(id, updatedBySalesRepId, completedAt);
+    }
+
+    skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, skippedAt: string): Promise<void> {
+        return this.dispatchStops.skipDispatchStop(id, updatedBySalesRepId, reason, skippedAt);
+    }
+
+    getActiveAdminDrivers(): Promise<SalesRep[]> {
+        return this.dispatchStops.getActiveAdminDrivers();
+    }
+
+    getAdminDriverByEmail(email: string): Promise<SalesRep | null> {
+        return this.dispatchStops.getAdminDriverByEmail(email);
+    }
+
+    getDispatchSetupStatus(): Promise<DispatchSetupStatus> {
+        return this.dispatchStops.getDispatchSetupStatus();
+    }
+
+    updateAddressCoordinates(address: string, latitude: number, longitude: number): Promise<void> {
+        return this.dispatchStops.updateAddressCoordinates(address, latitude, longitude);
     }
 
     convertLeadToCustomerTransaction(params: {

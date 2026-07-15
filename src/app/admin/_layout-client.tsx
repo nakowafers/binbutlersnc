@@ -14,7 +14,7 @@ export default function AdminLayout({
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     return (
-        <div className="flex flex-col md:flex-row h-screen bg-[#F8FAFC]">
+        <div className="flex min-h-dvh flex-col bg-[#F8FAFC] md:flex-row">
             {/* Mobile top bar */}
             <header className="md:hidden flex items-center justify-between h-14 px-4 bg-[#1C3D5A] text-white shrink-0">
                 <button
@@ -42,7 +42,7 @@ export default function AdminLayout({
             </Sheet>
 
             {/* Main content */}
-            <main className="flex-grow overflow-y-auto p-4 md:p-8">
+            <main className="min-w-0 flex-grow overflow-y-auto px-3 py-4 sm:px-4 md:p-8">
                 {children}
             </main>
         </div>

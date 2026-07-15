@@ -1,4 +1,4 @@
-import { DueSubscriptionResult, PendingDispatchResult } from '../db/types';
+import { DueSubscriptionResult } from '../db/types';
 
 export interface PlannedDispatchCandidate {
     address: string;
@@ -7,6 +7,10 @@ export interface PlannedDispatchCandidate {
     customer_id: string;
     subscription_id: string;
     bin_quantity?: number;
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    service_notes?: string | null;
+    customer_scent?: string | null;
 }
 
 export interface PlannedDispatchBatch {
@@ -41,22 +45,13 @@ export class DispatchPlanner {
                 customer_id: row.customer_id,
                 subscription_id: row.id,
                 bin_quantity: row.bin_quantity ?? undefined,
+                customer_name: row.name || `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.email,
+                customer_phone: row.phone_number || null,
+                service_notes: row.notes || null,
+                customer_scent: row.scent_preference || null,
             });
         }
 
         return { date: tomorrowDate, stops };
-    }
-
-    planRetryDispatch(row: PendingDispatchResult): PlannedDispatchBatch {
-        return {
-            date: row.service_date.split('T')[0],
-            stops: [{
-                address: row.raw_address,
-                lat: row.latitude || undefined,
-                lng: row.longitude || undefined,
-                customer_id: row.customer_id,
-                subscription_id: row.subscription_id,
-            }],
-        };
     }
 }

@@ -16,7 +16,7 @@ export class StripeWebhookService {
         onVerified?.(event.id);
         await createSubscriptionLifecycle(this.env).processEvent(event);
         await this.cleanupService.cleanupProcessedEvents();
-        await this.cleanupService.cleanupOldRoutingDispatches();
+        await this.cleanupService.cleanupOldDispatchStops();
         return event.id;
     }
 

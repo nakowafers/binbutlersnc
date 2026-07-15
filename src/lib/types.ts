@@ -3,6 +3,7 @@ export interface SalesRep {
     email?: string;
     can_override_fee: number;
     is_admin: number;
+    is_active?: number;
     created_at: string;
 }
 
@@ -68,6 +69,31 @@ export interface ServiceHistory {
     created_at: string;
 }
 
+export type DispatchStopStatus = 'assigned' | 'completed' | 'skipped';
+
+export interface DispatchStop {
+    id: string;
+    subscription_id: string;
+    service_history_id: string;
+    service_date: string;
+    driver_sales_rep_id: string;
+    route_sequence_order: number;
+    dispatch_status: DispatchStopStatus;
+    customer_name?: string | null;
+    raw_address: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    bin_count: number;
+    customer_scent?: string | null;
+    service_notes?: string | null;
+    customer_phone?: string | null;
+    skip_reason?: string | null;
+    completed_at?: string | null;
+    updated_by_sales_rep_id?: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface Env {
     DB: D1Database;
     STRIPE_SECRET_KEY: string;
@@ -81,11 +107,9 @@ export interface Env {
     STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID: string;
     STRIPE_EXTRA_BIN_QUARTERLY_PRICE_ID: string;
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
-    ROUTIFIC_API_KEY: string;
-    ROUTIFIC_WORKSPACE_ID: string;
-    ROUTIFIC_WEBHOOK_SECRET: string;
     RESEND_API_KEY: string;
     GOOGLE_MAPS_API_KEY: string;
+    GEOAPIFY_API_KEY?: string;
     AUTH_GOOGLE_ID: string;
     AUTH_GOOGLE_SECRET: string;
     AUTH_SECRET: string;

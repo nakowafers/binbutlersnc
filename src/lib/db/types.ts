@@ -1,4 +1,4 @@
-import { Lead, Customer, Address, Subscription, ServiceHistory, CustomerWithDetails } from '@/lib/types';
+import { Lead, Customer, Address, Subscription, ServiceHistory, CustomerWithDetails, DispatchStop, SalesRep } from '@/lib/types';
 
 export interface DueSubscriptionResult extends Subscription {
     raw_address: string;
@@ -6,18 +6,13 @@ export interface DueSubscriptionResult extends Subscription {
     longitude: number | null;
     service_day: string;
     email: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    name?: string | null;
+    phone_number?: string | null;
+    notes?: string | null;
+    scent_preference?: string | null;
     bin_quantity?: number;
-}
-
-export interface PendingDispatchResult {
-    id: string;
-    customer_id: string;
-    subscription_id: string;
-    service_date: string;
-    retry_count: number;
-    raw_address: string;
-    latitude: number | null;
-    longitude: number | null;
 }
 
 // 1. Lead Operations & Transactions
@@ -117,22 +112,9 @@ export interface IServiceHistoryRepository {
     
     logDispatchedJobs(
         historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number }>,
-        retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }>,
-        routificDispatches?: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }>
+        retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }>
     ): Promise<void>;
     
-    deletePendingDispatchAndLogSuccess(id: string, historyId: string, subscriptionId: string, date: string, routificDispatchId?: string, routificOrderId?: string): Promise<void>;
-    incrementPendingDispatchRetryCount(id: string, errorMsg: string): Promise<void>;
-    getPendingDispatches(maxRetries: number): Promise<PendingDispatchResult[]>;
-
-    storeRoutificDispatch(id: string, subscriptionId: string, routificOrderId: string, serviceDate: string): Promise<void>;
-    getRoutificOrderIdsBySubscription(subscriptionId: string): Promise<string[]>;
-    deleteRoutificDispatch(id: string): Promise<void>;
-    cleanupFailedSubscriptionDispatches(subscriptionId: string, dateLimit: string): Promise<void>;
-    storeRoutingDispatch(id: string, subscriptionId: string, routingTargetId: string, serviceDate: string): Promise<void>;
-    getRoutingTargetIdsBySubscription(subscriptionId: string): Promise<string[]>;
-    deleteRoutingDispatch(id: string): Promise<void>;
-    cleanupFailedSubscriptionRoutingDispatches(subscriptionId: string, dateLimit: string): Promise<void>;
 }
 
 // 5. Global Settings Operations
@@ -147,6 +129,50 @@ export interface ISalesRepRepository {
     isSalesRepAllowedToOverrideFee(salesRepId: string): Promise<boolean>;
 }
 
+export interface DispatchSetupStatus {
+    defaultDriverId: string | null;
+    depotAddress: string | null;
+    depotLat: number | null;
+    depotLng: number | null;
+    isConfigured: boolean;
+    missing: string[];
+}
+
+export interface CreateDispatchStopInput {
+    id: string;
+    subscriptionId: string;
+    serviceHistoryId: string;
+    serviceDate: string;
+    driverSalesRepId: string;
+    routeSequenceOrder: number;
+    customerName: string | null;
+    rawAddress: string;
+    latitude: number | null;
+    longitude: number | null;
+    binCount: number;
+    customerScent: string | null;
+    serviceNotes: string | null;
+    customerPhone: string | null;
+}
+
+export interface CreateDispatchRouteInput {
+    history: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number }>;
+    stops: CreateDispatchStopInput[];
+}
+
+export interface IDispatchStopRepository {
+    createDispatchStops(stops: CreateDispatchStopInput[]): Promise<void>;
+    createDispatchRoute(route: CreateDispatchRouteInput): Promise<void>;
+    getRouteStops(driverSalesRepId: string, serviceDate: string, includeTerminal?: boolean): Promise<DispatchStop[]>;
+    getStopById(id: string): Promise<DispatchStop | null>;
+    markDispatchStopCompleted(id: string, updatedBySalesRepId: string, completedAt: string): Promise<void>;
+    skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, skippedAt: string): Promise<void>;
+    getActiveAdminDrivers(): Promise<SalesRep[]>;
+    getAdminDriverByEmail(email: string): Promise<SalesRep | null>;
+    getDispatchSetupStatus(): Promise<DispatchSetupStatus>;
+    updateAddressCoordinates(address: string, latitude: number, longitude: number): Promise<void>;
+}
+
 // Monolithic DB Service interface that extends all segregated repositories for backward compatibility
 export interface IDatabaseService extends 
     ILeadRepository, 
@@ -154,4 +180,5 @@ export interface IDatabaseService extends
     ISubscriptionRepository, 
     IServiceHistoryRepository, 
     ISettingsRepository, 
-    ISalesRepRepository {}
+    ISalesRepRepository,
+    IDispatchStopRepository {}

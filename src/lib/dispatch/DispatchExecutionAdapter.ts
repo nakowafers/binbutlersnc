@@ -1,26 +1,17 @@
-import { ISubscriptionRepository, IServiceHistoryRepository, ISettingsRepository, DueSubscriptionResult } from '../db/types';
-import { IRoutingService } from '../routing/types';
+import { ISubscriptionRepository, IServiceHistoryRepository, ISettingsRepository, DueSubscriptionResult, IDispatchStopRepository, CreateDispatchStopInput } from '../db/types';
+import { GeoapifyGeocoder } from '../geocoding/GeoapifyGeocoder';
 import { DispatchPlanner, PlannedDispatchCandidate } from './DispatchPlanner';
-
-function toRoutingStop(candidate: PlannedDispatchCandidate) {
-    return {
-        id: crypto.randomUUID(),
-        address: candidate.address,
-        lat: candidate.lat,
-        lng: candidate.lng,
-        customer_id: candidate.customer_id,
-        subscription_id: candidate.subscription_id,
-        bin_quantity: candidate.bin_quantity,
-    };
-}
+import { RouteOptimizer } from './RouteOptimizer';
 
 export class DispatchExecutionAdapter {
     constructor(
         private readonly subscriptionRepo: ISubscriptionRepository,
         private readonly serviceHistoryRepo: IServiceHistoryRepository,
         private readonly settingsRepo: ISettingsRepository,
-        private readonly routingService: IRoutingService,
-        private readonly planner: DispatchPlanner = new DispatchPlanner()
+        private readonly dispatchStopRepo: IDispatchStopRepository,
+        private readonly planner: DispatchPlanner = new DispatchPlanner(),
+        private readonly optimizer: RouteOptimizer = new RouteOptimizer(),
+        private readonly geocoder: GeoapifyGeocoder = new GeoapifyGeocoder()
     ) {}
 
     async dispatchDueStops(anchorDate: Date): Promise<void> {
@@ -39,26 +30,6 @@ export class DispatchExecutionAdapter {
             await this.processDispatch(anchorDate);
         } catch (error) {
             console.error('Error during dispatch execution:', error);
-            throw error;
-        }
-    }
-
-    async retryFailedDispatches(maxRetries: number = 5): Promise<void> {
-        const acquiredAt = Date.now();
-        const lockKey = 'cron_lock_retry';
-        const ttl = 5 * 60 * 1000;
-        const lockValue = JSON.stringify({ acquired_at: acquiredAt });
-
-        const locked = await this.settingsRepo.acquireLock(lockKey, lockValue, acquiredAt - ttl);
-        if (!locked) {
-            console.log('Another worker holds the retry cron lock, skipping this run.');
-            return;
-        }
-
-        try {
-            await this.processRetries(maxRetries);
-        } catch (error) {
-            console.error('Error during retry execution:', error);
             throw error;
         }
     }
@@ -93,95 +64,73 @@ export class DispatchExecutionAdapter {
             return;
         }
 
-        console.log(`Found ${plan.stops.length} stops for tomorrow (${plan.date}). Pushing to Routing Provider...`);
+        const setup = await this.dispatchStopRepo.getDispatchSetupStatus();
+        if (!setup.isConfigured || !setup.defaultDriverId || setup.depotLat === null || setup.depotLng === null) {
+            console.error(`Dispatch setup incomplete. Missing: ${setup.missing.join(', ')}`);
+            return;
+        }
 
-        const jobStops = plan.stops.map(toRoutingStop);
         const historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number }> = [];
-        const retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }> = [];
-        const routificDispatches: Array<{ id: string; subscriptionId: string; routificOrderId: string; serviceDate: string }> = [];
+        const preparedStops = await this.prepareStops(plan.stops);
+        const orderedIds = this.optimizer.optimize(
+            { latitude: setup.depotLat, longitude: setup.depotLng },
+            preparedStops.map((stop) => ({
+                id: stop.subscription_id,
+                latitude: stop.lat ?? null,
+                longitude: stop.lng ?? null,
+            }))
+        );
+        const sequenceBySubscription = new Map(orderedIds.map((id, index) => [id, index + 1]));
+        const dispatchStops: CreateDispatchStopInput[] = [];
 
-        try {
-            const jobId = await this.routingService.createJob({
-                id: crypto.randomUUID(),
-                stops: jobStops,
-                date: plan.date
+        for (const stop of preparedStops) {
+            const historyId = crypto.randomUUID();
+            historyInserts.push({
+                id: historyId,
+                subscriptionId: stop.subscription_id,
+                date: plan.date,
+                status: 'Pending',
+                binQuantity: stop.bin_quantity,
             });
-            console.log(`Successfully created routing job: ${jobId} for date: ${plan.date}`);
-
-            for (const stop of jobStops) {
-                const historyId = crypto.randomUUID();
-                historyInserts.push({
-                    id: historyId,
-                    subscriptionId: stop.subscription_id,
-                    date: plan.date,
-                    status: 'Pending',
-                    binQuantity: stop.bin_quantity,
-                });
-                routificDispatches.push({
-                    id: crypto.randomUUID(),
-                    subscriptionId: stop.subscription_id,
-                    routificOrderId: stop.id,
-                    serviceDate: plan.date
-                });
-            }
-        } catch (error: unknown) {
-            console.error(`Failed to create routing job for ${plan.date}:`, error);
-
-            for (const stop of jobStops) {
-                retryInserts.push({
-                    id: crypto.randomUUID(),
-                    subscriptionId: stop.subscription_id,
-                    date: plan.date,
-                    errorMsg: error instanceof Error ? error.message : 'Unknown Error'
-                });
-            }
+            dispatchStops.push({
+                id: crypto.randomUUID(),
+                subscriptionId: stop.subscription_id,
+                serviceHistoryId: historyId,
+                serviceDate: plan.date,
+                driverSalesRepId: setup.defaultDriverId,
+                routeSequenceOrder: sequenceBySubscription.get(stop.subscription_id) ?? dispatchStops.length + 1,
+                customerName: stop.customer_name || null,
+                rawAddress: stop.address,
+                latitude: stop.lat ?? null,
+                longitude: stop.lng ?? null,
+                binCount: stop.bin_quantity ?? 1,
+                customerScent: stop.customer_scent || null,
+                serviceNotes: stop.service_notes || null,
+                customerPhone: stop.customer_phone || null,
+            });
         }
 
         try {
-            await this.serviceHistoryRepo.logDispatchedJobs(historyInserts, retryInserts, routificDispatches);
-            console.log(`Logged ${historyInserts.length} to service_history, ${retryInserts.length} to pending_dispatches.`);
+            await this.dispatchStopRepo.createDispatchRoute({ history: historyInserts, stops: dispatchStops });
+            console.log(`Generated ${dispatchStops.length} local dispatch stops for ${plan.date}.`);
         } catch (batchError) {
             console.error('Failed to persist dispatch results:', batchError);
         }
     }
 
-    private async processRetries(maxRetries: number): Promise<void> {
-        const results = await this.serviceHistoryRepo.getPendingDispatches(maxRetries);
-
-        if (!results || results.length === 0) {
-            console.log('No pending dispatches found.');
-            return;
-        }
-
-        console.log(`Found ${results.length} pending dispatches. Retrying...`);
-
-        for (const row of results) {
-            try {
-                const plan = this.planner.planRetryDispatch(row);
-                const routingStop = toRoutingStop(plan.stops[0]);
-
-                await this.routingService.createJob({
-                    id: crypto.randomUUID(),
-                    stops: [routingStop],
-                    date: plan.date
-                });
-
-                await this.serviceHistoryRepo.deletePendingDispatchAndLogSuccess(
-                    row.id,
-                    crypto.randomUUID(),
-                    row.subscription_id,
-                    row.service_date,
-                    crypto.randomUUID(),
-                    routingStop.id
-                );
-                console.log(`Successfully retried and removed dispatch ${row.id}, logged Pending service history.`);
-            } catch (error: unknown) {
-                console.error(`Retry failed for ${row.id}:`, error);
-                await this.serviceHistoryRepo.incrementPendingDispatchRetryCount(
-                    row.id,
-                    error instanceof Error ? error.message : 'Retry failed'
-                );
+    private async prepareStops(stops: PlannedDispatchCandidate[]): Promise<PlannedDispatchCandidate[]> {
+        const prepared: PlannedDispatchCandidate[] = [];
+        for (const stop of stops) {
+            if ((stop.lat === undefined || stop.lng === undefined) && stop.address) {
+                const result = await this.geocoder.geocode(stop.address);
+                if (result) {
+                    await this.dispatchStopRepo.updateAddressCoordinates(stop.address, result.latitude, result.longitude);
+                    prepared.push({ ...stop, lat: result.latitude, lng: result.longitude });
+                    continue;
+                }
             }
+            prepared.push(stop);
         }
+        return prepared;
     }
 }
