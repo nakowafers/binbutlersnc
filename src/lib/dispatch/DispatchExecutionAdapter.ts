@@ -35,8 +35,10 @@ export class DispatchExecutionAdapter {
     }
 
     private async processDispatch(now: Date): Promise<void> {
-        const nowIso = now.toISOString();
-        const results = await this.subscriptionRepo.getDueSubscriptions(nowIso);
+        const offsetRowVal = await this.settingsRepo.getGlobalSetting('holiday_offset_hours');
+        const offsetHours = parseInt(offsetRowVal || '0', 10);
+        const targetServiceDate = this.planner.getTargetServiceDate(now, offsetHours);
+        const results = await this.subscriptionRepo.getDueSubscriptions(targetServiceDate);
 
         if (!results || results.length === 0) {
             console.log('No due subscriptions found.');
@@ -55,8 +57,6 @@ export class DispatchExecutionAdapter {
             activeResults.push(row);
         }
 
-        const offsetRowVal = await this.settingsRepo.getGlobalSetting('holiday_offset_hours');
-        const offsetHours = parseInt(offsetRowVal || '0', 10);
         const plan = this.planner.planDueDispatches(now, activeResults, offsetHours);
 
         if (plan.stops.length === 0) {

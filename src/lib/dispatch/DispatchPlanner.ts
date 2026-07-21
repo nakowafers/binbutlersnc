@@ -1,4 +1,5 @@
 import { DueSubscriptionResult } from '../db/types';
+import { addDaysToDateString } from '../date-utils';
 
 export interface PlannedDispatchCandidate {
     address: string;
@@ -18,25 +19,30 @@ export interface PlannedDispatchBatch {
     stops: PlannedDispatchCandidate[];
 }
 
+const easternDateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' });
+const serviceDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+function holidayOffsetHoursToServiceDateDays(holidayOffsetHours: number): number {
+    if (!Number.isFinite(holidayOffsetHours)) return 0;
+    return Math.trunc(holidayOffsetHours / 24);
+}
+
 export class DispatchPlanner {
+    getTargetServiceDate(now: Date, holidayOffsetHours: number): string {
+        const targetServiceDayDate = this.getTargetServiceDayDate(now);
+        return addDaysToDateString(targetServiceDayDate, holidayOffsetHoursToServiceDateDays(holidayOffsetHours));
+    }
+
     planDueDispatches(now: Date, results: DueSubscriptionResult[], holidayOffsetHours: number): PlannedDispatchBatch {
-        const daysMap: Record<string, number> = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
         const stops: PlannedDispatchCandidate[] = [];
-        let tomorrowDate = '';
+        const targetServiceDayDate = this.getTargetServiceDayDate(now);
+        const targetServiceDate = this.getTargetServiceDate(now, holidayOffsetHours);
+        const targetServiceDay = serviceDays[new Date(`${targetServiceDayDate}T12:00:00Z`).getUTCDay()];
 
         for (const row of results) {
-            const serviceDay = (row.service_day || 'MON').toUpperCase();
-            const target = daysMap[serviceDay] ?? 1;
-            const today = now.getDay();
-            let daysUntil = target - today;
-            if (daysUntil <= 0) daysUntil += 7;
-
-            if (daysUntil !== 1) continue;
-
-            const serviceDate = new Date(now);
-            serviceDate.setDate(serviceDate.getDate() + 1);
-            serviceDate.setHours(serviceDate.getHours() + holidayOffsetHours);
-            tomorrowDate = serviceDate.toISOString().split('T')[0];
+            const normalizedServiceDay = (row.service_day || 'MON').toUpperCase();
+            const serviceDay = serviceDays.includes(normalizedServiceDay) ? normalizedServiceDay : 'MON';
+            if (serviceDay !== targetServiceDay) continue;
 
             stops.push({
                 address: row.raw_address,
@@ -52,6 +58,11 @@ export class DispatchPlanner {
             });
         }
 
-        return { date: tomorrowDate, stops };
+        return { date: stops.length ? targetServiceDate : '', stops };
+    }
+
+    private getTargetServiceDayDate(now: Date): string {
+        const easternToday = easternDateFormatter.format(now);
+        return addDaysToDateString(easternToday, 1);
     }
 }

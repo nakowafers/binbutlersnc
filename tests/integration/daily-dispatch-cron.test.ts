@@ -73,6 +73,38 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
         ).run(`sub_${id}`, customerId, `stripe_${id}`, options.status || 'active', options.currentPeriodEnd || '2026-06-20T00:00:00.000Z', 28);
     }
 
+    it.each([
+        ['daylight time', '2024-05-14T00:00:00.000Z', '2024-05-14'],
+        ['standard time', '2024-11-05T00:00:00.000Z', '2024-11-05'],
+    ])('dispatches due Tuesday Service Day subscriptions from an explicit 00:00 UTC scheduled timestamp during %s', async (_label, scheduledTimeIso, expectedServiceDate) => {
+        vi.setSystemTime(new Date('2024-05-15T12:00:00Z'));
+        seedSubscription('target_tuesday', 'TUE');
+        seedSubscription('non_target_wednesday', 'WED');
+
+        const scheduledTime = Date.parse(scheduledTimeIso);
+        await dailyDispatchCron.handleDispatch(mockEnv, scheduledTime);
+
+        const stops = simulator.db.prepare('SELECT * FROM dispatch_stops ORDER BY subscription_id').all() as any[];
+        const history = simulator.db.prepare('SELECT * FROM service_history ORDER BY subscription_id').all() as any[];
+
+        expect(stops).toHaveLength(1);
+        expect(stops[0]).toMatchObject({
+            subscription_id: 'sub_target_tuesday',
+            service_date: expectedServiceDate,
+            driver_sales_rep_id: 'DRIVER',
+            dispatch_status: 'assigned',
+        });
+        expect(stops[0].subscription_id).not.toBe('sub_non_target_wednesday');
+
+        expect(history).toHaveLength(1);
+        expect(history[0]).toMatchObject({
+            subscription_id: 'sub_target_tuesday',
+            service_date: expectedServiceDate,
+            dispatch_status: 'Pending',
+        });
+        expect(history[0].service_date).toBe(stops[0].service_date);
+    });
+
     it('creates local dispatch stops and pending service history for tomorrow due subscriptions', async () => {
         seedSubscription('one', 'TUE');
         seedSubscription('two', 'WED');
@@ -118,6 +150,19 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
         expect(stop.service_date).toBe('2024-05-15');
     });
 
+    it('applies holiday shift as one local calendar day after the Eastern target date', async () => {
+        vi.setSystemTime(new Date('2024-03-11T00:00:00Z'));
+        simulator.db.prepare(
+            "INSERT OR REPLACE INTO global_settings (key, value) VALUES ('holiday_offset_hours', '24')"
+        ).run();
+        seedSubscription('dst_holiday', 'MON');
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        const stop = simulator.db.prepare('SELECT * FROM dispatch_stops').get() as any;
+        expect(stop.service_date).toBe('2024-03-12');
+    });
+
     it('does not generate duplicate dispatch stops when pending history already exists', async () => {
         seedSubscription('duplicate', 'TUE');
         simulator.db.prepare(
@@ -127,6 +172,34 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
         await dailyDispatchCron.handleDispatch(mockEnv);
 
         expect(simulator.db.prepare('SELECT * FROM dispatch_stops').all()).toHaveLength(0);
+    });
+
+    it('evaluates subscription due eligibility against the target service date', async () => {
+        seedSubscriptionWithOptions('recurrence_due_on_target', {
+            currentPeriodEnd: '2024-06-20T00:00:00.000Z',
+        });
+        simulator.db.prepare(
+            "INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES ('completed_28_days_prior', 'sub_recurrence_due_on_target', '2024-04-16', 'Completed')"
+        ).run();
+        seedSubscriptionWithOptions('expires_before_target', {
+            currentPeriodEnd: '2024-05-13T23:00:00.000Z',
+        });
+        seedSubscriptionWithOptions('expires_at_target_start', {
+            currentPeriodEnd: '2024-05-14T00:00:00.000Z',
+        });
+        seedSubscriptionWithOptions('valid_on_target_day', {
+            currentPeriodEnd: '2024-05-14T12:00:00.000Z',
+        });
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        const stops = simulator.db.prepare('SELECT * FROM dispatch_stops').all() as any[];
+        expect(stops).toHaveLength(2);
+        expect(stops.map((stop) => stop.subscription_id).sort()).toEqual([
+            'sub_recurrence_due_on_target',
+            'sub_valid_on_target_day',
+        ]);
+        expect(stops.every((stop) => stop.service_date === '2024-05-14')).toBe(true);
     });
 
     it('does nothing if no subscriptions are due for tomorrow', async () => {

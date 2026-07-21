@@ -113,6 +113,8 @@ export interface Env {
     AUTH_GOOGLE_ID: string;
     AUTH_GOOGLE_SECRET: string;
     AUTH_SECRET: string;
+    AUTH_URL?: string;
+    NEXTAUTH_URL?: string;
     SERVICEABLE_ZIP_CODES: string;
 }
 

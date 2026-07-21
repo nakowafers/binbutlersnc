@@ -7,6 +7,8 @@ import { createAuthUsersAdapter } from "./lib/auth/custom-adapter";
 
 export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   const { env } = (getRequestContext() as unknown) as { env: Env };
+  process.env.AUTH_URL ||= env.AUTH_URL;
+  process.env.NEXTAUTH_URL ||= env.NEXTAUTH_URL ?? env.AUTH_URL;
 
   return {
     trustHost: true,

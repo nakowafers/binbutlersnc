@@ -23,6 +23,38 @@ function dueSubscription(overrides: Partial<DueSubscriptionResult> = {}): DueSub
 }
 
 describe('DispatchExecutionAdapter', () => {
+    it('queries due subscriptions for the target service date', async () => {
+        const getDueSubscriptions = vi.fn().mockResolvedValue([dueSubscription({ id: 'sub_target_date', customer_id: 'cust_target_date' })]);
+        const createDispatchRoute = vi.fn().mockResolvedValue(undefined);
+        const adapter = new DispatchExecutionAdapter(
+            {
+                getDueSubscriptions,
+                isSubscriptionPaused: vi.fn().mockResolvedValue(false),
+            } as any,
+            {} as any,
+            {
+                acquireLock: vi.fn().mockResolvedValue(true),
+                getGlobalSetting: vi.fn().mockResolvedValue(null),
+            } as any,
+            {
+                createDispatchRoute,
+                getDispatchSetupStatus: vi.fn().mockResolvedValue({
+                    isConfigured: true,
+                    defaultDriverId: 'DRIVER',
+                    depotLat: 34.2257,
+                    depotLng: -77.9447,
+                    missing: [],
+                }),
+                updateAddressCoordinates: vi.fn(),
+            } as any
+        );
+
+        await adapter.dispatchDueStops(new Date('2024-05-13T12:00:00Z'));
+
+        expect(getDueSubscriptions).toHaveBeenCalledWith('2024-05-14');
+        expect(createDispatchRoute).toHaveBeenCalledOnce();
+    });
+
     it('skips a due subscription if it becomes paused before routing execution', async () => {
         const logDispatchedJobs = vi.fn();
         const createDispatchStops = vi.fn();

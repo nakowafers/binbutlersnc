@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -154,12 +154,12 @@ function getDbPath(): string {
 
 function runDb(sql: string): void {
     const dbPath = getDbPath();
-    execSync(`sqlite3 ${dbPath} ${JSON.stringify(sql)}`, { stdio: 'pipe' });
+    execFileSync('sqlite3', [dbPath, sql.replace(/\s+/g, ' ').trim()], { stdio: 'pipe' });
 }
 
 function queryDb<T = any>(sql: string): T[] {
     const dbPath = getDbPath();
-    const output = execSync(`sqlite3 ${dbPath} -json ${JSON.stringify(sql)}`, { encoding: 'utf-8' });
+    const output = execFileSync('sqlite3', [dbPath, '-json', sql.replace(/\s+/g, ' ').trim()], { encoding: 'utf-8' });
     return output ? JSON.parse(output.trim()) : [];
 }
 

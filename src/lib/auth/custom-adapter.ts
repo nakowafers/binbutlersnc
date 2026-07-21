@@ -79,28 +79,48 @@ export function createAuthUsersAdapter(db: D1Database): Adapter {
         },
 
         async updateUser(user) {
-            const authResult = await db.prepare(
-                'UPDATE auth_users SET name = ?, email = ?, emailVerified = ?, image = ? WHERE id = ?'
-            ).bind(
-                user.name ?? null,
-                user.email ?? null,
-                user.emailVerified?.toISOString() ?? null,
-                user.image ?? null,
-                user.id,
-            ).run();
-            if (authResult.meta.changes > 0) {
+            const existingAuthUser = await db.prepare(
+                'SELECT id, name, email, emailVerified, image FROM auth_users WHERE id = ?'
+            ).bind(user.id).first<Record<string, unknown>>();
+            if (existingAuthUser) {
+                const emailVerified = Object.hasOwn(user, 'emailVerified')
+                    ? user.emailVerified?.toISOString() ?? null
+                    : existingAuthUser.emailVerified ?? null;
+
+                await db.prepare(
+                    'UPDATE auth_users SET name = ?, email = ?, emailVerified = ?, image = ? WHERE id = ?'
+                ).bind(
+                    Object.hasOwn(user, 'name') ? user.name ?? null : existingAuthUser.name ?? null,
+                    Object.hasOwn(user, 'email') ? user.email : existingAuthUser.email,
+                    emailVerified,
+                    Object.hasOwn(user, 'image') ? user.image ?? null : existingAuthUser.image ?? null,
+                    user.id,
+                ).run();
+
                 const row = await db.prepare(
                     'SELECT id, name, email, emailVerified, image FROM auth_users WHERE id = ?'
                 ).bind(user.id).first<Record<string, unknown>>();
                 return toUser(row)!;
             }
+
+            const existingCustomer = await db.prepare(
+                'SELECT id, name, email, emailVerified, image FROM customers WHERE id = ?'
+            ).bind(user.id).first<Record<string, unknown>>();
+            if (!existingCustomer) {
+                throw new Error(`updateUser: user not found for id ${user.id}`);
+            }
+
+            const emailVerified = Object.hasOwn(user, 'emailVerified')
+                ? user.emailVerified?.toISOString() ?? null
+                : existingCustomer.emailVerified ?? null;
+
             await db.prepare(
                 'UPDATE customers SET name = ?, email = ?, emailVerified = ?, image = ? WHERE id = ?'
             ).bind(
-                user.name ?? null,
-                user.email ?? null,
-                user.emailVerified?.toISOString() ?? null,
-                user.image ?? null,
+                Object.hasOwn(user, 'name') ? user.name ?? null : existingCustomer.name ?? null,
+                Object.hasOwn(user, 'email') ? user.email : existingCustomer.email,
+                emailVerified,
+                Object.hasOwn(user, 'image') ? user.image ?? null : existingCustomer.image ?? null,
                 user.id,
             ).run();
             const row = await db.prepare(
