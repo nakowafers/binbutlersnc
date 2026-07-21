@@ -7,6 +7,7 @@
     "build": "next build",
     "build:cf": "rm -rf .vercel/output && npx @cloudflare/next-on-pages && echo '_worker.js' > .vercel/output/static/.assetsignore",
     "preview": "npm run build:cf && npx wrangler pages dev .vercel/output/static",
+    "preview:local": "npm run build:cf && npx wrangler d1 migrations apply binbutlersnc-db --local && npm run db:seed && npx wrangler pages dev .vercel/output/static --port 8788 --bundle --local-protocol https --binding AUTH_URL=https://localhost:8788 --binding NEXTAUTH_URL=https://localhost:8788",
     "start": "next start",
     "lint": "node ./node_modules/eslint/bin/eslint.js src workers next.config.mjs playwright.config.ts",
     "test": "vitest run",

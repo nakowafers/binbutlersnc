@@ -26,6 +26,9 @@ AUTH_GOOGLE_SECRET=your_google_client_secret
 
 # Auth.js — Generate with: openssl rand -hex 32
 AUTH_SECRET=your_auth_secret_here
+# Auth.js local callback/magic-link origin
+AUTH_URL=https://localhost:8788
+NEXTAUTH_URL=https://localhost:8788
 
 # Resend — Get from https://resend.com/api-keys
 RESEND_API_KEY=re_your_resend_api_key
