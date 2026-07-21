@@ -66,8 +66,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
 
         if (nextUrl.pathname.startsWith('/admin') || nextUrl.pathname.startsWith('/api/admin')) {
           if (!isLoggedIn) return false;
-          const role = (session?.user as { role?: string })?.role;
-          if (role !== 'ADMIN') return Response.redirect(new URL("/", nextUrl));
         }
         return true;
       },

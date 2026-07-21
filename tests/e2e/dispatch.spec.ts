@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { runDb } from './test-db';
-import crypto from 'node:crypto';
+import { addAuthSessionCookie } from './auth';
 
 test.describe('Admin Dispatch Route', () => {
+    test.describe.configure({ mode: 'serial' });
+
     const adminEmail = 'dispatch-admin@example.com';
     const adminId = 'dispatch_admin_user';
-    const sessionToken = crypto.randomUUID();
     const today = new Date().toISOString().split('T')[0];
 
     test.beforeAll(() => {
@@ -32,19 +33,12 @@ test.describe('Admin Dispatch Route', () => {
     });
 
     test.beforeEach(async ({ context }) => {
-        const expires = new Date();
-        expires.setFullYear(expires.getFullYear() + 1);
-        runDb(`INSERT OR IGNORE INTO sessions (id, sessionToken, userId, expires) VALUES ('${crypto.randomUUID()}', '${sessionToken}', '${adminId}', '${expires.toISOString()}')`);
-
-        await context.addCookies([{
-            name: 'authjs.session-token',
-            value: sessionToken,
-            domain: 'localhost',
-            path: '/',
-            expires: expires.getTime() / 1000,
-            httpOnly: true,
-            sameSite: 'Lax',
-        }]);
+        await addAuthSessionCookie(context, {
+            id: adminId,
+            email: adminEmail,
+            name: 'Dispatch Admin',
+            role: 'ADMIN',
+        });
     });
 
     for (const width of [390, 430, 768, 1280]) {

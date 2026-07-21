@@ -1,5 +1,7 @@
 import { auth } from '@/auth';
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { cookies } from 'next/headers';
+import { decode } from 'next-auth/jwt';
 import { redirect } from 'next/navigation';
 import { AlertTriangle, CheckCircle2, Map, Navigation, Phone, SkipForward } from 'lucide-react';
 import { createDatabase } from '@/lib/backend/createServices';
@@ -30,6 +32,24 @@ function scentLabel(scent?: string | null): string {
 
 function driverLabel(driver: SalesRep): string {
     return driver.email ? `${driver.id} (${driver.email})` : driver.id;
+}
+
+async function getAuthenticatedEmail(sessionEmail: string | null | undefined, authSecret: string): Promise<string | null> {
+    if (sessionEmail) return sessionEmail;
+
+    const cookieStore = await cookies();
+    for (const cookieName of ['__Secure-authjs.session-token', 'authjs.session-token']) {
+        const token = cookieStore.get(cookieName)?.value;
+        if (!token) continue;
+
+        const decoded = await decode({ token, secret: authSecret, salt: cookieName });
+        const email = decoded?.email;
+        if (typeof email === 'string' && email.length > 0) {
+            return email;
+        }
+    }
+
+    return null;
 }
 
 function RouteControls({
@@ -153,15 +173,20 @@ export default async function DispatchPage({
     searchParams?: Promise<{ driver?: string; date?: string }>;
 }) {
     const session = await auth();
-    if (!session?.user || (session.user as { role?: string }).role !== 'ADMIN') {
+    const { env } = (getRequestContext() as unknown) as { env: Env };
+    const email = await getAuthenticatedEmail(session?.user?.email, env.AUTH_SECRET);
+    if (!email) {
         redirect('/');
     }
 
-    const { env } = (getRequestContext() as unknown) as { env: Env };
     const db = createDatabase(env);
+    const currentDriver = await db.getAdminDriverByEmail(email);
+    if (!currentDriver?.is_admin) {
+        redirect('/');
+    }
+
     const params = await searchParams;
     const drivers = await db.getActiveAdminDrivers();
-    const currentDriver = session.user.email ? await db.getAdminDriverByEmail(session.user.email) : null;
     const setup = await db.getDispatchSetupStatus();
     const selectedDriverId = params?.driver || currentDriver?.id || setup.defaultDriverId || drivers[0]?.id || '';
     const selectedDate = params?.date || todayIso();
