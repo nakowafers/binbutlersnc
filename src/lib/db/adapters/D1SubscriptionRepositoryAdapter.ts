@@ -56,7 +56,13 @@ export class D1SubscriptionRepositoryAdapter implements ISubscriptionRepository 
                 a.latitude,
                 a.longitude,
                 a.service_day,
+                a.notes,
+                a.scent_preference,
                 c.email,
+                c.first_name,
+                c.last_name,
+                c.name,
+                c.phone_number,
                 c.bin_quantity
             FROM subscriptions s
             JOIN customers c ON s.customer_id = c.id

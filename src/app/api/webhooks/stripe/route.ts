@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         });
     } catch (error) {
         if (eventId && env) {
-            await new StripeWebhookService(env).releaseClaim(eventId);
+await new StripeWebhookService(env).releaseClaim(eventId);
         }
 
         if (error instanceof WebhookHttpError) {

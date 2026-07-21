@@ -1,8 +1,8 @@
 import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { DispatchCoordinator } from '@/lib/dispatch/DispatchCoordinator';
+import { GeoapifyGeocoder } from '@/lib/geocoding/GeoapifyGeocoder';
 import { StripeAdapter } from '@/lib/payment/StripeAdapter';
 import { SubscriptionLifecycle } from '@/lib/payment/SubscriptionLifecycle';
-import { RoutificAdapter } from '@/lib/routing/RoutificAdapter';
 import { Env } from '@/lib/types';
 
 export function createDatabase(env: Env): D1DatabaseAdapter {
@@ -23,16 +23,12 @@ export function createPaymentService(env: Env): StripeAdapter {
     });
 }
 
-export function createRoutingService(env: Env): RoutificAdapter {
-    return new RoutificAdapter(env.ROUTIFIC_API_KEY, env.ROUTIFIC_WORKSPACE_ID);
-}
-
 export function createDispatchCoordinator(env: Env): DispatchCoordinator {
     const db = createDatabase(env);
-    return new DispatchCoordinator(db, db, db, createRoutingService(env));
+    return new DispatchCoordinator(db, db, db, db, new GeoapifyGeocoder(env.GEOAPIFY_API_KEY));
 }
 
 export function createSubscriptionLifecycle(env: Env): SubscriptionLifecycle {
     const db = createDatabase(env);
-    return new SubscriptionLifecycle(db, db, db, db, createPaymentService(env), createRoutingService(env));
+    return new SubscriptionLifecycle(db, db, db, db, createPaymentService(env));
 }

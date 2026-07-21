@@ -34,24 +34,4 @@ describe('DispatchPlanner', () => {
         expect(plan.stops[0].subscription_id).toBe('sub_tue');
         expect(plan.stops[0].address).toBe('123 Tomorrow St');
     });
-
-    it('turns a pending dispatch into a retry plan', () => {
-        const planner = new DispatchPlanner();
-
-        const plan = planner.planRetryDispatch({
-            id: 'pending_1',
-            customer_id: 'cust_retry',
-            subscription_id: 'sub_retry',
-            service_date: '2026-05-19T00:00:00.000Z',
-            retry_count: 2,
-            raw_address: '789 Retry St',
-            latitude: 35.3,
-            longitude: -80.3,
-        } as any);
-
-        expect(plan.date).toBe('2026-05-19');
-        expect(plan.stops).toHaveLength(1);
-        expect(plan.stops[0].subscription_id).toBe('sub_retry');
-        expect(plan.stops[0].customer_id).toBe('cust_retry');
-    });
 });

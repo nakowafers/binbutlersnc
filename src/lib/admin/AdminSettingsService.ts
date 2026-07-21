@@ -1,6 +1,10 @@
 import { ISettingsRepository } from '@/lib/db/types';
+import { DISPATCH_SETTING_KEY_VALUES } from '@/lib/dispatch/settings';
 
-const ALLOWED_KEYS = ['holiday_offset_hours'];
+const ALLOWED_KEYS = [
+    'holiday_offset_hours',
+    ...DISPATCH_SETTING_KEY_VALUES,
+];
 
 export class AdminSettingsService {
     constructor(private readonly settingsRepo: ISettingsRepository) {}

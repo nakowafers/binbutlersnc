@@ -1,7 +1,6 @@
 import Stripe from 'stripe';
 import { ILeadRepository, ICustomerRepository, ISubscriptionRepository, IServiceHistoryRepository } from '../db/types';
 import { IPaymentService } from './types';
-import { IRoutingService } from '../routing/types';
 import { normalizeSalesRepId } from '../sales-rep';
 import { normalizeEmail, normalizeAddress } from '../utils';
 import { WebhookHttpError } from '../webhooks/WebhookHttpError';
@@ -12,8 +11,7 @@ export class SubscriptionLifecycle {
         private customerRepo: ICustomerRepository,
         private subscriptionRepo: ISubscriptionRepository,
         private serviceHistoryRepo: IServiceHistoryRepository,
-        private paymentService: IPaymentService,
-        private routingService: IRoutingService
+        private paymentService: IPaymentService
     ) {}
 
     async processEvent(event: Stripe.Event): Promise<void> {
@@ -235,30 +233,6 @@ export class SubscriptionLifecycle {
         const stripeSubscriptionId = invoice.subscription;
         if (stripeSubscriptionId) {
             await this.subscriptionRepo.updateSubscriptionStatus(stripeSubscriptionId, 'past_due', null);
-
-            const localSubscriptionId = await this.subscriptionRepo.getSubscriptionIdByStripeId(stripeSubscriptionId);
-            if (localSubscriptionId) {
-                try {
-                    const routingTargetIds = await this.serviceHistoryRepo.getRoutingTargetIdsBySubscription(localSubscriptionId);
-                    for (const orderId of routingTargetIds) {
-                        try {
-                            await this.routingService.deleteTarget(orderId);
-                            console.log(`Deleted routing target ${orderId} for subscription: ${stripeSubscriptionId}`);
-                        } catch (orderError) {
-                            console.error(`Failed to delete routing target ${orderId}:`, orderError);
-                        }
-                    }
-                } catch (routingError) {
-                    console.error(`Failed to query routing targets for ${stripeSubscriptionId}:`, routingError);
-                }
-
-                try {
-                    const todayIso = new Date().toISOString().split('T')[0];
-                    await this.serviceHistoryRepo.cleanupFailedSubscriptionRoutingDispatches(localSubscriptionId, todayIso);
-                } catch (cleanupError) {
-                    console.error('Routing dispatch cleanup failed:', cleanupError);
-                }
-            }
 
             console.log(`Successfully set subscription to past_due: ${stripeSubscriptionId}`);
         }

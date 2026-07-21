@@ -15,10 +15,11 @@
 | --- | --- | --- |
 | **Trash Day** | The weekly municipal or private waste collection day for a customer's address. | Pickup day, garbage day |
 | **Service Day** | The day of the week a customer's bins are cleaned, automatically matched to their Trash Day. | Clean day, visit day |
-| **Service Route** | A collection of optimized stops assigned to a driver for a specific day. | Run, driver path, dispatch route |
-| **Routing Provider** | The external API integration used to manage and optimize stop sequences for dispatch. | Optimizer, dispatch service, route vendor |
+| **Admin-Driver** | An admin user who performs route fulfillment in v1. | Driver role, route user |
+| **Service Route** | An internally managed ordered set of stops assigned to an Admin-Driver for a service date. | Run, driver path, dispatch route |
+| **Routing Provider** | An optional future external API integration that may optimize stop sequences for dispatch. | Optimizer, dispatch service, route vendor |
 | **Holiday Shift** | A manual 24-hour offset applied to weekly routes to accommodate holiday schedule changes. | Route shift, schedule offset, date delay |
-| **Weekly Dispatch Cron** | An automated background task that identifies due subscribers and pushes their stops to the Routing Provider. | Weekly cron, dispatcher, route builder |
+| **Weekly Dispatch Cron** | An automated background task that identifies due subscribers and creates local Service Routes. | Weekly cron, dispatcher, route builder |
 
 ## Fulfillment & Service History
 
@@ -43,16 +44,17 @@
 * A **Subscription** belongs to exactly one **Customer**.
 * An **Address** determines the customer's **Trash Day** and **Service Day**.
 * A **Sales Rep** can initiate multiple **D2D Onboardings**.
-* A **Weekly Dispatch Cron** generates **Service Routes** by pushing due **Subscriptions** to the **Routing Provider**.
+* A **Weekly Dispatch Cron** generates local **Service Routes** from due **Subscriptions**.
 * A **Service Route** consists of multiple stops, each mapped to a **Customer**.
-* A completed stop in a **Service Route** adds a record to the **Service History** and requires a **Verification Photo** and a physical **Service Sticker** on the bin.
+* A completed stop in a v1 **Service Route** is an **Admin-Driver** attestation that updates **Service History**.
+* A future proof-of-service workflow may require a **Verification Photo** and a physical **Service Sticker** on the bin.
 * A **Customer Portal** displays **Service History** and allows toggling **Vacation Mode**.
 * A **Billing Portal** manages the financial aspect of the **Subscription**.
 
 ## Example dialogue
 
 > **Dev:** "If a customer completes an **Organic Onboarding** on a Sunday, when is their first service?"
-> **Domain expert:** "Their first cleaning is scheduled for their **Service Day** the following week. This is because the **Weekly Dispatch Cron** runs every Sunday at midnight to push stops to the **Routing Provider**."
+> **Domain expert:** "Their first cleaning is scheduled for their **Service Day** the following week. This is because the **Weekly Dispatch Cron** runs every Sunday at midnight to create local **Service Routes**."
 > **Dev:** "What about a **D2D Onboarding**?"
 > **Domain expert:** "A **D2D Onboarding** is sold in the field by a **Sales Rep**, and the driver fulfills it immediately on the spot. So we write a completed entry to their **Service History** immediately upon checkout rather than waiting for the next week's cron."
 > **Dev:** "Got it. And how does the driver know which bin to clean during regular routes?"

@@ -135,7 +135,7 @@ export class D1CustomerRepositoryAdapter implements ICustomerRepository {
 
     async deleteCustomerCascade(customerId: string): Promise<void> {
         await this.db.batch([
-            this.db.prepare('DELETE FROM routific_dispatches WHERE subscription_id IN (SELECT id FROM subscriptions WHERE customer_id = ?)').bind(customerId),
+            this.db.prepare('DELETE FROM dispatch_stops WHERE subscription_id IN (SELECT id FROM subscriptions WHERE customer_id = ?)').bind(customerId),
             this.db.prepare('DELETE FROM pending_dispatches WHERE subscription_id IN (SELECT id FROM subscriptions WHERE customer_id = ?)').bind(customerId),
             this.db.prepare('DELETE FROM service_history WHERE subscription_id IN (SELECT id FROM subscriptions WHERE customer_id = ?)').bind(customerId),
             this.db.prepare('DELETE FROM subscriptions WHERE customer_id = ?').bind(customerId),

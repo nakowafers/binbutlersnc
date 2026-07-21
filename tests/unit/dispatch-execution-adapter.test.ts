@@ -24,8 +24,8 @@ function dueSubscription(overrides: Partial<DueSubscriptionResult> = {}): DueSub
 
 describe('DispatchExecutionAdapter', () => {
     it('skips a due subscription if it becomes paused before routing execution', async () => {
-        const createJob = vi.fn();
         const logDispatchedJobs = vi.fn();
+        const createDispatchStops = vi.fn();
         const adapter = new DispatchExecutionAdapter(
             {
                 getDueSubscriptions: vi.fn().mockResolvedValue([dueSubscription()]),
@@ -39,13 +39,15 @@ describe('DispatchExecutionAdapter', () => {
                 getGlobalSetting: vi.fn().mockResolvedValue(null),
             } as any,
             {
-                createJob,
+                createDispatchStops,
+                getDispatchSetupStatus: vi.fn(),
+                updateAddressCoordinates: vi.fn(),
             } as any
         );
 
         await adapter.dispatchDueStops(new Date('2024-05-13T12:00:00Z'));
 
-        expect(createJob).not.toHaveBeenCalled();
+        expect(createDispatchStops).not.toHaveBeenCalled();
         expect(logDispatchedJobs).not.toHaveBeenCalled();
     });
 });

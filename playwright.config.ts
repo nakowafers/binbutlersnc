@@ -8,7 +8,8 @@ export default defineConfig({
     workers: process.env.CI ? 1 : undefined,
     reporter: 'html',
     use: {
-        baseURL: 'http://localhost:8788',
+        baseURL: 'https://localhost:8788',
+        ignoreHTTPSErrors: true,
         trace: 'on-first-retry',
     },
     projects: [
@@ -22,8 +23,10 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: 'npx wrangler pages dev .vercel/output/static --port 8788 --no-bundle',
-        url: 'http://localhost:8788',
+        command:
+            'npm run build:cf && npx wrangler d1 migrations apply binbutlersnc-db --local && npx wrangler pages dev .vercel/output/static --port 8788 --bundle --show-interactive-dev-session=false --local-protocol https',
+        url: 'https://localhost:8788',
+        ignoreHTTPSErrors: true,
         reuseExistingServer: !process.env.CI,
         timeout: 120 * 1000,
     },

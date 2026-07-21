@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
+    Route,
     Users,
     Settings,
 } from 'lucide-react';
@@ -12,6 +13,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
     // { href: '/admin', label: 'Schedule', icon: Calendar },
+    { href: '/admin/dispatch', label: 'My Route', icon: Route },
     { href: '/admin/customers', label: 'Customers', icon: Users },
     // { href: '/admin', label: 'Routes', icon: Truck },
     // { href: '/admin', label: 'History', icon: History },
@@ -50,7 +52,7 @@ export function AdminSidebar({ className, onClose }: { className?: string; onClo
 
             <div className="pt-6 border-t border-white/10">
                 <Link
-                    href="/admin"
+                    href="/admin/settings"
                     onClick={onClose}
                     className="flex items-center gap-3 p-3 min-h-[44px] hover:bg-white/10 rounded-xl transition-all"
                 >

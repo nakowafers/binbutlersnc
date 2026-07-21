@@ -13,13 +13,13 @@ export class WebhookCleanupService {
         }
     }
 
-    async cleanupOldRoutingDispatches(): Promise<void> {
+    async cleanupOldDispatchStops(): Promise<void> {
         try {
             await this.env.DB.prepare(
-                'DELETE FROM routific_dispatches WHERE service_date < ?'
+                "DELETE FROM dispatch_stops WHERE service_date < ? AND dispatch_status IN ('completed', 'skipped')"
             ).bind(new Date().toISOString().split('T')[0]).run();
         } catch (cleanupError) {
-            console.error('Routing dispatch cleanup failed:', cleanupError);
+            console.error('Dispatch stop cleanup failed:', cleanupError);
         }
     }
 
