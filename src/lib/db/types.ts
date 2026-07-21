@@ -96,7 +96,7 @@ export interface ISubscriptionRepository {
     updateSubscriptionPauseStatus(id: string, isPaused: number): Promise<void>;
     updateSubscriptionStatus(stripeSubscriptionId: string, status: string, currentPeriodEnd: string | null): Promise<void>;
     isSubscriptionPaused(id: string): Promise<boolean>;
-    getDueSubscriptions(nowIso: string): Promise<DueSubscriptionResult[]>;
+    getDueSubscriptions(targetServiceDate: string): Promise<DueSubscriptionResult[]>;
     getActiveSubscriptionsCount(): Promise<number>;
     calculateEstimatedWeeklyRevenue(): Promise<number>;
 }

@@ -48,7 +48,8 @@ export class D1SubscriptionRepositoryAdapter implements ISubscriptionRepository 
         return result?.is_paused === 1 || result?.is_paused === true;
     }
 
-    async getDueSubscriptions(nowIso: string): Promise<DueSubscriptionResult[]> {
+    async getDueSubscriptions(targetServiceDate: string): Promise<DueSubscriptionResult[]> {
+        const targetServiceDateStartIso = `${targetServiceDate}T00:00:00.000Z`;
         const query = `
             SELECT
                 s.*,
@@ -89,7 +90,7 @@ export class D1SubscriptionRepositoryAdapter implements ISubscriptionRepository 
             )
         `;
         const { results } = await this.db.prepare(query)
-            .bind(nowIso, nowIso)
+            .bind(targetServiceDateStartIso, targetServiceDate)
             .all<DueSubscriptionResult>();
         return results || [];
     }

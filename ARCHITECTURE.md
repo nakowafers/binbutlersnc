@@ -7,7 +7,7 @@ The application is built on a high-performance, low-latency stack optimized for 
 *   **Runtime:** **Cloudflare Pages (Edge Runtime)** via `@cloudflare/next-on-pages`.
 *   **Database:** **Cloudflare D1** (Serverless SQLite).
 *   **Payments:** **Stripe** (Checkout Sessions & Webhooks).
-*   **Routing:** **Routific API** (External).
+*   **Routing:** Local D1-backed dispatch stops with an in-app route optimizer.
 *   **Auth:** **Auth.js** (NextAuth) with Magic Link provider.
 
 ## 2. Core Implementation Patterns
@@ -16,25 +16,24 @@ The application is built on a high-performance, low-latency stack optimized for 
 Backend code is split into small layers so request handlers stay thin:
 
 *   **Route Handlers:** `src/app/api/**/route.ts` parse requests, enforce Auth.js/CSRF where needed, map errors to HTTP responses, and call application services.
-*   **Application Services:** `src/lib/checkout/`, `src/lib/admin/`, and `src/lib/webhooks/` own workflow orchestration such as checkout lead capture, admin customer updates, settings changes, Stripe lifecycle processing, and routing webhook handling.
-*   **Composition:** `src/lib/backend/createServices.ts` centralizes construction of D1 repositories, payment adapters, routing adapters, dispatch coordinators, and lifecycle services from `Env`.
-*   **Repositories:** `src/lib/db/` exposes domain-oriented interfaces. Routing-dispatch methods use generic names while the existing `routific_dispatches` D1 table remains unchanged.
-*   **Adapters:** `StripeAdapter` and `RoutificAdapter` are the vendor-specific boundaries. Routes and workers should use composition helpers instead of constructing vendor adapters directly.
+*   **Application Services:** `src/lib/checkout/`, `src/lib/admin/`, and `src/lib/webhooks/` own workflow orchestration such as checkout lead capture, admin customer updates, settings changes, Stripe lifecycle processing, and dispatch route actions.
+*   **Composition:** `src/lib/backend/createServices.ts` centralizes construction of D1 repositories, payment adapters, dispatch coordinators, route optimizers, and lifecycle services from `Env`.
+*   **Repositories:** `src/lib/db/` exposes domain-oriented interfaces for customers, subscriptions, service history, and dispatch stops.
+*   **Adapters:** `StripeAdapter` is the payment boundary. Dispatch workers and routes should use composition helpers instead of constructing repositories or services directly.
 
-### 2.1. The Routing Adapter (Vendor Agnosticism)
-All interactions with the routing provider must pass through the `IRoutingService` interface.
-- **Location:** `src/lib/routing/`
-- **Implementation:** `RoutificAdapter.ts` maps generic calls to Routific's `/jobs` or `/projects` endpoints.
-- **Mandate:** Never import Routific-specific libraries directly into API routes or Webhook handlers.
+### 2.1. The Route Optimizer
+Service Route generation uses local D1-backed dispatch stops and an in-app route optimizer.
+- **Location:** `src/lib/dispatch/`
+- **Implementation:** `RouteOptimizer.ts` sequences planned dispatch stops for v1.
+- **Mandate:** Keep route-ordering details behind dispatch services so a future optimizer can be swapped in without changing route handlers or cron entrypoints.
 
-### 2.2. The Weekly Dispatch Cron (State-Driven)
-A Cloudflare Scheduled Worker (Cron) runs every Sunday at 00:00 UTC.
+### 2.2. The Daily Dispatch Cron (State-Driven)
+A Cloudflare Scheduled Worker runs every day at 00:00 UTC. Dispatch service dates are interpreted in America/New_York, so the worker intentionally runs the prior Eastern evening and builds Service Routes for the next Eastern service date.
 - **Logic:**
-    1. Select all `subscriptions` where `status = 'active'` and `is_paused = false`.
-    2. Filter for those where `current_period_end > NOW()`.
-    3. Calculate "Due" status based on `last_service_date` + frequency (28/84 days).
-    4. Push the resulting payload to the Routing Service.
-- **Retry Queue:** Use a `pending_dispatches` table in D1 to handle Routific API timeouts/failures.
+    1. Select active subscriptions that are not paused.
+    2. Evaluate due eligibility against the target Eastern service date.
+    3. Filter to subscriptions whose Service Day matches that target date.
+    4. Create local dispatch stops and pending service history records in D1 for Admin-Driver fulfillment.
 
 ### 2.3. Stripe Webhook Synchronization
 The `/api/webhooks/stripe` endpoint is the authoritative source for customer status.

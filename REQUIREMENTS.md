@@ -13,7 +13,7 @@ Bin Butlers NC is a specialized local service application providing professional
 *   **Zero-Admin Onboarding:** Automate the transition from website visitor to scheduled customer.
 *   **Operational Efficiency:** Leverage geographic route optimization to minimize drive time.
 *   **Self-Service Billing:** Reduce overhead by utilizing Stripe's native customer management tools.
-*   **Data Integrity:** Maintain a vendor-agnostic "Single Source of Truth" for service history and routing data.
+*   **Data Integrity:** Maintain D1 as the single source of truth for service history and local dispatch data.
 
 ---
 
@@ -26,7 +26,7 @@ The application follows a **Serverless-First** philosophy for scalability and lo
 *   **Database:** **Cloudflare D1** (Serverless SQLite) for relational storage.
 *   **Payments & Subscriptions:** **Stripe** (Dynamic Checkout Sessions, Customer Portal, and Webhooks).
 *   **Authentication:** **Auth.js (NextAuth)** utilizing Passwordless Magic Links for the custom settings portal.
-*   **Route Optimization:** **Routific API** for fleet dispatch.
+*   **Route Optimization:** Local D1-backed dispatch stops with an in-app optimizer.
 *   **Communications (Future):** Resend or SendGrid for transactional notifications and abandoned cart emails.
 ---
 
@@ -38,26 +38,26 @@ To ensure high-fidelity UI and professional user flows, all designs must be iter
 - **Screen Generation:** Leverage Stitch to produce consistent, responsive screens and flows that align with the reference architecture (Jobatory).
 - **Component Standard:** All generated designs must be implemented using **Next.js**, **Tailwind CSS**, and **Shadcn UI**.
 
-### The Adapter Pattern (Routing)
+### The Optimizer Boundary (Routing)
 ...
 
-To avoid vendor lock-in with Routific, the system must implement a strict **Adapter Pattern** for the routing layer.
+To keep dispatch local-primary while preserving future flexibility, the system must keep route sequencing behind a small optimizer boundary.
 
-#### Interface Definition (`IRoutingService`):
-The core business logic will interact with a generic interface:
-- `pushTarget(customerData)`: Standardizes the payload for adding a stop.
-- `updateTarget(customerData)`: Standardizes updates to location or metadata.
-- `deleteTarget(externalId)`: Removes a stop from the active route.
-- `getDispatchStatus(externalId)`: Retrieves real-time status from the provider.
+#### Interface Definition:
+The core dispatch logic will interact with local dispatch services:
+- Plan due subscriptions for a target Eastern service date.
+- Create D1-backed dispatch stops and pending service history records.
+- Sequence stops through the in-app route optimizer.
+- Record Admin-Driver fulfillment back to dispatch stops and service history.
 
 #### Implementation:
-- `RoutificAdapter`: Implements `IRoutingService` by mapping generic calls to Routific-specific API endpoints and authentication.
-- **Benefit:** If the business switches to OptimoRoute or Circuit, only the Adapter class requires modification; the webhook handlers and database logic remain untouched.
+- `RouteOptimizer`: Sequences planned local dispatch stops for v1.
+- **Benefit:** A future external optimizer can replace the sequencing implementation without changing webhook handlers, cron entrypoints, or database ownership.
 
 ### Database Naming Conventions:
-Column names in D1 must be generic to support the Adapter Pattern:
-- Use `external_routing_provider_id` instead of `routific_id`.
-- Use `dispatch_status` instead of `routific_status`.
+Column names in D1 must describe local dispatch concepts:
+- Use dispatch stop identifiers for active route work.
+- Use `dispatch_status` for stop and service-history fulfillment state.
 
 ---
 
@@ -81,26 +81,27 @@ Column names in D1 must be generic to support the Adapter Pattern:
 2.  **Service Day Logic:** The system automatically assigns `service_day = trash_day`. Bins are cleaned on the same day as garbage collection.
 3.  **Route Assignment:** Maps address to `service_route_id` based on the assigned `service_day`.
 
-### 4.3. Dispatch & Automation (Weekly Cron Strategy)
-1.  **Stop Management:** The system uses a **Weekly Dispatch Cron** to identify "due" customers.
-2.  **Execution:** Every Sunday at 00:00 UTC, the system:
-    - Queries D1 for customers due (4/12 week intervals).
-    - Pushes active stops to the Routing Provider.
-3.  **Holiday Rescheduling (Manual Offset):** The Admin Dashboard will include a "Shift Routes" feature to manually offset a week's service dates (e.g., shifting all Tuesday stops to Wednesday) to accommodate municipal holiday schedules.
+### 4.3. Dispatch & Automation (Daily Cron Strategy)
+1.  **Stop Management:** The system uses the **Daily Dispatch Cron** to identify subscriptions due for the next Eastern service date.
+2.  **Execution:** Every day at 00:00 UTC, the system:
+    - Interprets dispatch service dates in America/New_York.
+    - Queries D1 for subscriptions due on the next Eastern service date.
+    - Creates local D1-backed dispatch stops and pending service history records for Admin-Driver fulfillment.
+3.  **Holiday Rescheduling (Manual Offset):** The Admin Dashboard will include a "Shift Routes" feature to manually offset service dates (e.g., shifting all Tuesday stops to Wednesday) to accommodate municipal holiday schedules.
 
 ### 4.4. Client & Admin Management
 1.  **Stripe Billing Portal:** Post-checkout, users are redirected directly to Stripe's hosted Billing Portal for self-service payment management, invoices, and plan changes — no custom auth required.
 2.  **Authenticated Settings Page (Future):** Magic-Link login for users to update address/day, toggle "Vacation Mode," view service history, and manage property access details.
-3.  **Bin Identification:** Service relies on physical "Service Stickers" applied during the initial D2D clean. Drivers clean all bins marked with active stickers.
+3.  **Bin Identification:** Service relies on physical "Service Stickers" applied during the initial D2D clean. Admin-Drivers clean all bins marked with active stickers.
 4.  **Admin Dashboard (Single User):** A secure administrative view for:
     - Reviewing new signups and mapping them to routes.
     - Manually triggering holiday route shifts.
     - Viewing `service_history` and `sales_rep` performance.
     - Handling manual refunds via Stripe redirect.
 
-### 4.5. Driver Operations & Exception Handling
-1.  **Execution:** Drivers use the Routific Mobile App for navigation and job completion.
-2.  **Service Verification (Photos):** Drivers capture proof-of-service photos which are uploaded to **Cloudflare R2** and linked in the customer portal.
+### 4.5. Admin-Driver Operations & Exception Handling
+1.  **Execution:** Admin-Drivers use the admin Service Route workflow for navigation context and job completion.
+2.  **Service Verification (Photos):** Admin-Drivers capture proof-of-service photos which are uploaded to **Cloudflare R2** and linked in the customer portal.
 3.  **Missed/Skipped Stops:** If a stop is marked as 'skipped' or 'missed' (e.g., bins not left out), the system logs the status and automatically reschedules the customer for the **following week**, overriding their standard Monthly/Quarterly recurrence interval for that specific cycle.
 
 ---
@@ -118,11 +119,11 @@ Column names in D1 must be generic to support the Adapter Pattern:
 - **Event:** `customer.subscription.deleted`
 - **Action:** Update `status = 'cancelled'` in D1. Note: Service continues until the `current_period_end` stored in D1/Stripe.
 
-### 5.2. Routing Webhook Listener (`/api/webhooks/routing`)
-- **Action:** 
-    1. Verify payload signature.
-    2. Identify customer via `external_routing_id`.
-    3. Write entry to `service_history` table (Timestamp, Status: Completed, Photo URL).
+### 5.2. Admin Service Route Actions
+- **Action:**
+    1. Identify the dispatch stop from the local Service Route.
+    2. Record Admin-Driver completion or skip attestation.
+    3. Update the matching `service_history` record with the final dispatch status and service timestamp.
 
 ---
 
@@ -157,7 +158,6 @@ Column names in D1 must be generic to support the Adapter Pattern:
 - `bin_quantity` (Integer)
 - `sales_rep_id` (String, Optional)
 - `tos_accepted_at` (Timestamp, Optional)
-- `external_routing_id` (String)
 
 ### Table: `subscriptions`
 - `id` (UUID, PK)
@@ -180,16 +180,16 @@ Column names in D1 must be generic to support the Adapter Pattern:
 ## 7. Edge Cases & QA Considerations
 
 ### 7.1. Address & Routing Failures
-- **Scenario:** Address is valid but outside the service boundary or cannot be geocoded by the routing provider.
+- **Scenario:** Address is valid but outside the service boundary or cannot be geocoded.
 - **Requirement:** System must flag "Manual Review Required" in D1 and notify the admin, while still allowing the payment to proceed (or triggering a refund flow).
 
 ### 7.2. Payment Failures
 - **Scenario:** `invoice.payment_failed` webhook received.
-- **Requirement:** System must immediately invoke `RoutingService.deleteTarget()` to stop service until payment is resolved.
+- **Requirement:** System must prevent future scheduled dispatch stops until payment is resolved.
 
-### 7.3. API Timeouts
-- **Scenario:** Cloudflare Worker fails to connect to Routific during onboarding.
-- **Requirement:** Implement an **Idempotent Retry Queue**. Store the pending routing task in D1 and use a Cloudflare Cron Trigger to retry every 15 minutes until success.
+### 7.3. Dispatch Write Failures
+- **Scenario:** The Daily Dispatch Cron cannot write local dispatch stops or pending service history records.
+- **Requirement:** Keep dispatch writes idempotent so the next cron run can retry without creating duplicate route work.
 
 ### 7.4. Manual Overrides
 - **Scenario:** Customer changes their trash day with the city.
@@ -202,7 +202,6 @@ To initialize the project, the following external credentials must be provisione
 - **Cloudflare:** Account ID and D1 Database ID.
 - **Stripe:** Secret Key, Webhook Secret, and Price IDs.
 - **Google Maps Platform:** API Key (Places Autocomplete & Geocoding).
-- **Routific:** API Key.
 
 ---
 
@@ -212,20 +211,20 @@ Every feature must be verified against the following SQA-grade testing matrix be
 ### 9.1. Unit Testing (Core Logic)
 - **Pricing Engine:** Verify the $45 flat fee for initial cleans (including custom overrides for D2D reps) and that recurring charges are deferred by the appropriate interval (4 or 12 weeks).
 - **Scheduling Engine:** Validate 4-week and 12-week interval calculations.
-- **Date Offsets:** Verify "Trash Day = Service Day" logic and "Holiday Shift" (+24h) calculations.
+- **Date Offsets:** Verify "Trash Day = Service Day" logic and Holiday Shift local calendar-day calculations.
 
 ### 9.2. Integration Testing (APIs & Webhooks)
 - **Stripe Webhook Simulator:** Use the Stripe CLI to trigger `checkout.session.completed` and verify D1 record creation and `service_history` logging.
-- **Routific Adapter Validation:** Mock the Routific API to ensure the generic `IRoutingService` correctly maps data to the `RoutificAdapter`.
-- **D1 Transactional Integrity:** Verify that failures in API calls (e.g., Routific timeout) do not leave the database in an inconsistent state (using the Retry Queue).
+- **Route Optimizer Validation:** Verify that the in-app optimizer sequences local dispatch stops without requiring an external routing provider.
+- **D1 Transactional Integrity:** Verify that dispatch write failures do not leave the database in an inconsistent state or create duplicate route work.
 
 ### 9.3. End-to-End (E2E) Testing
-- **D2D Onboarding Flow:** Complete a signup with a `?rep=john` parameter and verify the customer is NOT pushed to the weekly cron for their first clean.
-- **Organic Onboarding Flow:** Complete a signup without a `rep_id` and verify the customer IS pushed to the next available route.
+- **D2D Onboarding Flow:** Complete a signup with a `?rep=john` parameter and verify the immediate first clean bypasses scheduled dispatch.
+- **Organic Onboarding Flow:** Complete a signup without a `rep_id` and verify the customer is included in the next eligible scheduled dispatch route.
 - **Auth Flow:** Verify Magic Link generation, delivery (logged in dev), and successful session establishment on the Settings Page.
 
 ### 9.4. Operational Validation
-- **Cron Simulation:** Manually trigger the Weekly Dispatch Worker in a staging environment and verify it identifies exactly the correct subset of "Due" customers.
+- **Cron Simulation:** Manually trigger the Daily Dispatch Cron in a staging environment and verify it identifies exactly the correct subset of due subscriptions for the target Eastern service date.
 - **Holiday Shift Test:** Trigger a shift on a test route and verify the `service_date` updates in the dispatch payload.
 
 ### 9.5. Security & Privacy

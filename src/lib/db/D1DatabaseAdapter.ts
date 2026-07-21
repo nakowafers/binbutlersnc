@@ -133,8 +133,8 @@ export class D1DatabaseAdapter implements IDatabaseService {
         return this.subscriptions.isSubscriptionPaused(id);
     }
 
-    getDueSubscriptions(nowIso: string): Promise<DueSubscriptionResult[]> {
-        return this.subscriptions.getDueSubscriptions(nowIso);
+    getDueSubscriptions(targetServiceDate: string): Promise<DueSubscriptionResult[]> {
+        return this.subscriptions.getDueSubscriptions(targetServiceDate);
     }
 
     getActiveSubscriptionsCount(): Promise<number> {
