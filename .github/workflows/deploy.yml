@@ -73,12 +73,3 @@ jobs:
           accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
           command: deploy
           workingDirectory: workers/daily-dispatch-cron
-
-      - name: Deploy retry-cron worker
-        if: github.ref == 'refs/heads/main'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
-          command: deploy
-          workingDirectory: workers/retry-cron

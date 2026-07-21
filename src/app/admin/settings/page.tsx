@@ -1,10 +1,11 @@
 import { auth } from '@/auth';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { redirect } from 'next/navigation';
-import { AlertTriangle, Save } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { createDatabase } from '@/lib/backend/createServices';
 import { Env } from '@/lib/types';
 import { applyHolidayShift, saveDispatchSettings } from './actions';
+import { DispatchSettingsForm } from './dispatch-settings-form';
 
 export const runtime = 'edge';
 
@@ -38,56 +39,14 @@ export default async function AdminSettingsPage() {
 
             <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                 <h2 className="text-xl font-bold text-[#1C3D5A]">Dispatch</h2>
-                <form action={saveDispatchSettings} className="mt-4 grid gap-4">
-                    <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                        Default Admin-Driver
-                        <select
-                            name="default_driver_sales_rep_id"
-                            defaultValue={setup.defaultDriverId || ''}
-                            className="h-11 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-950"
-                        >
-                            <option value="">Select driver</option>
-                            {drivers.map((driver) => (
-                                <option key={driver.id} value={driver.id}>
-                                    {driver.email ? `${driver.id} (${driver.email})` : driver.id}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-
-                    <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                        Depot Address
-                        <input
-                            name="route_depot_address"
-                            defaultValue={setup.depotAddress || ''}
-                            className="h-11 rounded-md border border-slate-300 px-3 text-base"
-                        />
-                    </label>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                            Depot Latitude
-                            <input
-                                name="route_depot_lat"
-                                defaultValue={setup.depotLat ?? ''}
-                                className="h-11 rounded-md border border-slate-300 px-3 text-base"
-                            />
-                        </label>
-                        <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                            Depot Longitude
-                            <input
-                                name="route_depot_lng"
-                                defaultValue={setup.depotLng ?? ''}
-                                className="h-11 rounded-md border border-slate-300 px-3 text-base"
-                            />
-                        </label>
-                    </div>
-
-                    <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#1C3D5A] px-4 font-bold text-white">
-                        <Save size={18} />
-                        Save Dispatch Settings
-                    </button>
-                </form>
+                <DispatchSettingsForm
+                    drivers={drivers}
+                    selectedDriverId={setup.defaultDriverId || ''}
+                    depotAddress={setup.depotAddress || ''}
+                    depotLat={setup.depotLat}
+                    depotLng={setup.depotLng}
+                    action={saveDispatchSettings}
+                />
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
