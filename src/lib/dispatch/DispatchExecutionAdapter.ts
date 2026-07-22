@@ -111,7 +111,17 @@ export class DispatchExecutionAdapter {
         }
 
         try {
-            await this.dispatchStopRepo.createDispatchRoute({ history: historyInserts, stops: dispatchStops });
+            const consumedFirstServiceSubscriptionIds = preparedStops
+                .filter((stop) => stop.first_service_date === plan.date)
+                .map((stop) => stop.subscription_id);
+            await this.dispatchStopRepo.createDispatchRoute({
+                history: historyInserts,
+                stops: dispatchStops,
+                consumedFirstService: {
+                    subscriptionIds: consumedFirstServiceSubscriptionIds,
+                    serviceDate: plan.date,
+                },
+            });
             console.log(`Generated ${dispatchStops.length} local dispatch stops for ${plan.date}.`);
         } catch (batchError) {
             console.error('Failed to persist dispatch results:', batchError);

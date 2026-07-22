@@ -80,19 +80,40 @@ export class D1SubscriptionRepositoryAdapter implements ISubscriptionRepository 
               (s.status = 'one-time' AND sh_last.service_date IS NULL)
             )
             AND (
-              sh_last.service_date IS NULL
-              OR (julianday(?) - julianday(sh_last.service_date)) >= s.frequency_days
+              (sh_last.service_date IS NULL AND s.next_service_date IS NOT NULL AND s.next_service_date = ?)
+              OR (
+                sh_last.service_date IS NULL
+                AND s.next_service_date IS NULL
+              )
+              OR (
+                sh_last.service_date IS NOT NULL
+                AND (
+                  (julianday(?) - julianday(sh_last.service_date)) >= s.frequency_days
+                )
+              )
             )
             AND NOT EXISTS (
-              SELECT 1 FROM service_history sh 
-              WHERE sh.subscription_id = s.id 
-              AND sh.dispatch_status = 'Pending'
+              SELECT 1 FROM dispatch_stops ds
+              WHERE ds.subscription_id = s.id
+              AND ds.service_date = ?
             )
         `;
         const { results } = await this.db.prepare(query)
-            .bind(targetServiceDateStartIso, targetServiceDate)
+            .bind(targetServiceDateStartIso, targetServiceDate, targetServiceDate, targetServiceDate)
             .all<DueSubscriptionResult>();
         return results || [];
+    }
+
+    async clearConsumedFirstServiceDates(subscriptionIds: string[], serviceDate: string): Promise<void> {
+        if (subscriptionIds.length === 0) return;
+
+        const placeholders = subscriptionIds.map(() => '?').join(', ');
+        await this.db.prepare(
+            `UPDATE subscriptions
+             SET next_service_date = NULL
+             WHERE next_service_date = ?
+             AND id IN (${placeholders})`
+        ).bind(serviceDate, ...subscriptionIds).run();
     }
 
     async getActiveSubscriptionsCount(): Promise<number> {
@@ -107,5 +128,11 @@ export class D1SubscriptionRepositoryAdapter implements ISubscriptionRepository 
             "SELECT SUM(CASE WHEN frequency_days = 28 THEN 7.50 WHEN frequency_days = 56 THEN 5.00 WHEN frequency_days = 84 THEN 3.33 ELSE 0 END) as total_revenue FROM subscriptions WHERE status = 'active'"
         ).first<{ total_revenue: number }>();
         return result?.total_revenue || 0;
+    }
+
+    async updateSubscriptionFirstServiceDate(id: string, firstServiceDate: string): Promise<void> {
+        await this.db.prepare('UPDATE subscriptions SET next_service_date = ? WHERE id = ?')
+            .bind(firstServiceDate, id)
+            .run();
     }
 }

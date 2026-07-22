@@ -55,6 +55,7 @@ export interface Subscription {
     current_period_end?: string;
     is_paused: boolean;
     frequency_days: number;
+    next_service_date?: string | null;
     created_at: string;
 }
 
@@ -139,4 +140,9 @@ export interface CustomerWithDetails {
     current_period_end?: string;
     next_service_date?: string;
     is_paused?: boolean;
+    needs_first_service_reschedule?: boolean | number;
+    completed_service_count?: number;
+    skipped_service_count?: number;
+    completedServiceCount?: number;
+    skippedServiceCount?: number;
 }
