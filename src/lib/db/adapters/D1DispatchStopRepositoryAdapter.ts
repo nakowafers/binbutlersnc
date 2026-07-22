@@ -58,7 +58,19 @@ export class D1DispatchStopRepositoryAdapter implements IDispatchStopRepository 
             stop.customerPhone
         ));
 
-        await this.db.batch([...historyStatements, ...stopStatements]);
+        const consumedFirstService = route.consumedFirstService;
+        const clearConsumedFirstServiceStatements = consumedFirstService && consumedFirstService.subscriptionIds.length > 0
+            ? [
+                this.db.prepare(
+                    `UPDATE subscriptions
+                     SET next_service_date = NULL
+                     WHERE next_service_date = ?
+                     AND id IN (${consumedFirstService.subscriptionIds.map(() => '?').join(', ')})`
+                ).bind(consumedFirstService.serviceDate, ...consumedFirstService.subscriptionIds),
+            ]
+            : [];
+
+        await this.db.batch([...historyStatements, ...stopStatements, ...clearConsumedFirstServiceStatements]);
     }
 
     async getRouteStops(driverSalesRepId: string, serviceDate: string, includeTerminal = false): Promise<DispatchStop[]> {

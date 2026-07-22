@@ -56,6 +56,23 @@ export class D1ServiceHistoryRepositoryAdapter implements IServiceHistoryReposit
         .run();
     }
 
+    async getFirstServiceAttemptSummary(subscriptionId: string): Promise<{ completedCount: number; skippedCount: number }> {
+        const result = await this.db.prepare(
+            `SELECT
+                SUM(CASE WHEN dispatch_status = 'Completed' THEN 1 ELSE 0 END) as completedCount,
+                SUM(CASE WHEN dispatch_status = 'Skipped' THEN 1 ELSE 0 END) as skippedCount
+             FROM service_history
+             WHERE subscription_id = ?`
+        )
+        .bind(subscriptionId)
+        .first<{ completedCount: number | null; skippedCount: number | null }>();
+
+        return {
+            completedCount: result?.completedCount || 0,
+            skippedCount: result?.skippedCount || 0,
+        };
+    }
+
     async logDispatchedJobs(
         historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number }>,
         retryInserts: Array<{ id: string; subscriptionId: string; date: string; errorMsg: string }>

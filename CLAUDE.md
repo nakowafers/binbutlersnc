@@ -4,7 +4,7 @@
 
 ### Issue tracker
 
-Issues are tracked using GitHub Issues (PRs are not treated as a triage surface). See `docs/agents/issue-tracker.md`.
+Issues and specs are tracked as local markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

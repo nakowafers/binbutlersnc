@@ -101,7 +101,7 @@ describe('Next Service Date - Webhook Integration', () => {
     });
 
     describe('Subscription + same-day next_service_date', () => {
-        it('should create a Completed service_history when next_service_date is today', async () => {
+        it('stores the date on the subscription without creating service_history for organic onboarding', async () => {
             const leadId = 'lead_sameday_sub';
             seedLead(simulator, leadId, 'sameday-sub@example.com', '101 SameDay Sub St', null);
 
@@ -117,14 +117,12 @@ describe('Next Service Date - Webhook Integration', () => {
             expect(sub.next_service_date).toBe(today());
 
             const services = getServiceRecords(simulator);
-            expect(services.length).toBe(1);
-            expect(services[0].dispatch_status).toBe('Completed');
-            expect(services[0].service_date).toBe(today());
+            expect(services).toHaveLength(0);
         });
     });
 
     describe('Subscription + future next_service_date', () => {
-        it('should create a Pending service_history when next_service_date is in the future', async () => {
+        it('stores the date on the subscription without creating service_history', async () => {
             const leadId = 'lead_future_sub';
             const future = futureDate(14);
             seedLead(simulator, leadId, 'future-sub@example.com', '202 Future Sub Ave', null);
@@ -141,14 +139,12 @@ describe('Next Service Date - Webhook Integration', () => {
             expect(sub.next_service_date).toBe(future);
 
             const services = getServiceRecords(simulator);
-            expect(services.length).toBe(1);
-            expect(services[0].dispatch_status).toBe('Pending');
-            expect(services[0].service_date).toBe(future);
+            expect(services).toHaveLength(0);
         });
     });
 
     describe('One-time + same-day next_service_date', () => {
-        it('should create a Completed service_history for one-time with same-day date', async () => {
+        it('stores the date on the subscription without creating service_history for organic onboarding', async () => {
             const leadId = 'lead_sameday_ot';
             seedLead(simulator, leadId, 'sameday-ot@example.com', '303 SameDay OT Blvd', null);
 
@@ -167,14 +163,12 @@ describe('Next Service Date - Webhook Integration', () => {
             expect(sub.next_service_date).toBe(today());
 
             const services = getServiceRecords(simulator);
-            expect(services.length).toBe(1);
-            expect(services[0].dispatch_status).toBe('Completed');
-            expect(services[0].service_date).toBe(today());
+            expect(services).toHaveLength(0);
         });
     });
 
     describe('One-time + future next_service_date', () => {
-        it('should create a Pending service_history for one-time with future date', async () => {
+        it('stores the date on the subscription without creating service_history', async () => {
             const leadId = 'lead_future_ot';
             const future = futureDate(10);
             seedLead(simulator, leadId, 'future-ot@example.com', '404 Future OT Ct', null);
@@ -188,10 +182,13 @@ describe('Next Service Date - Webhook Integration', () => {
             expect(response.status).toBe(200);
 
             const customer = getCustomer(simulator, 'future-ot@example.com');
+            const sub = getSubscription(simulator, customer.id);
+            expect(sub.frequency_days).toBe(0);
+            expect(sub.status).toBe('one-time');
+            expect(sub.next_service_date).toBe(future);
+
             const services = getServiceRecords(simulator);
-            expect(services.length).toBe(1);
-            expect(services[0].dispatch_status).toBe('Pending');
-            expect(services[0].service_date).toBe(future);
+            expect(services).toHaveLength(0);
         });
     });
 
@@ -212,10 +209,10 @@ describe('Next Service Date - Webhook Integration', () => {
             expect(services.length).toBe(1);
             expect(services[0].dispatch_status).toBe('Completed');
             expect(services[0].sales_rep_id).toBe('REP_001');
-            expect(services[0].service_date).toBe(today());
+            expect(services[0].service_date).toContain(today());
         });
 
-        it('should create Pending for D2D with future date and still populate sales_rep_id', async () => {
+        it('creates immediate Completed history for D2D and does not schedule the future date', async () => {
             const leadId = 'lead_d2d_future';
             const future = futureDate(7);
             seedLead(simulator, leadId, 'd2d-future@example.com', '606 D2D Future Ln', 'REP_002');
@@ -228,11 +225,15 @@ describe('Next Service Date - Webhook Integration', () => {
             const response = await processWebhook(simulator, event);
             expect(response.status).toBe(200);
 
+            const customer = getCustomer(simulator, 'd2d-future@example.com');
+            const sub = getSubscription(simulator, customer.id);
+            expect(sub.next_service_date).toBeNull();
+
             const services = getServiceRecords(simulator);
             expect(services.length).toBe(1);
-            expect(services[0].dispatch_status).toBe('Pending');
+            expect(services[0].dispatch_status).toBe('Completed');
             expect(services[0].sales_rep_id).toBe('REP_002');
-            expect(services[0].service_date).toBe(future);
+            expect(services[0].service_date).toContain(today());
         });
     });
 
@@ -289,8 +290,7 @@ describe('Next Service Date - Webhook Integration', () => {
             expect(sub.next_service_date).toBe(future);
 
             const services = getServiceRecords(simulator);
-            expect(services[0].dispatch_status).toBe('Pending');
-            expect(services[0].service_date).toBe(future);
+            expect(services).toHaveLength(0);
         });
     });
 });

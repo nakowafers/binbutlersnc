@@ -23,7 +23,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
-import { getTodayDateString, getMaximumDate, isTrashDayMatch, isWeekday } from "@/lib/date-utils";
+import { getTodayDateString, getMaximumDate, isTrashDayMatch, isWeekday, validateFirstServiceDate } from "@/lib/date-utils";
 
 const todayStr = getTodayDateString();
 const maxDate = getMaximumDate();
@@ -57,17 +57,13 @@ const signupSchema = z.object({
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['address'], message: 'Sorry, we don\'t service this area yet' });
     }
     if (data.next_service_date) {
-        if (data.next_service_date < todayStr) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: 'Service date cannot be in the past' });
-        }
-        if (data.next_service_date > maxDate) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: 'Service date must be within 180 days' });
-        }
-        if (data.frequency !== 'one-time' && !isTrashDayMatch(data.next_service_date, data.trash_day)) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: `Service date must be a ${data.trash_day}` });
-        }
-        if (data.frequency === 'one-time' && !isWeekday(data.next_service_date)) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: 'Service date must be a weekday' });
+        const dateError = validateFirstServiceDate({
+            date: data.next_service_date,
+            serviceDay: data.trash_day,
+            isOneTime: data.frequency === 'one-time',
+        });
+        if (dateError) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: dateError });
         }
     }
     if (data.frequency === 'one-time') return;

@@ -20,9 +20,10 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
-import { Loader2, Pencil } from 'lucide-react';
+import { CalendarClock, Loader2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CustomerWithDetails } from '@/lib/types';
+import { getDayLabel } from '@/lib/date-utils';
 
 interface EditCustomerDialogProps {
     customer: CustomerWithDetails | null;
@@ -39,11 +40,6 @@ const SCENTS = [
 
 const TRASH_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'] as const;
 
-const DAY_LABELS: Record<string, string> = {
-    MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday',
-    THU: 'Thursday', FRI: 'Friday',
-};
-
 export function EditCustomerDialog({ customer, open, onOpenChange, onSaved }: EditCustomerDialogProps) {
     const [firstName, setFirstName] = useState(customer?.first_name || '');
     const [lastName, setLastName] = useState(customer?.last_name || '');
@@ -55,6 +51,8 @@ export function EditCustomerDialog({ customer, open, onOpenChange, onSaved }: Ed
     const [scentPreference, setScentPreference] = useState(customer?.scent_preference || 'lavender');
     const [notes, setNotes] = useState(customer?.notes || '');
     const [saving, setSaving] = useState(false);
+    const [manualRescheduleDate, setManualRescheduleDate] = useState(customer?.next_service_date || '');
+    const [rescheduling, setRescheduling] = useState(false);
 
     const handleAddressSelected = (address: string, lat?: number, lng?: number) => {
         setRawAddress(address);
@@ -114,6 +112,38 @@ export function EditCustomerDialog({ customer, open, onOpenChange, onSaved }: Ed
             toast.error(error instanceof Error ? error.message : 'Failed to save customer');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleManualReschedule = async () => {
+        if (!customer) return;
+        setRescheduling(true);
+
+        try {
+            const res = await fetch('/api/admin/customers/update', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customerId: customer.id,
+                    addressId: customer.address_id || '',
+                    manualRescheduleFirstServiceDate: manualRescheduleDate,
+                    serviceDay: customer.service_day,
+                }),
+            });
+
+            if (!res.ok) {
+                const data = await res.json() as { error?: string };
+                throw new Error(data.error || 'Failed to reschedule');
+            }
+
+            toast.success('First Service Date updated');
+            onOpenChange(false);
+            onSaved();
+        } catch (error) {
+            console.error('Error rescheduling first service:', error);
+            toast.error(error instanceof Error ? error.message : 'Failed to reschedule first service');
+        } finally {
+            setRescheduling(false);
         }
     };
 
@@ -185,7 +215,7 @@ export function EditCustomerDialog({ customer, open, onOpenChange, onSaved }: Ed
                             </SelectTrigger>
                             <SelectContent>
                                 {TRASH_DAYS.map(day => (
-                                    <SelectItem key={day} value={day}>{DAY_LABELS[day]}</SelectItem>
+                                    <SelectItem key={day} value={day}>{getDayLabel(day)}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -215,6 +245,41 @@ export function EditCustomerDialog({ customer, open, onOpenChange, onSaved }: Ed
                             className="w-full min-h-[80px] text-sm border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-[#7AC142]/30 focus:border-[#7AC142] resize-y"
                         />
                     </div>
+
+                    {customer.needs_first_service_reschedule ? (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+                            <div className="flex items-center gap-2">
+                                <CalendarClock size={18} className="text-amber-700" />
+                                <Label htmlFor="manual-reschedule-date" className="text-[#1C3D5A] font-semibold text-sm">
+                                    Manual Reschedule
+                                </Label>
+                            </div>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                <Input
+                                    id="manual-reschedule-date"
+                                    type="date"
+                                    value={manualRescheduleDate}
+                                    onChange={e => setManualRescheduleDate(e.target.value)}
+                                    className="rounded-xl border-amber-200 bg-white focus:border-amber-500 focus:ring-amber-500"
+                                />
+                                <Button
+                                    type="button"
+                                    onClick={handleManualReschedule}
+                                    disabled={rescheduling}
+                                    className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white sm:w-auto"
+                                >
+                                    {rescheduling ? (
+                                        <>
+                                            <Loader2 size={16} className="mr-2 animate-spin" />
+                                            Rescheduling...
+                                        </>
+                                    ) : (
+                                        'Manual Reschedule'
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
 
                 <DialogFooter className="gap-2 sm:gap-0">

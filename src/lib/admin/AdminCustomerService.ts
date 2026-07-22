@@ -1,5 +1,8 @@
-import { ICustomerRepository } from '@/lib/db/types';
+import { ICustomerRepository, IServiceHistoryRepository, ISubscriptionRepository } from '@/lib/db/types';
+import { getTodayDateString, validateFirstServiceDate } from '@/lib/date-utils';
 import { IPaymentService } from '@/lib/payment/types';
+
+type AdminCustomerRepository = ICustomerRepository & ISubscriptionRepository & IServiceHistoryRepository;
 
 export interface AdminCustomerUpdateInput {
     customerId: string;
@@ -11,24 +14,42 @@ export interface AdminCustomerUpdateInput {
     latitude?: number | null;
     longitude?: number | null;
     trashDay?: string;
+    serviceDay?: string;
     notes?: string;
     scentPreference?: string;
+    manualRescheduleFirstServiceDate?: string;
 }
 
 export class AdminCustomerService {
     constructor(
-        private readonly customerRepo: ICustomerRepository,
+        private readonly customerRepo: AdminCustomerRepository,
         private readonly paymentService: IPaymentService,
         private readonly stripeConfigured: boolean
     ) {}
 
     async listCustomers() {
-        return this.customerRepo.getAllCustomersWithDetails();
+        const customers = await this.customerRepo.getAllCustomersWithDetails();
+        const today = getTodayDateString();
+
+        return customers.map((customer) => {
+            const completedServiceCount = Number(customer.completed_service_count ?? customer.completedServiceCount ?? 0);
+            const skippedServiceCount = Number(customer.skipped_service_count ?? customer.skippedServiceCount ?? 0);
+            const hasMissedFirstServiceDate = !!customer.next_service_date && customer.next_service_date < today;
+
+            return {
+                ...customer,
+                needs_first_service_reschedule: completedServiceCount === 0 && (skippedServiceCount > 0 || hasMissedFirstServiceDate),
+            };
+        });
     }
 
     async updateCustomer(input: AdminCustomerUpdateInput): Promise<void> {
         if (!input.customerId) {
             throw new AdminServiceError(400, 'Missing customerId');
+        }
+
+        if (input.manualRescheduleFirstServiceDate !== undefined) {
+            await this.manualRescheduleFirstService(input);
         }
 
         const hasCustomerUpdates = input.firstName !== undefined || input.lastName !== undefined || input.phoneNumber !== undefined;
@@ -58,7 +79,9 @@ export class AdminCustomerService {
             });
         }
 
-        await this.syncStripeMetadata(input);
+        if (hasCustomerUpdates || hasAddressUpdates) {
+            await this.syncStripeMetadata(input);
+        }
     }
 
     async updateNotes(addressId: string, notes: string): Promise<void> {
@@ -127,7 +150,39 @@ export class AdminCustomerService {
             phoneNumber: input.phoneNumber ?? customer.phone_number ?? '',
             lat: mergedLat,
             lng: mergedLng,
+            nextServiceDate: input.manualRescheduleFirstServiceDate,
         });
+    }
+
+    private async manualRescheduleFirstService(input: AdminCustomerUpdateInput): Promise<void> {
+        const subscription = await this.customerRepo.getSubscriptionByCustomerId(input.customerId);
+        if (!subscription) {
+            throw new AdminServiceError(404, 'Subscription not found');
+        }
+
+        const serviceDay = input.addressId ? (await this.customerRepo.getAddressById(input.addressId))?.service_day : null;
+        const isOneTime = subscription.status === 'one-time' || subscription.frequency_days === 0;
+        const validationError = validateFirstServiceDate({
+            date: input.manualRescheduleFirstServiceDate || '',
+            serviceDay,
+            isOneTime,
+        });
+
+        if (validationError) {
+            throw new AdminServiceError(400, validationError);
+        }
+
+        const attemptSummary = await this.customerRepo.getFirstServiceAttemptSummary(subscription.id);
+        const hasCompletedService = attemptSummary.completedCount > 0;
+        const hasSkippedAttempt = attemptSummary.skippedCount > 0;
+        const hasMissedFirstServiceDate = !!subscription.next_service_date
+            && subscription.next_service_date < getTodayDateString();
+
+        if (hasCompletedService || (!hasSkippedAttempt && !hasMissedFirstServiceDate)) {
+            throw new AdminServiceError(400, 'Manual Reschedule is only available for first-service problems');
+        }
+
+        await this.customerRepo.updateSubscriptionFirstServiceDate(subscription.id, input.manualRescheduleFirstServiceDate || '');
     }
 }
 
