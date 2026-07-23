@@ -105,13 +105,14 @@ export class D1DispatchStopRepositoryAdapter implements IDispatchStopRepository 
             this.db.prepare(
                 `UPDATE service_history
                  SET dispatch_status = 'Completed',
-                     service_date = COALESCE(?, service_date)
+                     service_date = ?
                  WHERE id = ?`
-            ).bind(completedAt, stop.service_history_id),
+            ).bind(stop.service_date, stop.service_history_id),
         ]);
     }
 
-    async skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, skippedAt: string): Promise<void> {
+    async skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, _skippedAt: string): Promise<void> {
+        void _skippedAt;
         const stop = await this.getStopById(id);
         if (!stop || stop.dispatch_status !== 'assigned') return;
 
@@ -127,9 +128,9 @@ export class D1DispatchStopRepositoryAdapter implements IDispatchStopRepository 
             this.db.prepare(
                 `UPDATE service_history
                  SET dispatch_status = 'Skipped',
-                     service_date = COALESCE(?, service_date)
+                     service_date = ?
                  WHERE id = ?`
-            ).bind(skippedAt, stop.service_history_id),
+            ).bind(stop.service_date, stop.service_history_id),
         ]);
     }
 

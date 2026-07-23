@@ -46,7 +46,7 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
     function seedSubscriptionWithOptions(id: string, options: {
         serviceDay?: string;
         status?: string;
-        currentPeriodEnd?: string;
+        currentPeriodEnd?: string | null;
         latitude?: number | null;
         longitude?: number | null;
     } = {}) {
@@ -72,7 +72,7 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
         simulator.db.prepare('UPDATE customers SET address_id = ? WHERE id = ?').run(addressId, customerId);
         simulator.db.prepare(
             'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, current_period_end, frequency_days) VALUES (?, ?, ?, ?, ?, ?)'
-        ).run(`sub_${id}`, customerId, `stripe_${id}`, options.status || 'active', options.currentPeriodEnd || '2026-06-20T00:00:00.000Z', 28);
+        ).run(`sub_${id}`, customerId, `stripe_${id}`, options.status || 'active', options.currentPeriodEnd ?? '2026-06-20T00:00:00.000Z', 28);
     }
 
     it.each([
@@ -300,6 +300,28 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
         expect(history).toEqual([
             { service_date: '2024-05-07', dispatch_status: 'Skipped' },
             { service_date: '2024-05-14', dispatch_status: 'Pending' },
+        ]);
+    });
+
+    it('does not regenerate a one-time service after it has been skipped', async () => {
+        seedSubscriptionWithOptions('skipped_one_time', {
+            status: 'one-time',
+            currentPeriodEnd: null,
+        });
+        simulator.db.prepare(
+            "UPDATE subscriptions SET frequency_days = 0, next_service_date = NULL WHERE id = 'sub_skipped_one_time'"
+        ).run();
+        simulator.db.prepare(
+            "INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES ('skipped_one_time_attempt', 'sub_skipped_one_time', '2024-05-07', 'Skipped')"
+        ).run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        expect(simulator.db.prepare('SELECT * FROM dispatch_stops').all()).toHaveLength(0);
+        expect(simulator.db.prepare(
+            "SELECT service_date, dispatch_status FROM service_history WHERE subscription_id = 'sub_skipped_one_time' ORDER BY service_date"
+        ).all()).toEqual([
+            { service_date: '2024-05-07', dispatch_status: 'Skipped' },
         ]);
     });
 
