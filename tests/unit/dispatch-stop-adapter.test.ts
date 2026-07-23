@@ -106,8 +106,9 @@ describe('D1DispatchStopRepositoryAdapter', () => {
         await repo.markDispatchStopCompleted('stop_1', 'DRIVER', '2026-07-15T10:00:00.000Z');
 
         expect(await repo.getRouteStops('DRIVER', '2026-07-15')).toEqual([]);
-        const history = await d1Mock.prepare("SELECT dispatch_status FROM service_history WHERE id = 'hist_1'").first<{ dispatch_status: string }>();
+        const history = await d1Mock.prepare("SELECT dispatch_status, service_date FROM service_history WHERE id = 'hist_1'").first<{ dispatch_status: string; service_date: string }>();
         expect(history?.dispatch_status).toBe('Completed');
+        expect(history?.service_date).toBe('2026-07-15');
     });
 
     it('completes only the service history linked to the acted-on stop', async () => {
@@ -167,10 +168,11 @@ describe('D1DispatchStopRepositoryAdapter', () => {
         await repo.skipDispatchStop('stop_1', 'DRIVER', 'Gate locked', '2026-07-15T10:00:00.000Z');
 
         const stop = await repo.getStopById('stop_1');
-        const history = await d1Mock.prepare("SELECT dispatch_status FROM service_history WHERE id = 'hist_1'").first<{ dispatch_status: string }>();
+        const history = await d1Mock.prepare("SELECT dispatch_status, service_date FROM service_history WHERE id = 'hist_1'").first<{ dispatch_status: string; service_date: string }>();
         expect(stop?.dispatch_status).toBe('skipped');
         expect(stop?.skip_reason).toBe('Gate locked');
         expect(history?.dispatch_status).toBe('Skipped');
+        expect(history?.service_date).toBe('2026-07-15');
     });
 
     it('skips only the service history linked to the acted-on stop', async () => {

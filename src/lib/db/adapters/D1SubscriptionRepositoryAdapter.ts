@@ -77,18 +77,28 @@ export class D1SubscriptionRepositoryAdapter implements ISubscriptionRepository 
             WHERE (
               (s.status IN ('active', 'canceled', 'cancelled') AND s.is_paused = FALSE AND s.current_period_end > ?)
               OR
-              (s.status = 'one-time' AND sh_last.service_date IS NULL)
+              (s.status = 'one-time' AND s.is_paused = FALSE AND sh_last.service_date IS NULL)
             )
             AND (
-              (sh_last.service_date IS NULL AND s.next_service_date IS NOT NULL AND s.next_service_date = ?)
-              OR (
-                sh_last.service_date IS NULL
-                AND s.next_service_date IS NULL
+              (
+                s.status = 'one-time'
+                AND s.next_service_date IS NOT NULL
+                AND s.next_service_date = ?
               )
               OR (
-                sh_last.service_date IS NOT NULL
+                s.status IN ('active', 'canceled', 'cancelled')
                 AND (
-                  (julianday(?) - julianday(sh_last.service_date)) >= s.frequency_days
+                  (sh_last.service_date IS NULL AND s.next_service_date IS NOT NULL AND s.next_service_date = ?)
+                  OR (
+                    sh_last.service_date IS NULL
+                    AND s.next_service_date IS NULL
+                  )
+                  OR (
+                    sh_last.service_date IS NOT NULL
+                    AND (
+                      (julianday(?) - julianday(sh_last.service_date)) >= s.frequency_days
+                    )
+                  )
                 )
               )
             )
@@ -99,7 +109,7 @@ export class D1SubscriptionRepositoryAdapter implements ISubscriptionRepository 
             )
         `;
         const { results } = await this.db.prepare(query)
-            .bind(targetServiceDateStartIso, targetServiceDate, targetServiceDate, targetServiceDate)
+            .bind(targetServiceDateStartIso, targetServiceDate, targetServiceDate, targetServiceDate, targetServiceDate)
             .all<DueSubscriptionResult>();
         return results || [];
     }
