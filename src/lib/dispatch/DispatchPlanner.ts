@@ -12,6 +12,7 @@ export interface PlannedDispatchCandidate {
     customer_phone?: string | null;
     service_notes?: string | null;
     customer_scent?: string | null;
+    first_service_date?: string | null;
 }
 
 export interface PlannedDispatchBatch {
@@ -55,6 +56,7 @@ export class DispatchPlanner {
                 customer_phone: row.phone_number || null,
                 service_notes: row.notes || null,
                 customer_scent: row.scent_preference || null,
+                first_service_date: row.next_service_date || null,
             });
         }
 

@@ -13,6 +13,7 @@ export interface DueSubscriptionResult extends Subscription {
     notes?: string | null;
     scent_preference?: string | null;
     bin_quantity?: number;
+    next_service_date?: string | null;
 }
 
 // 1. Lead Operations & Transactions
@@ -97,8 +98,10 @@ export interface ISubscriptionRepository {
     updateSubscriptionStatus(stripeSubscriptionId: string, status: string, currentPeriodEnd: string | null): Promise<void>;
     isSubscriptionPaused(id: string): Promise<boolean>;
     getDueSubscriptions(targetServiceDate: string): Promise<DueSubscriptionResult[]>;
+    clearConsumedFirstServiceDates(subscriptionIds: string[], serviceDate: string): Promise<void>;
     getActiveSubscriptionsCount(): Promise<number>;
     calculateEstimatedWeeklyRevenue(): Promise<number>;
+    updateSubscriptionFirstServiceDate(id: string, firstServiceDate: string): Promise<void>;
 }
 
 // 4. Fulfillment & Service History Operations
@@ -109,6 +112,7 @@ export interface IServiceHistoryRepository {
     
     updateServiceHistoryOnCompletion(subscriptionId: string, completedAt: string | null): Promise<void>;
     updateServiceHistoryOnSkipped(subscriptionId: string, completedAt: string | null): Promise<void>;
+    getFirstServiceAttemptSummary(subscriptionId: string): Promise<{ completedCount: number; skippedCount: number }>;
     
     logDispatchedJobs(
         historyInserts: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number }>,
@@ -158,6 +162,7 @@ export interface CreateDispatchStopInput {
 export interface CreateDispatchRouteInput {
     history: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number }>;
     stops: CreateDispatchStopInput[];
+    consumedFirstService?: { subscriptionIds: string[]; serviceDate: string };
 }
 
 export interface IDispatchStopRepository {

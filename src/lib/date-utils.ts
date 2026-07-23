@@ -4,6 +4,19 @@ const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_
 const hourFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false });
 
 const TRASH_DAY_MAP: Record<string, number> = { 'SUN': 0, 'MON': 1, 'TUE': 2, 'WED': 3, 'THU': 4, 'FRI': 5, 'SAT': 6 };
+const DAY_LABELS: Record<string, string> = {
+    SUN: 'Sunday',
+    MON: 'Monday',
+    TUE: 'Tuesday',
+    WED: 'Wednesday',
+    THU: 'Thursday',
+    FRI: 'Friday',
+    SAT: 'Saturday',
+};
+
+export function getDayLabel(day: string): string {
+    return DAY_LABELS[day.toUpperCase()] || day;
+}
 
 export function getTodayDateString(): string {
     const now = new Date();
@@ -80,4 +93,36 @@ export function getDisabledDays(trashDay?: string): (date: Date) => boolean {
         if (trashDay) return !isTrashDayMatch(dateStr, trashDay);
         return !isWeekday(dateStr);
     };
+}
+
+export function validateFirstServiceDate(input: {
+    date: string;
+    serviceDay?: string | null;
+    isOneTime: boolean;
+}): string | null {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) {
+        return 'First Service Date is required';
+    }
+
+    if (input.date < getMinimumDate()) {
+        return 'First Service Date cannot be in the past';
+    }
+
+    if (input.date > getMaximumDate()) {
+        return 'First Service Date must be within 180 days';
+    }
+
+    if (input.isOneTime) {
+        return isWeekday(input.date) ? null : 'First Service Date must be a weekday';
+    }
+
+    if (!input.serviceDay) {
+        return 'Service Day is required for Manual Reschedule';
+    }
+
+    if (!isTrashDayMatch(input.date, input.serviceDay)) {
+        return `First Service Date must be a ${getDayLabel(input.serviceDay)}`;
+    }
+
+    return null;
 }
