@@ -1,7 +1,3 @@
-import { getTodayDateString } from '../date-utils.ts';
-
-export { getTodayDateString };
-
 export interface OrphanPendingServiceHistoryAuditRow {
     service_history_id: string;
     service_history_service_date: string;
@@ -119,6 +115,12 @@ export function getServiceDayForDate(date: string): string {
     const dayIndex = new Date(`${date}T12:00:00.000Z`).getUTCDay();
     const serviceDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     return serviceDays[dayIndex];
+}
+
+const easternDateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' });
+
+export function getTodayDateString(): string {
+    return easternDateFormatter.format(new Date());
 }
 
 export function buildOrphanPendingAuditReportSql(targetServiceDate: string): string {
