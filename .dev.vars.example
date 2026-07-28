@@ -13,7 +13,6 @@ STRIPE_WEBHOOK_SECRET=whsec_your_webhook_signing_secret
 STRIPE_MONTHLY_PRICE_ID=price_your_monthly_price_id
 STRIPE_BIMONTHLY_PRICE_ID=price_1Tgdhm9YOp5QQHCl01esKma2
 STRIPE_QUARTERLY_PRICE_ID=price_your_quarterly_price_id
-STRIPE_QUARTERLY_PRICE_ID_V2=price_your_new_quarterly_price_id
 STRIPE_ONETIME_PRICE_ID=price_your_onetime_price_id
 # Should correspond to a $45 Stripe Price (updated for $45 default setup fee)
 STRIPE_SETUP_FEE_PRICE_ID=price_your_setup_fee_price_id

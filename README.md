@@ -11,8 +11,7 @@ This project requires the following environment variables. Copy `.dev.vars.examp
 | `STRIPE_SECRET_KEY` | [Stripe Dashboard](https://dashboard.stripe.com/apikeys) (test mode) | Yes |
 | `STRIPE_WEBHOOK_SECRET` | Stripe Dashboard > Webhooks | Yes |
 | `STRIPE_MONTHLY_PRICE_ID` | Stripe Dashboard > Products | Yes |
-| `STRIPE_QUARTERLY_PRICE_ID` | Stripe Dashboard > Products (legacy rollback) | Yes |
-| `STRIPE_QUARTERLY_PRICE_ID_V2` | Stripe Dashboard > Products (new quarterly checkouts) | Yes |
+| `STRIPE_QUARTERLY_PRICE_ID` | Stripe Dashboard > Products | Yes |
 | `STRIPE_ONETIME_PRICE_ID` | Stripe Dashboard > Products | Yes |
 | `STRIPE_SETUP_FEE_PRICE_ID` | Stripe Dashboard > Products | Yes |
 | `ROUTIFIC_API_KEY` | [Routific Settings](https://beta.routific.com/settings?view=integrations) | Yes |

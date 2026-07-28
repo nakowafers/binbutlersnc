@@ -72,8 +72,7 @@ describe('Checkout API - Integration Tests', () => {
             DB: simulator,
             STRIPE_SECRET_KEY: 'sk_test_123',
             STRIPE_MONTHLY_PRICE_ID: 'price_monthly',
-            STRIPE_QUARTERLY_PRICE_ID: 'price_quarterly_legacy',
-            STRIPE_QUARTERLY_PRICE_ID_V2: 'price_quarterly_v2',
+            STRIPE_QUARTERLY_PRICE_ID: 'price_quarterly',
             STRIPE_ONETIME_PRICE_ID: 'price_onetime',
             STRIPE_SETUP_FEE_PRICE_ID: 'price_setup',
             STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID: 'price_extra_monthly',
@@ -140,7 +139,7 @@ describe('Checkout API - Integration Tests', () => {
         }));
     });
 
-    it('should create quarterly checkout with the V2 base price and extra-bin surcharge', async () => {
+    it('should create quarterly checkout with the configured base price and extra-bin surcharge', async () => {
         mockCreateSession.mockResolvedValue({ url: 'https://stripe.com/checkout/session/quarterly' });
 
         const request = new Request('http://localhost/api/checkout', {
@@ -154,7 +153,7 @@ describe('Checkout API - Integration Tests', () => {
         expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({
             mode: 'subscription',
             line_items: [
-                { price: 'price_quarterly_v2', quantity: 1 },
+                { price: 'price_quarterly', quantity: 1 },
                 { price: 'price_setup', quantity: 1 },
                 { price: 'price_extra_quarterly', quantity: 1 },
             ],
@@ -165,13 +164,13 @@ describe('Checkout API - Integration Tests', () => {
         }));
     });
 
-    it('should reject quarterly checkout when the V2 Stripe price is missing', async () => {
-        delete mockEnv.STRIPE_QUARTERLY_PRICE_ID_V2;
+    it('should reject quarterly checkout when the Stripe price is missing', async () => {
+        delete mockEnv.STRIPE_QUARTERLY_PRICE_ID;
 
         const request = new Request('http://localhost/api/checkout', {
             method: 'POST',
             body: JSON.stringify(quarterlyCheckoutBody({
-                email: 'missing-quarterly-v2@example.com',
+                email: 'missing-quarterly-price@example.com',
                 first_name: 'Missing',
                 bin_quantity: 2,
             })),
@@ -181,7 +180,7 @@ describe('Checkout API - Integration Tests', () => {
         const data = await response.json();
 
         expect(response.status).toBe(500);
-        expect(data.error).toContain('STRIPE_QUARTERLY_PRICE_ID_V2');
+        expect(data.error).toContain('STRIPE_QUARTERLY_PRICE_ID');
         expect(mockCreateSession).not.toHaveBeenCalled();
     });
 
