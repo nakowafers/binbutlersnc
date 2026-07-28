@@ -164,62 +164,62 @@ export default async function Home() {
               </p>
             </div>
             <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-              {/* Monthly */}
-              <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group">
-                <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">Monthly</h3>
-                <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-4xl font-extrabold text-[#1C3D5A]">${monthlyPrice}</span>
-                  <span className="text-slate-500">/mo</span>
+              {/* Monthly - Featured */}
+              <div className="flex flex-col p-10 bg-[#1C3D5A] rounded-[2.5rem] text-white shadow-2xl relative scale-105">
+                <div className="absolute top-0 right-10 -translate-y-1/2 bg-[#7AC142] text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
+                  Best for Year-Round Freshness
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 mb-6">
+                <h3 className="text-2xl font-bold mb-2">Monthly</h3>
+                <div className="flex items-baseline gap-1 mb-1">
+                  <span className="text-4xl font-extrabold text-white">${monthlyPrice}</span>
+                  <span className="text-slate-300">/mo</span>
+                </div>
+                <p className="text-xs text-slate-300 mt-1 mb-6">
                   Up to 2 bins included. $5/mo per extra bin.
                 </p>
-                <p className="text-slate-600 mb-8">Best for keeping bins fresh year-round</p>
+                <p className="text-slate-300 mb-8">Our most frequent service for consistent, year-round care.</p>
                 <ul className="space-y-4 mb-10 flex-grow">
-                  <li className="flex items-center gap-3 text-slate-600">
+                  <li className="flex items-center gap-3 text-slate-200">
                     <CheckCircle2 size={18} className="text-[#7AC142]" /> Cleaned every 4 weeks
                   </li>
-                  <li className="flex items-center gap-3 text-slate-600">
+                  <li className="flex items-center gap-3 text-slate-200">
                     <CheckCircle2 size={18} className="text-[#7AC142]" /> Sanitized & Deodorized
                   </li>
-                  <li className="flex items-center gap-3 text-slate-600">
+                  <li className="flex items-center gap-3 text-slate-200">
                     <CheckCircle2 size={18} className="text-[#7AC142]" /> Eco-friendly process
                   </li>
                 </ul>
                 <Link href="/signup?frequency=monthly" className="w-full">
-                  <Button className="w-full bg-[#1C3D5A] group-hover:bg-[#7AC142] text-white rounded-xl h-12 font-bold transition-all active:scale-95">
+                  <Button className="w-full bg-[#7AC142] hover:bg-[#68a638] text-white rounded-xl h-12 font-bold transition-all shadow-lg shadow-lime-500/20 active:scale-95">
                     Select Plan
                   </Button>
                 </Link>
               </div>
 
-              {/* Bi-Monthly - Featured */}
-              <div className="flex flex-col p-10 bg-[#1C3D5A] rounded-[2.5rem] text-white shadow-2xl relative scale-105">
-                <div className="absolute top-0 right-10 -translate-y-1/2 bg-[#7AC142] text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
-                  Most Popular
-                </div>
-                <h3 className="text-2xl font-bold mb-2">Bi-Monthly</h3>
+              {/* Bi-Monthly */}
+              <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group">
+                <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">Bi-Monthly</h3>
                 <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-4xl font-extrabold text-white">${bimonthlyPrice}</span>
-                  <span className="text-slate-400">/2 months</span>
+                  <span className="text-4xl font-extrabold text-[#1C3D5A]">${bimonthlyPrice}</span>
+                  <span className="text-slate-500">/2 months</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 mb-6">
                   Up to 2 bins included. $5/2mo per extra bin.
                 </p>
-                <p className="text-slate-300 mb-8">Great middle-ground for regular maintenance</p>
+                <p className="text-slate-600 mb-8">Great middle-ground for regular maintenance</p>
                 <ul className="space-y-4 mb-10 flex-grow">
-                  <li className="flex items-center gap-3 text-slate-200">
+                  <li className="flex items-center gap-3 text-slate-600">
                     <CheckCircle2 size={18} className="text-[#7AC142]" /> Cleaned every 8 weeks
                   </li>
-                  <li className="flex items-center gap-3 text-slate-200">
+                  <li className="flex items-center gap-3 text-slate-600">
                     <CheckCircle2 size={18} className="text-[#7AC142]" /> Sanitized & Deodorized
                   </li>
-                  <li className="flex items-center gap-3 text-slate-200">
+                  <li className="flex items-center gap-3 text-slate-600">
                     <CheckCircle2 size={18} className="text-[#7AC142]" /> Eco-friendly process
                   </li>
                 </ul>
                 <Link href="/signup?frequency=bimonthly" className="w-full">
-                  <Button className="w-full bg-[#7AC142] hover:bg-[#68a638] text-white rounded-xl h-12 font-bold transition-all shadow-lg shadow-lime-500/20 active:scale-95">
+                  <Button className="w-full bg-[#1C3D5A] group-hover:bg-[#7AC142] text-white rounded-xl h-12 font-bold transition-all active:scale-95">
                     Select Plan
                   </Button>
                 </Link>
