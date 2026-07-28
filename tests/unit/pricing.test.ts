@@ -27,9 +27,9 @@ describe('Pricing Engine', () => {
 
     it('describes quarterly recurring billing for customer-facing copy', () => {
         expect(getRecurringBillingPresentation(65, 'quarterly')).toEqual({
-            planPriceLabel: '$65 /qtr',
-            summaryBillingLabel: '$65 /qtr recurring every 12 weeks',
-            agreementBillingLabel: '$65 /qtr (every 12 weeks)',
+            planPriceLabel: '$65',
+            summaryBillingLabel: '$65 recurring every 12 weeks',
+            agreementBillingLabel: '$65 (every 12 weeks)',
             defaultStartLabel: '',
         });
     });

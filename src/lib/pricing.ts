@@ -32,7 +32,7 @@ const RECURRING_BILLING_METADATA: Record<SubscriptionFrequency, {
     },
     quarterly: {
         cadenceWeeks: 12,
-        priceSuffix: ' /qtr',
+        priceSuffix: '',
         includesCadenceInBillingLabel: true,
     },
 };
