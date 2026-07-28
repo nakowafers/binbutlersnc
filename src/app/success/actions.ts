@@ -2,20 +2,13 @@
 
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { Env } from '@/lib/types';
-import { StripeAdapter } from '@/lib/payment/StripeAdapter';
+import { createPaymentService } from '@/lib/backend/createServices';
 import { redirect } from 'next/navigation';
 
 export async function createBillingPortal(sessionId: string) {
     const { env } = (getRequestContext() as unknown) as { env: Env };
 
-    const paymentService = new StripeAdapter({
-        secretKey: env.STRIPE_SECRET_KEY,
-        monthlyPriceId: env.STRIPE_MONTHLY_PRICE_ID,
-        bimonthlyPriceId: env.STRIPE_BIMONTHLY_PRICE_ID,
-        quarterlyPriceId: env.STRIPE_QUARTERLY_PRICE_ID,
-        oneTimePriceId: env.STRIPE_ONETIME_PRICE_ID,
-        setupFeePriceId: env.STRIPE_SETUP_FEE_PRICE_ID,
-    });
+    const paymentService = createPaymentService(env);
 
     const session = await paymentService.retrieveCheckoutSession(sessionId);
 

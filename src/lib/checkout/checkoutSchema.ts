@@ -86,8 +86,8 @@ export function getMissingStripeConfig(env: Env, data: CheckoutInput): string[] 
         missing.push('STRIPE_BIMONTHLY_PRICE_ID');
     }
 
-    if (data.frequency === 'quarterly' && !env.STRIPE_QUARTERLY_PRICE_ID) {
-        missing.push('STRIPE_QUARTERLY_PRICE_ID');
+    if (data.frequency === 'quarterly' && !env.STRIPE_QUARTERLY_PRICE_ID_V2) {
+        missing.push('STRIPE_QUARTERLY_PRICE_ID_V2');
     }
 
     if (data.frequency === 'one-time' && !env.STRIPE_ONETIME_PRICE_ID) {

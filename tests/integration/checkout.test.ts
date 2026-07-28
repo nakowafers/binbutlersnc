@@ -6,6 +6,27 @@ import { DbSimulator } from './db-simulator';
 const mockCreateSession = vi.fn();
 const mockRetrievePrice = vi.fn();
 
+function quarterlyCheckoutBody(overrides: Record<string, unknown> = {}) {
+    return {
+        email: 'quarterly@example.com',
+        first_name: 'Quinn',
+        last_name: 'Quarterly',
+        address: '123 Quarterly St',
+        lat: 35.0,
+        lng: -80.0,
+        phone_number: '555-6060',
+        trash_day: 'MON',
+        notes: 'Waste Co',
+        scent_preference: 'lavender',
+        bin_quantity: 3,
+        frequency: 'quarterly',
+        tos_accepted: true,
+        age_confirmed: true,
+        contact_consent: true,
+        ...overrides,
+    };
+}
+
 // Mock Cloudflare context
 vi.mock('@cloudflare/next-on-pages', () => ({
     getRequestContext: vi.fn(),
@@ -51,7 +72,8 @@ describe('Checkout API - Integration Tests', () => {
             DB: simulator,
             STRIPE_SECRET_KEY: 'sk_test_123',
             STRIPE_MONTHLY_PRICE_ID: 'price_monthly',
-            STRIPE_QUARTERLY_PRICE_ID: 'price_quarterly',
+            STRIPE_QUARTERLY_PRICE_ID: 'price_quarterly_legacy',
+            STRIPE_QUARTERLY_PRICE_ID_V2: 'price_quarterly_v2',
             STRIPE_ONETIME_PRICE_ID: 'price_onetime',
             STRIPE_SETUP_FEE_PRICE_ID: 'price_setup',
             STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID: 'price_extra_monthly',
@@ -116,6 +138,51 @@ describe('Checkout API - Integration Tests', () => {
                 frequency: 'monthly',
             }),
         }));
+    });
+
+    it('should create quarterly checkout with the V2 base price and extra-bin surcharge', async () => {
+        mockCreateSession.mockResolvedValue({ url: 'https://stripe.com/checkout/session/quarterly' });
+
+        const request = new Request('http://localhost/api/checkout', {
+            method: 'POST',
+            body: JSON.stringify(quarterlyCheckoutBody()),
+        });
+
+        const response = await POST(request);
+
+        expect(response.status).toBe(200);
+        expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({
+            mode: 'subscription',
+            line_items: [
+                { price: 'price_quarterly_v2', quantity: 1 },
+                { price: 'price_setup', quantity: 1 },
+                { price: 'price_extra_quarterly', quantity: 1 },
+            ],
+            metadata: expect.objectContaining({
+                frequency: 'quarterly',
+                bin_quantity: '3',
+            }),
+        }));
+    });
+
+    it('should reject quarterly checkout when the V2 Stripe price is missing', async () => {
+        delete mockEnv.STRIPE_QUARTERLY_PRICE_ID_V2;
+
+        const request = new Request('http://localhost/api/checkout', {
+            method: 'POST',
+            body: JSON.stringify(quarterlyCheckoutBody({
+                email: 'missing-quarterly-v2@example.com',
+                first_name: 'Missing',
+                bin_quantity: 2,
+            })),
+        });
+
+        const response = await POST(request);
+        const data = await response.json();
+
+        expect(response.status).toBe(500);
+        expect(data.error).toContain('STRIPE_QUARTERLY_PRICE_ID_V2');
+        expect(mockCreateSession).not.toHaveBeenCalled();
     });
 
     it('should return a clear error when the requested Stripe config is missing', async () => {

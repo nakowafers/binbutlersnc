@@ -492,7 +492,7 @@ function SignupForm() {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'quarterly').recurringPrice}</p>
+                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'quarterly').recurringPrice} /qtr</p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
@@ -641,7 +641,9 @@ function SignupForm() {
                                         <span className="text-xs text-slate-500 block mt-1">
                                             {frequency === 'one-time'
                                                 ? `($${setupFeeOverride} flat-rate one-time clean${nextServiceDate ? ' on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : ''})`
-                                                : `($${setupFeeOverride} initial fee today + $${recurringPrice} flat-rate service ${nextServiceDate ? 'starting on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : 'starting in ' + (frequency === 'monthly' ? 4 : frequency === 'bimonthly' ? 8 : 12) + ' weeks'})`}
+                                                : frequency === 'quarterly'
+                                                    ? `($${setupFeeOverride} initial fee today + $${recurringPrice} /qtr recurring every 12 weeks${nextServiceDate ? ' starting on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : ''})`
+                                                    : `($${setupFeeOverride} initial fee today + $${recurringPrice} flat-rate service ${nextServiceDate ? 'starting on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : 'starting in ' + (frequency === 'monthly' ? 4 : 8) + ' weeks'})`}
                                         </span>
                                     </p>
                                 </div>
@@ -697,7 +699,7 @@ function SignupForm() {
                                     <p>Bin Butlers NC will provide professional cleaning, sanitizing, and deodorizing services for your specified trash bins. Service will occur on your municipal trash day ({trashDay}).</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">2. Billing & Renewal</h4>
-                                    <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of ${recurringPrice} will begin on {nextServiceDate ? format(new Date(nextServiceDate + 'T12:00:00'), 'PPP') : 'your scheduled service date'} and will automatically renew until cancelled via the Stripe Customer Portal.</p>
+                                    <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of ${recurringPrice}{frequency === 'quarterly' ? ' /qtr (every 12 weeks)' : ''} will begin on {nextServiceDate ? format(new Date(nextServiceDate + 'T12:00:00'), 'PPP') : 'your scheduled service date'} and will automatically renew until cancelled via the Stripe Customer Portal.</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">3. Customer Obligations</h4>
                                     <p>Customers must leave their bins at the curb or in a visible, accessible location on the scheduled service day. If bins are not accessible, service may be skipped and rescheduled for the following week.</p>

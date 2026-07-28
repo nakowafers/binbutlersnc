@@ -1,6 +1,6 @@
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { Env } from "@/lib/types";
-import { StripeAdapter } from "@/lib/payment/StripeAdapter";
+import { createPaymentService } from "@/lib/backend/createServices";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 
 export const runtime = 'edge';
@@ -19,14 +19,7 @@ export default async function SuccessPage({
     if (sessionId) {
         try {
             const { env } = (getRequestContext() as unknown) as { env: Env };
-            const paymentService = new StripeAdapter({
-                secretKey: env.STRIPE_SECRET_KEY,
-                monthlyPriceId: env.STRIPE_MONTHLY_PRICE_ID,
-                bimonthlyPriceId: env.STRIPE_BIMONTHLY_PRICE_ID,
-                quarterlyPriceId: env.STRIPE_QUARTERLY_PRICE_ID,
-                oneTimePriceId: env.STRIPE_ONETIME_PRICE_ID,
-                setupFeePriceId: env.STRIPE_SETUP_FEE_PRICE_ID,
-            });
+            const paymentService = createPaymentService(env);
             verification = await paymentService.retrieveCheckoutSession(sessionId);
         } catch (e) {
             error = (e as Error).message;

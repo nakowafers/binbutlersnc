@@ -9,7 +9,7 @@ export function calculatePricing(binQuantity: number, frequency: 'monthly' | 'bi
     const DEFAULT_SETUP_FEE = 45;
     const MONTHLY_RATE = 30;
     const BIMONTHLY_RATE = 40;
-    const QUARTERLY_RATE = 50;
+    const QUARTERLY_RATE = 60;
     const INCLUDED_BINS = 2;
     const EXTRA_BIN_RATE = 5;
 

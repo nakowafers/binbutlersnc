@@ -14,10 +14,15 @@ describe('Pricing Engine', () => {
         expect(result.recurringPrice).toBe(30);
     });
 
-    it('should add surcharge for 3 bins (quarterly)', () => {
-        const result = calculatePricing(3, 'quarterly');
+    it.each([
+        [1, 60],
+        [2, 60],
+        [3, 65],
+        [4, 70],
+    ])('should charge quarterly rate for %i bins', (binQuantity, recurringPrice) => {
+        const result = calculatePricing(binQuantity, 'quarterly');
         expect(result.setupFee).toBe(45);
-        expect(result.recurringPrice).toBe(55); // 50 + 5
+        expect(result.recurringPrice).toBe(recurringPrice);
     });
 
     it('should add surcharge for each bin over 2', () => {
