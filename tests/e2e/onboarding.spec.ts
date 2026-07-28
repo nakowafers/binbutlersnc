@@ -97,17 +97,17 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.fill('#bin_quantity', '3');
         await page.fill('#notes', 'Waste Co');
 
-        await expect(page.getByText('$65 /qtr', { exact: true })).toBeVisible();
+        await expect(page.getByText('$65', { exact: true })).toBeVisible();
         await expect(page.getByText('Cleaned every 12 weeks', { exact: true })).toBeVisible();
 
         await page.getByRole('button', { name: 'Next Step' }).click();
         await page.fill('#email', 'quarterly@example.com');
         await page.fill('#phone_number', '7045556060');
 
-        await expect(page.getByText(/\$65 \/qtr recurring every 12 weeks/)).toBeVisible();
+        await expect(page.getByText(/\$65 recurring every 12 weeks/)).toBeVisible();
 
         await page.getByRole('button', { name: 'Review Agreement' }).click();
-        await expect(page.getByText(/recurring subscription of \$65 \/qtr \(every 12 weeks\)/)).toBeVisible();
+        await expect(page.getByText(/recurring subscription of \$65 \(every 12 weeks\)/)).toBeVisible();
 
         await acceptStepThreeConsents(page);
         await page.getByRole('button', { name: 'Go to Payment' }).click();
