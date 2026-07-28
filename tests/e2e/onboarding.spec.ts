@@ -70,6 +70,54 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         });
     });
 
+    test('Quarterly pricing stays consistent from landing page through agreement', async ({ page }) => {
+        let capturedPayload: Record<string, unknown> | null = null;
+
+        await page.route('**/api/checkout', async (route) => {
+            capturedPayload = route.request().postDataJSON();
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ url: '/success?session_id=sess_quarterly_test' }),
+            });
+        });
+
+        await page.goto('/');
+
+        const landingCard = page.getByRole('heading', { name: 'Quarterly', exact: true }).locator('..');
+        await expect(landingCard.getByText('$60', { exact: true })).toBeVisible();
+        await expect(landingCard.getByText('/qtr', { exact: true })).toBeVisible();
+        await expect(landingCard.getByText('Cleaned every 12 weeks', { exact: true })).toBeVisible();
+
+        await page.goto('/signup?frequency=quarterly');
+        await page.fill('#first_name', 'Quinn');
+        await page.fill('#last_name', 'Quarterly');
+        await selectAutocompleteAddress(page, '123 Quarterly St, Charlotte, NC');
+        await page.selectOption('#trash_day', 'MON');
+        await page.fill('#bin_quantity', '3');
+        await page.fill('#notes', 'Waste Co');
+
+        await expect(page.getByText('$65 /qtr', { exact: true })).toBeVisible();
+        await expect(page.getByText('Cleaned every 12 weeks', { exact: true })).toBeVisible();
+
+        await page.getByRole('button', { name: 'Next Step' }).click();
+        await page.fill('#email', 'quarterly@example.com');
+        await page.fill('#phone_number', '7045556060');
+
+        await expect(page.getByText(/\$65 \/qtr recurring every 12 weeks/)).toBeVisible();
+
+        await page.getByRole('button', { name: 'Review Agreement' }).click();
+        await expect(page.getByText(/recurring subscription of \$65 \/qtr \(every 12 weeks\)/)).toBeVisible();
+
+        await acceptStepThreeConsents(page);
+        await page.getByRole('button', { name: 'Go to Payment' }).click();
+        await page.waitForURL('**/success**');
+
+        expect(capturedPayload).not.toBeNull();
+        expect(capturedPayload!.frequency).toBe('quarterly');
+        expect(capturedPayload!.bin_quantity).toBe(3);
+    });
+
     test('Organic Signup Flow (no sales rep ID) - full multi-step form', async ({ page }) => {
         let capturedPayload: Record<string, unknown> | null = null;
 
