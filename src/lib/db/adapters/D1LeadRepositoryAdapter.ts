@@ -1,4 +1,5 @@
 import { Lead } from '@/lib/types';
+import { getServiceCadenceDays } from '@/lib/pricing';
 import { ILeadRepository } from '../types';
 
 export class D1LeadRepositoryAdapter implements ILeadRepository {
@@ -120,7 +121,7 @@ export class D1LeadRepositoryAdapter implements ILeadRepository {
                 params.customerId,
                 params.stripeSubscriptionId,
                 params.stripeSubscriptionId ? 'active' : 'one-time',
-                params.frequency === 'monthly' ? 28 : params.frequency === 'bimonthly' ? 56 : params.frequency === 'quarterly' ? 84 : 0,
+                getServiceCadenceDays(params.frequency),
                 params.currentPeriodEnd,
                 params.nextServiceDate || null
             )

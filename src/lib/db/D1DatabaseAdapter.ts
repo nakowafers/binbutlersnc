@@ -145,10 +145,6 @@ export class D1DatabaseAdapter implements IDatabaseService {
         return this.subscriptions.getActiveSubscriptionsCount();
     }
 
-    calculateEstimatedWeeklyRevenue(): Promise<number> {
-        return this.subscriptions.calculateEstimatedWeeklyRevenue();
-    }
-
     updateSubscriptionFirstServiceDate(id: string, firstServiceDate: string): Promise<void> {
         return this.subscriptions.updateSubscriptionFirstServiceDate(id, firstServiceDate);
     }

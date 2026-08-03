@@ -1,7 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { calculatePricing, getRecurringBillingPresentation, ONE_TIME_PRICE } from '../../src/lib/pricing';
+import {
+    calculatePricing,
+    getRecurringBillingPresentation,
+    getSubscriptionDefinition,
+    ONE_TIME_PRICE,
+} from '../../src/lib/pricing';
 
 describe('Pricing Engine', () => {
+    it.each([
+        ['monthly', 'Monthly', 30, 4, 28],
+        ['bimonthly', 'Bi-Monthly', 40, 8, 56],
+        ['quarterly', 'Quarterly', 60, 12, 84],
+    ] as const)('defines the current %s Subscription rate card', (frequency, customerName, basePrice, cadenceWeeks, cadenceDays) => {
+        expect(getSubscriptionDefinition(frequency)).toMatchObject({
+            frequency,
+            customerName,
+            basePrice,
+            cadenceWeeks,
+            cadenceDays,
+        });
+    });
+
     it('should charge base rate for 1 bin', () => {
         const result = calculatePricing(1, 'monthly');
         expect(result.setupFee).toBe(45);

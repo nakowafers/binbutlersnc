@@ -133,13 +133,6 @@ export class D1SubscriptionRepositoryAdapter implements ISubscriptionRepository 
         return result?.count || 0;
     }
 
-    async calculateEstimatedWeeklyRevenue(): Promise<number> {
-        const result = await this.db.prepare(
-            "SELECT SUM(CASE WHEN frequency_days = 28 THEN 7.50 WHEN frequency_days = 56 THEN 5.00 WHEN frequency_days = 84 THEN 3.33 ELSE 0 END) as total_revenue FROM subscriptions WHERE status = 'active'"
-        ).first<{ total_revenue: number }>();
-        return result?.total_revenue || 0;
-    }
-
     async updateSubscriptionFirstServiceDate(id: string, firstServiceDate: string): Promise<void> {
         await this.db.prepare('UPDATE subscriptions SET next_service_date = ? WHERE id = ?')
             .bind(firstServiceDate, id)

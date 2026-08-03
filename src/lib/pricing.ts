@@ -6,6 +6,16 @@ export interface PricingResult {
 export type PricingFrequency = 'monthly' | 'bimonthly' | 'quarterly' | 'one-time';
 export type SubscriptionFrequency = Exclude<PricingFrequency, 'one-time'>;
 
+export interface SubscriptionDefinition {
+    readonly frequency: SubscriptionFrequency;
+    readonly customerName: string;
+    readonly basePrice: number;
+    readonly cadenceWeeks: number;
+    readonly cadenceDays: number;
+    readonly priceSuffix: string;
+    readonly includesCadenceInBillingLabel: boolean;
+}
+
 export interface RecurringBillingPresentation {
     planPriceLabel: string;
     summaryBillingLabel: string;
@@ -15,33 +25,49 @@ export interface RecurringBillingPresentation {
 
 export const ONE_TIME_PRICE = 60;
 
-const RECURRING_BILLING_METADATA: Record<SubscriptionFrequency, {
-    cadenceWeeks: number;
-    priceSuffix: string;
-    includesCadenceInBillingLabel: boolean;
-}> = {
+const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, SubscriptionDefinition>> = {
     monthly: {
+        frequency: 'monthly',
+        customerName: 'Monthly',
+        basePrice: 30,
         cadenceWeeks: 4,
+        cadenceDays: 28,
         priceSuffix: '',
         includesCadenceInBillingLabel: false,
     },
     bimonthly: {
+        frequency: 'bimonthly',
+        customerName: 'Bi-Monthly',
+        basePrice: 40,
         cadenceWeeks: 8,
+        cadenceDays: 56,
         priceSuffix: '',
         includesCadenceInBillingLabel: false,
     },
     quarterly: {
+        frequency: 'quarterly',
+        customerName: 'Quarterly',
+        basePrice: 60,
         cadenceWeeks: 12,
+        cadenceDays: 84,
         priceSuffix: '',
         includesCadenceInBillingLabel: true,
     },
 };
 
+export function getSubscriptionDefinition(frequency: SubscriptionFrequency): Readonly<SubscriptionDefinition> {
+    return SUBSCRIPTION_RATE_CARD[frequency];
+}
+
+export function getServiceCadenceDays(frequency: PricingFrequency): number {
+    return frequency === 'one-time' ? 0 : getSubscriptionDefinition(frequency).cadenceDays;
+}
+
 export function getRecurringBillingPresentation(
     recurringPrice: number,
     frequency: SubscriptionFrequency
 ): RecurringBillingPresentation {
-    const metadata = RECURRING_BILLING_METADATA[frequency];
+    const metadata = getSubscriptionDefinition(frequency);
     const planPriceLabel = `$${recurringPrice}${metadata.priceSuffix}`;
     const cadenceLabel = `every ${metadata.cadenceWeeks} weeks`;
 
@@ -64,9 +90,6 @@ export function getRecurringBillingPresentation(
 
 export function calculatePricing(binQuantity: number, frequency: PricingFrequency): PricingResult {
     const DEFAULT_SETUP_FEE = 45;
-    const MONTHLY_RATE = 30;
-    const BIMONTHLY_RATE = 40;
-    const QUARTERLY_RATE = 60;
     const INCLUDED_BINS = 2;
     const EXTRA_BIN_RATE = 5;
 
@@ -77,7 +100,7 @@ export function calculatePricing(binQuantity: number, frequency: PricingFrequenc
         };
     }
 
-    const baseRate = frequency === 'monthly' ? MONTHLY_RATE : frequency === 'bimonthly' ? BIMONTHLY_RATE : QUARTERLY_RATE;
+    const baseRate = getSubscriptionDefinition(frequency).basePrice;
     const extraBins = Math.max(0, binQuantity - INCLUDED_BINS);
     const recurringPrice = baseRate + extraBins * EXTRA_BIN_RATE;
 

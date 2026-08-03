@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
 import { IPaymentService, CheckoutSessionParams, CustomerServiceDetails } from './types';
 import { getRecurringBillingStartTimestamp } from '@/lib/date-utils';
+import { getServiceCadenceDays } from '@/lib/pricing';
 
 export interface StripeConfig {
     secretKey: string;
@@ -129,11 +130,11 @@ export class StripeAdapter implements IPaymentService {
         let subscriptionData: NonNullable<Parameters<typeof this.stripe.checkout.sessions.create>[0]>['subscription_data'];
         if (mode === 'subscription') {
             subscriptionData = {};
+            const frequencyDays = getServiceCadenceDays(params.frequency);
             if (params.nextServiceDate) {
-                const frequencyDays = params.frequency === 'monthly' ? 28 : params.frequency === 'bimonthly' ? 56 : 84;
                 subscriptionData.trial_end = getRecurringBillingStartTimestamp(params.nextServiceDate, frequencyDays);
             } else {
-                subscriptionData.trial_period_days = params.frequency === 'monthly' ? 28 : params.frequency === 'bimonthly' ? 56 : 84;
+                subscriptionData.trial_period_days = frequencyDays;
             }
         }
 
