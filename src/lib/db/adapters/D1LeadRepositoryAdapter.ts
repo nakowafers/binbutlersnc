@@ -126,20 +126,7 @@ export class D1LeadRepositoryAdapter implements ILeadRepository {
             )
         ];
 
-        if (params.nextServiceDate) {
-            batchStatements.push(
-                this.db.prepare(
-                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, sales_rep_id, bin_quantity) VALUES (?, ?, ?, ?, ?, ?)'
-                ).bind(
-                    params.serviceHistoryId,
-                    params.subscriptionId,
-                    params.nextServiceDate,
-                    params.serviceHistoryStatus || 'Pending',
-                    params.salesRepId,
-                    params.binQuantity
-                )
-            );
-        } else if (params.salesRepId) {
+        if (params.salesRepId) {
             batchStatements.push(
                 this.db.prepare(
                     'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, sales_rep_id, bin_quantity) VALUES (?, ?, ?, ?, ?, ?)'

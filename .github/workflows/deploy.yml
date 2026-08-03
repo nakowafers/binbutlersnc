@@ -32,28 +32,36 @@ jobs:
           accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
           command: d1 migrations apply binbutlersnc-db --remote
 
-      - name: Upload Worker version
+      - name: Upload Worker version with application secrets
         if: github.ref == 'refs/heads/main'
         id: upload
         run: |
-          npx wrangler versions upload
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-
-      - name: Set Auth.js secrets on version
-        if: github.ref == 'refs/heads/main'
-        id: secrets
-        run: |
-          echo "${{ secrets.AUTH_SECRET }}" | npx wrangler versions secret put AUTH_SECRET
-          echo "${{ secrets.AUTH_GOOGLE_ID }}" | npx wrangler versions secret put AUTH_GOOGLE_ID
-          VERSION_ID=$(echo "${{ secrets.AUTH_GOOGLE_SECRET }}" | npx wrangler versions secret put AUTH_GOOGLE_SECRET 2>&1 | grep -oE '[a-f0-9-]{36}')
+          umask 077
+          SECRETS_FILE=$(mktemp)
+          trap 'rm -f "$SECRETS_FILE"' EXIT
+          jq -n \
+            --arg authSecret "$AUTH_SECRET" \
+            --arg authGoogleId "$AUTH_GOOGLE_ID" \
+            --arg authGoogleSecret "$AUTH_GOOGLE_SECRET" \
+            --arg quarterlyPriceId "$STRIPE_QUARTERLY_PRICE_ID" \
+            '{
+              AUTH_SECRET: $authSecret,
+              AUTH_GOOGLE_ID: $authGoogleId,
+              AUTH_GOOGLE_SECRET: $authGoogleSecret,
+              STRIPE_QUARTERLY_PRICE_ID: $quarterlyPriceId
+            }' > "$SECRETS_FILE"
+          VERSION_ID=$(npx wrangler versions upload --secrets-file "$SECRETS_FILE" 2>&1 | grep -oE '[a-f0-9-]{36}' | tail -1)
           echo "version-id=$VERSION_ID" >> "$GITHUB_OUTPUT"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
+          AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
+          STRIPE_QUARTERLY_PRICE_ID: ${{ secrets.STRIPE_QUARTERLY_PRICE_ID }}
 
       - name: Deploy Worker version
         if: github.ref == 'refs/heads/main'
-        run: npx wrangler versions deploy --version-id "${{ steps.secrets.outputs.version-id }}" --yes
+        run: npx wrangler versions deploy --version-id "${{ steps.upload.outputs.version-id }}" --yes
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 

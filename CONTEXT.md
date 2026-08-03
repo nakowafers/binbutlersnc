@@ -20,6 +20,8 @@
 | **Route Optimizer** | The in-app route ordering component used to sequence local dispatch stops. | Routing provider, route vendor |
 | **Holiday Shift** | A manual 24-hour offset applied to service dates to accommodate holiday schedule changes. | Route shift, schedule offset, date delay |
 | **Daily Dispatch Cron** | An automated background task that identifies subscriptions due for the next Eastern service date and creates local Service Routes. | Dispatcher, route builder |
+| **First Service Date** | The initial scheduled cleaning date selected during onboarding. After that service is fulfilled, recurring schedule eligibility comes from completed Service History and the Subscription frequency. | Next service date, appointment date |
+| **Manual Reschedule** | An admin action that sets a new First Service Date for a customer whose initial service needs to be attempted again. In this model it is limited to first-service problems, not general recurring route management, and follows the same date rules as onboarding first-service scheduling. | Retry, auto-reschedule, makeup route |
 
 ## Fulfillment & Service History
 
@@ -27,6 +29,7 @@
 | --- | --- | --- |
 | **Service Sticker** | A physical, weather-resistant label applied to a customer's bin during the initial clean for physical identification. | Bin tag, barcode, id label |
 | **Service History** | The permanent record of past service attempts, including dates, statuses, and photos. | Clean history, job logs, visit history |
+| **Orphan Pending Service History** | An invalid scheduling placeholder where a pending Service History entry exists without a corresponding Service Route stop. It requires human review before repair and should not be treated as normal route work by default. | Unrouted job, pending route, scheduled history |
 | **Verification Photo** | A geotagged proof-of-service image captured by an Admin-Driver and stored in Cloudflare R2. | Proof photo, driver image, completion photo |
 
 ## Accounts & Billing
@@ -34,6 +37,7 @@
 | Term | Definition | Aliases to avoid |
 | --- | --- | --- |
 | **Subscription** | An active, recurring agreement (monthly or quarterly) for bin cleaning services. | Plan, membership, contract |
+| **Quarterly Subscription** | A Subscription serviced and renewed every 12 weeks, not by calendar quarter. | Calendar-quarter plan, 13-week plan |
 | **Billing Portal** | A Stripe-hosted interface for managing payment methods, viewing invoices, and changing plans. | Account portal, customer dashboard |
 | **Customer Portal** | A custom, passwordless authenticated dashboard for viewing service history and managing gate access notes or vacation mode. | Settings page, user profile |
 | **Vacation Mode** | A customer-triggered settings state that pauses scheduled cleaning stops. | Service pause, holds, temporary pause |

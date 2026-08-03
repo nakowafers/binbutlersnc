@@ -137,12 +137,20 @@ export class D1DatabaseAdapter implements IDatabaseService {
         return this.subscriptions.getDueSubscriptions(targetServiceDate);
     }
 
+    clearConsumedFirstServiceDates(subscriptionIds: string[], serviceDate: string): Promise<void> {
+        return this.subscriptions.clearConsumedFirstServiceDates(subscriptionIds, serviceDate);
+    }
+
     getActiveSubscriptionsCount(): Promise<number> {
         return this.subscriptions.getActiveSubscriptionsCount();
     }
 
     calculateEstimatedWeeklyRevenue(): Promise<number> {
         return this.subscriptions.calculateEstimatedWeeklyRevenue();
+    }
+
+    updateSubscriptionFirstServiceDate(id: string, firstServiceDate: string): Promise<void> {
+        return this.subscriptions.updateSubscriptionFirstServiceDate(id, firstServiceDate);
     }
 
     getServiceHistoryByCustomerId(customerId: string, limit: number = 5): Promise<ServiceHistory[]> {
@@ -163,6 +171,10 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
     updateServiceHistoryOnSkipped(subscriptionId: string, completedAt: string | null): Promise<void> {
         return this.serviceHistory.updateServiceHistoryOnSkipped(subscriptionId, completedAt);
+    }
+
+    getFirstServiceAttemptSummary(subscriptionId: string): Promise<{ completedCount: number; skippedCount: number }> {
+        return this.serviceHistory.getFirstServiceAttemptSummary(subscriptionId);
     }
 
     logDispatchedJobs(

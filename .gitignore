@@ -47,3 +47,4 @@ next-env.d.ts
 /.antigravitycli
 /playwright-report
 /test-results
+/.scratch

@@ -18,12 +18,12 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { normalizeSalesRepId } from "@/lib/sales-rep";
-import { calculatePricing } from "@/lib/pricing";
+import { calculatePricing, getRecurringBillingPresentation } from "@/lib/pricing";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
-import { getTodayDateString, getMaximumDate, isTrashDayMatch, isWeekday } from "@/lib/date-utils";
+import { getTodayDateString, getMaximumDate, isTrashDayMatch, isWeekday, validateFirstServiceDate } from "@/lib/date-utils";
 
 const todayStr = getTodayDateString();
 const maxDate = getMaximumDate();
@@ -57,17 +57,13 @@ const signupSchema = z.object({
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['address'], message: 'Sorry, we don\'t service this area yet' });
     }
     if (data.next_service_date) {
-        if (data.next_service_date < todayStr) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: 'Service date cannot be in the past' });
-        }
-        if (data.next_service_date > maxDate) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: 'Service date must be within 180 days' });
-        }
-        if (data.frequency !== 'one-time' && !isTrashDayMatch(data.next_service_date, data.trash_day)) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: `Service date must be a ${data.trash_day}` });
-        }
-        if (data.frequency === 'one-time' && !isWeekday(data.next_service_date)) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: 'Service date must be a weekday' });
+        const dateError = validateFirstServiceDate({
+            date: data.next_service_date,
+            serviceDay: data.trash_day,
+            isOneTime: data.frequency === 'one-time',
+        });
+        if (dateError) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: dateError });
         }
     }
     if (data.frequency === 'one-time') return;
@@ -135,6 +131,9 @@ function SignupForm() {
     const nextServiceDate = useWatch({ control, name: 'next_service_date' });
     const formValues = useWatch({ control });
     const { recurringPrice } = calculatePricing(binQuantity, frequency);
+    const recurringBilling = frequency === 'one-time'
+        ? null
+        : getRecurringBillingPresentation(recurringPrice, frequency);
 
     useEffect(() => {
         fetch('/api/serviceable-zips')
@@ -496,7 +495,9 @@ function SignupForm() {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'quarterly').recurringPrice}</p>
+                                                <p className="font-extrabold text-[#1C3D5A]">
+                                                    {getRecurringBillingPresentation(calculatePricing(binQuantity, 'quarterly').recurringPrice, 'quarterly').planPriceLabel}
+                                                </p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
@@ -645,7 +646,7 @@ function SignupForm() {
                                         <span className="text-xs text-slate-500 block mt-1">
                                             {frequency === 'one-time'
                                                 ? `($${setupFeeOverride} flat-rate one-time clean${nextServiceDate ? ' on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : ''})`
-                                                : `($${setupFeeOverride} initial fee today + $${recurringPrice} flat-rate service ${nextServiceDate ? 'starting on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : 'starting in ' + (frequency === 'monthly' ? 4 : frequency === 'bimonthly' ? 8 : 12) + ' weeks'})`}
+                                                : `($${setupFeeOverride} initial fee today + ${recurringBilling?.summaryBillingLabel}${nextServiceDate ? ' starting on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : recurringBilling?.defaultStartLabel ? ' ' + recurringBilling.defaultStartLabel : ''})`}
                                         </span>
                                     </p>
                                 </div>
@@ -701,7 +702,7 @@ function SignupForm() {
                                     <p>Bin Butlers NC will provide professional cleaning, sanitizing, and deodorizing services for your specified trash bins. Service will occur on your municipal trash day ({trashDay}).</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">2. Billing & Renewal</h4>
-                                    <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of ${recurringPrice} will begin on {nextServiceDate ? format(new Date(nextServiceDate + 'T12:00:00'), 'PPP') : 'your scheduled service date'} and will automatically renew until cancelled via the Stripe Customer Portal.</p>
+                                    <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of {recurringBilling?.agreementBillingLabel} will begin on {nextServiceDate ? format(new Date(nextServiceDate + 'T12:00:00'), 'PPP') : 'your scheduled service date'} and will automatically renew until cancelled via the Stripe Customer Portal.</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">3. Customer Obligations</h4>
                                     <p>Customers must leave their bins at the curb or in a visible, accessible location on the scheduled service day. If bins are not accessible, service may be skipped and rescheduled for the following week.</p>

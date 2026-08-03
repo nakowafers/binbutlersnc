@@ -118,10 +118,20 @@ export class D1CustomerRepositoryAdapter implements ICustomerRepository {
                 c.bin_quantity, c.sales_rep_id, c.created_at,
                 a.id as address_id, a.raw_address, a.trash_day, a.service_day, a.notes, a.scent_preference,
                 s.id as subscription_id, s.status as subscription_status,
-                s.frequency_days, s.current_period_end, s.next_service_date, s.is_paused
+                s.frequency_days, s.current_period_end, s.next_service_date, s.is_paused,
+                COALESCE(sh.completed_count, 0) as completed_service_count,
+                COALESCE(sh.skipped_count, 0) as skipped_service_count
              FROM customers c
              LEFT JOIN addresses a ON c.address_id = a.id
              LEFT JOIN subscriptions s ON s.customer_id = c.id
+             LEFT JOIN (
+                SELECT
+                    subscription_id,
+                    SUM(CASE WHEN dispatch_status = 'Completed' THEN 1 ELSE 0 END) as completed_count,
+                    SUM(CASE WHEN dispatch_status = 'Skipped' THEN 1 ELSE 0 END) as skipped_count
+                FROM service_history
+                GROUP BY subscription_id
+             ) sh ON sh.subscription_id = s.id
              ORDER BY c.created_at DESC`
         ).all<CustomerWithDetails>();
         return results || [];

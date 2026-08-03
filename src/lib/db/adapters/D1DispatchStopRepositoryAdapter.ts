@@ -58,7 +58,19 @@ export class D1DispatchStopRepositoryAdapter implements IDispatchStopRepository 
             stop.customerPhone
         ));
 
-        await this.db.batch([...historyStatements, ...stopStatements]);
+        const consumedFirstService = route.consumedFirstService;
+        const clearConsumedFirstServiceStatements = consumedFirstService && consumedFirstService.subscriptionIds.length > 0
+            ? [
+                this.db.prepare(
+                    `UPDATE subscriptions
+                     SET next_service_date = NULL
+                     WHERE next_service_date = ?
+                     AND id IN (${consumedFirstService.subscriptionIds.map(() => '?').join(', ')})`
+                ).bind(consumedFirstService.serviceDate, ...consumedFirstService.subscriptionIds),
+            ]
+            : [];
+
+        await this.db.batch([...historyStatements, ...stopStatements, ...clearConsumedFirstServiceStatements]);
     }
 
     async getRouteStops(driverSalesRepId: string, serviceDate: string, includeTerminal = false): Promise<DispatchStop[]> {
@@ -93,13 +105,14 @@ export class D1DispatchStopRepositoryAdapter implements IDispatchStopRepository 
             this.db.prepare(
                 `UPDATE service_history
                  SET dispatch_status = 'Completed',
-                     service_date = COALESCE(?, service_date)
+                     service_date = ?
                  WHERE id = ?`
-            ).bind(completedAt, stop.service_history_id),
+            ).bind(stop.service_date, stop.service_history_id),
         ]);
     }
 
-    async skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, skippedAt: string): Promise<void> {
+    async skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, _skippedAt: string): Promise<void> {
+        void _skippedAt;
         const stop = await this.getStopById(id);
         if (!stop || stop.dispatch_status !== 'assigned') return;
 
@@ -115,9 +128,9 @@ export class D1DispatchStopRepositoryAdapter implements IDispatchStopRepository 
             this.db.prepare(
                 `UPDATE service_history
                  SET dispatch_status = 'Skipped',
-                     service_date = COALESCE(?, service_date)
+                     service_date = ?
                  WHERE id = ?`
-            ).bind(skippedAt, stop.service_history_id),
+            ).bind(stop.service_date, stop.service_history_id),
         ]);
     }
 

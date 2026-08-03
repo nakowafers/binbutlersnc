@@ -120,6 +120,8 @@ export class SubscriptionLifecycle {
             }
         }
 
+        const firstServiceDate = salesRepId ? null : nextServiceDate;
+
         try {
             await this.paymentService.updateCustomerServiceDetails(session.customer as string, {
                 name: combinedName,
@@ -134,14 +136,11 @@ export class SubscriptionLifecycle {
                 binQuantity: binQuantity.toString(),
                 lat,
                 lng,
-                nextServiceDate,
+                nextServiceDate: firstServiceDate,
             });
         } catch (error) {
             throw new WebhookHttpError(502, `Failed to update Stripe customer service details: ${(error as Error).message}`);
         }
-
-        const todayIso = new Date().toISOString().split('T')[0];
-        const isSameDay = nextServiceDate === todayIso;
 
         await this.leadRepo.convertLeadToCustomerTransaction({
             leadId,
@@ -167,8 +166,8 @@ export class SubscriptionLifecycle {
             currentPeriodEnd,
             serviceHistoryId,
             frequency,
-            nextServiceDate,
-            serviceHistoryStatus: isSameDay ? 'Completed' : undefined,
+            nextServiceDate: firstServiceDate,
+            serviceHistoryStatus: salesRepId ? 'Completed' : undefined,
         });
 
         console.log(`Successfully converted lead ${leadId} to customer ${customerId}`);

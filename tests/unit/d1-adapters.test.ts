@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { DbSimulator } from '../integration/db-simulator';
 import { D1LeadRepositoryAdapter } from '../../src/lib/db/adapters/D1LeadRepositoryAdapter';
 import { D1CustomerRepositoryAdapter } from '../../src/lib/db/adapters/D1CustomerRepositoryAdapter';
+import { D1ServiceHistoryRepositoryAdapter } from '../../src/lib/db/adapters/D1ServiceHistoryRepositoryAdapter';
+import { D1SubscriptionRepositoryAdapter } from '../../src/lib/db/adapters/D1SubscriptionRepositoryAdapter';
 
 describe('D1 repository adapters', () => {
     let simulator: DbSimulator;
@@ -15,7 +17,7 @@ describe('D1 repository adapters', () => {
 
         simulator.db.prepare(
             'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
-        ).run('lead_tx', 'tx@example.com', '123 TX St', 'REP_123', 0);
+        ).run('lead_tx', 'tx@example.com', '123 TX St', null, 0);
 
         await leads.convertLeadToCustomerTransaction({
             leadId: 'lead_tx',
@@ -26,7 +28,7 @@ describe('D1 repository adapters', () => {
             stripeSubscriptionId: 'sub_tx',
             phoneNumber: '555-1212',
             binQuantity: 2,
-            salesRepId: 'REP_123',
+            salesRepId: null,
             tosAcceptedAt: '2026-06-23T12:00:00.000Z',
             rawAddress: '123 tx st',
             latitude: 35.1,
@@ -62,11 +64,10 @@ describe('D1 repository adapters', () => {
         expect(subscription).toBeDefined();
         expect(subscription.stripe_subscription_id).toBe('sub_tx');
         expect(subscription.current_period_end).toBe('2026-07-23T00:00:00.000Z');
+        expect(subscription.next_service_date).toBe('2026-06-24');
 
         const history = simulator.db.prepare('SELECT * FROM service_history WHERE id = ?').get('history_tx') as any;
-        expect(history).toBeDefined();
-        expect(history.dispatch_status).toBe('Pending');
-        expect(history.subscription_id).toBe('subscription_tx');
+        expect(history).toBeUndefined();
     });
 
     it('keeps the shared admin read seam intact', async () => {
@@ -91,5 +92,43 @@ describe('D1 repository adapters', () => {
         expect(rows[0].raw_address).toBe('500 Admin Rd');
         expect(rows[0].subscription_status).toBe('active');
         expect(rows[0].next_service_date).toBe('2026-06-30');
+    });
+
+    it('manual first-service reschedule updates only the Subscription and leaves skipped history intact', async () => {
+        const customers = new D1CustomerRepositoryAdapter(simulator as any);
+        const subscriptions = new D1SubscriptionRepositoryAdapter(simulator as any);
+        const history = new D1ServiceHistoryRepositoryAdapter(simulator as any);
+
+        simulator.db.prepare(
+            'INSERT INTO customers (id, email, first_name, last_name, phone_number, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        ).run('customer_skipped', 'skipped@example.com', 'Skipped', 'Customer', '555-0000', '2026-06-23T12:00:00.000Z');
+        simulator.db.prepare(
+            'INSERT INTO addresses (id, customer_id, raw_address, trash_day, service_day, notes, scent_preference) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).run('address_skipped', 'customer_skipped', '500 Skipped Rd', 'WED', 'WED', 'Gate', 'lavender');
+        simulator.db.prepare(
+            'UPDATE customers SET address_id = ? WHERE id = ?'
+        ).run('address_skipped', 'customer_skipped');
+        simulator.db.prepare(
+            'INSERT INTO subscriptions (id, customer_id, status, frequency_days, current_period_end, next_service_date, is_paused) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).run('subscription_skipped', 'customer_skipped', 'active', 28, '2026-08-01T00:00:00.000Z', null, 0);
+        simulator.db.prepare(
+            "INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES ('history_skipped', 'subscription_skipped', '2026-07-15', 'Skipped')"
+        ).run();
+
+        const rows = await customers.getAllCustomersWithDetails();
+        expect(rows[0].completed_service_count).toBe(0);
+        expect(rows[0].skipped_service_count).toBe(1);
+
+        const summary = await history.getFirstServiceAttemptSummary('subscription_skipped');
+        expect(summary).toEqual({ completedCount: 0, skippedCount: 1 });
+
+        await subscriptions.updateSubscriptionFirstServiceDate('subscription_skipped', '2026-07-29');
+
+        const subscription = simulator.db.prepare('SELECT next_service_date FROM subscriptions WHERE id = ?').get('subscription_skipped') as any;
+        const historyRows = simulator.db.prepare('SELECT * FROM service_history WHERE subscription_id = ?').all('subscription_skipped') as any[];
+
+        expect(subscription.next_service_date).toBe('2026-07-29');
+        expect(historyRows).toHaveLength(1);
+        expect(historyRows[0].dispatch_status).toBe('Skipped');
     });
 });

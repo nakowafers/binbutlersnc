@@ -82,4 +82,87 @@ describe('DispatchExecutionAdapter', () => {
         expect(createDispatchStops).not.toHaveBeenCalled();
         expect(logDispatchedJobs).not.toHaveBeenCalled();
     });
+
+    it('passes consumed first-service dates into route persistence', async () => {
+        const createDispatchRoute = vi.fn().mockResolvedValue(undefined);
+        const adapter = new DispatchExecutionAdapter(
+            {
+                getDueSubscriptions: vi.fn().mockResolvedValue([
+                    dueSubscription({
+                        id: 'sub_first_service',
+                        customer_id: 'cust_first_service',
+                        next_service_date: '2024-05-14',
+                    }),
+                ]),
+                isSubscriptionPaused: vi.fn().mockResolvedValue(false),
+            } as any,
+            {} as any,
+            {
+                acquireLock: vi.fn().mockResolvedValue(true),
+                getGlobalSetting: vi.fn().mockResolvedValue(null),
+            } as any,
+            {
+                createDispatchRoute,
+                getDispatchSetupStatus: vi.fn().mockResolvedValue({
+                    isConfigured: true,
+                    defaultDriverId: 'DRIVER',
+                    depotLat: 34.2257,
+                    depotLng: -77.9447,
+                    missing: [],
+                }),
+                updateAddressCoordinates: vi.fn(),
+            } as any
+        );
+
+        await adapter.dispatchDueStops(new Date('2024-05-13T12:00:00Z'));
+
+        expect(createDispatchRoute).toHaveBeenCalledOnce();
+        expect(createDispatchRoute).toHaveBeenCalledWith(expect.objectContaining({
+            consumedFirstService: {
+                subscriptionIds: ['sub_first_service'],
+                serviceDate: '2024-05-14',
+            },
+        }));
+    });
+
+    it('does not persist consumed first-service dates separately when route persistence fails', async () => {
+        const createDispatchRoute = vi.fn().mockRejectedValue(new Error('persist failed'));
+        const adapter = new DispatchExecutionAdapter(
+            {
+                getDueSubscriptions: vi.fn().mockResolvedValue([
+                    dueSubscription({
+                        id: 'sub_first_service',
+                        customer_id: 'cust_first_service',
+                        next_service_date: '2024-05-14',
+                    }),
+                ]),
+                isSubscriptionPaused: vi.fn().mockResolvedValue(false),
+            } as any,
+            {} as any,
+            {
+                acquireLock: vi.fn().mockResolvedValue(true),
+                getGlobalSetting: vi.fn().mockResolvedValue(null),
+            } as any,
+            {
+                createDispatchRoute,
+                getDispatchSetupStatus: vi.fn().mockResolvedValue({
+                    isConfigured: true,
+                    defaultDriverId: 'DRIVER',
+                    depotLat: 34.2257,
+                    depotLng: -77.9447,
+                    missing: [],
+                }),
+                updateAddressCoordinates: vi.fn(),
+            } as any
+        );
+
+        await adapter.dispatchDueStops(new Date('2024-05-13T12:00:00Z'));
+
+        expect(createDispatchRoute).toHaveBeenCalledWith(expect.objectContaining({
+            consumedFirstService: {
+                subscriptionIds: ['sub_first_service'],
+                serviceDate: '2024-05-14',
+            },
+        }));
+    });
 });

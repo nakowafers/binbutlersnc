@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import dailyDispatchCron from '../../workers/daily-dispatch-cron/index';
 import { DbSimulator } from './db-simulator';
+import { AdminCustomerService } from '../../src/lib/admin/AdminCustomerService';
+import { D1DatabaseAdapter } from '../../src/lib/db/D1DatabaseAdapter';
 
 describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
     let simulator: DbSimulator;
@@ -44,7 +46,7 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
     function seedSubscriptionWithOptions(id: string, options: {
         serviceDay?: string;
         status?: string;
-        currentPeriodEnd?: string;
+        currentPeriodEnd?: string | null;
         latitude?: number | null;
         longitude?: number | null;
     } = {}) {
@@ -70,7 +72,7 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
         simulator.db.prepare('UPDATE customers SET address_id = ? WHERE id = ?').run(addressId, customerId);
         simulator.db.prepare(
             'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, current_period_end, frequency_days) VALUES (?, ?, ?, ?, ?, ?)'
-        ).run(`sub_${id}`, customerId, `stripe_${id}`, options.status || 'active', options.currentPeriodEnd || '2026-06-20T00:00:00.000Z', 28);
+        ).run(`sub_${id}`, customerId, `stripe_${id}`, options.status || 'active', options.currentPeriodEnd ?? '2026-06-20T00:00:00.000Z', 28);
     }
 
     it.each([
@@ -128,6 +130,47 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
         expect(history[0].dispatch_status).toBe('Pending');
     });
 
+    it('creates first-service route work only for subscriptions matching the exact target service date', async () => {
+        seedSubscription('first_due', 'TUE');
+        seedSubscription('first_before', 'TUE');
+        seedSubscription('first_after', 'TUE');
+        simulator.db.prepare(
+            'UPDATE subscriptions SET next_service_date = ? WHERE id = ?'
+        ).run('2024-05-14', 'sub_first_due');
+        simulator.db.prepare(
+            'UPDATE subscriptions SET next_service_date = ? WHERE id = ?'
+        ).run('2024-05-13', 'sub_first_before');
+        simulator.db.prepare(
+            'UPDATE subscriptions SET next_service_date = ? WHERE id = ?'
+        ).run('2024-05-15', 'sub_first_after');
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        const stops = simulator.db.prepare('SELECT * FROM dispatch_stops ORDER BY subscription_id').all() as any[];
+        const history = simulator.db.prepare('SELECT * FROM service_history ORDER BY subscription_id').all() as any[];
+        const subscriptions = simulator.db.prepare(
+            "SELECT id, next_service_date FROM subscriptions WHERE id IN ('sub_first_due', 'sub_first_before', 'sub_first_after') ORDER BY id"
+        ).all() as any[];
+
+        expect(stops).toHaveLength(1);
+        expect(stops[0]).toMatchObject({
+            subscription_id: 'sub_first_due',
+            service_date: '2024-05-14',
+        });
+        expect(history).toHaveLength(1);
+        expect(history[0]).toMatchObject({
+            subscription_id: 'sub_first_due',
+            service_date: '2024-05-14',
+            dispatch_status: 'Pending',
+        });
+        expect(stops[0].service_history_id).toBe(history[0].id);
+        expect(subscriptions).toEqual([
+            { id: 'sub_first_after', next_service_date: '2024-05-15' },
+            { id: 'sub_first_before', next_service_date: '2024-05-13' },
+            { id: 'sub_first_due', next_service_date: null },
+        ]);
+    });
+
     it('skips generation when dispatch setup is incomplete', async () => {
         simulator.db.prepare("DELETE FROM global_settings WHERE key = 'default_driver_sales_rep_id'").run();
         seedSubscription('missing_config', 'TUE');
@@ -163,15 +206,123 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
         expect(stop.service_date).toBe('2024-03-12');
     });
 
-    it('does not generate duplicate dispatch stops when pending history already exists', async () => {
+    it('does not generate duplicate dispatch stops when a target-date stop already exists', async () => {
         seedSubscription('duplicate', 'TUE');
         simulator.db.prepare(
             "INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES ('existing', 'sub_duplicate', '2024-05-14', 'Pending')"
+        ).run();
+        simulator.db.prepare(
+            "INSERT INTO dispatch_stops (id, subscription_id, service_history_id, service_date, driver_sales_rep_id, route_sequence_order, customer_name, raw_address) VALUES ('stop_existing', 'sub_duplicate', 'existing', '2024-05-14', 'DRIVER', 1, 'Duplicate Customer', 'duplicate Main St')"
+        ).run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        expect(simulator.db.prepare('SELECT * FROM dispatch_stops').all()).toHaveLength(1);
+    });
+
+    it('does not let an orphan pending service history from an old date block a due recurring route', async () => {
+        seedSubscription('stale_orphan_pending', 'TUE');
+        simulator.db.prepare(
+            "INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES ('orphan_old_pending', 'sub_stale_orphan_pending', '2024-04-16', 'Pending')"
+        ).run();
+        simulator.db.prepare(
+            "INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES ('completed_28_days_prior_to_stale', 'sub_stale_orphan_pending', '2024-04-16', 'Completed')"
+        ).run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        const stops = simulator.db.prepare('SELECT * FROM dispatch_stops').all() as any[];
+        const pendingHistory = simulator.db.prepare(
+            "SELECT * FROM service_history WHERE dispatch_status = 'Pending' ORDER BY service_date"
+        ).all() as any[];
+        expect(stops).toHaveLength(1);
+        expect(stops[0]).toMatchObject({
+            subscription_id: 'sub_stale_orphan_pending',
+            service_date: '2024-05-14',
+        });
+        expect(pendingHistory).toHaveLength(2);
+        expect(pendingHistory.map((row) => row.service_date)).toEqual(['2024-04-16', '2024-05-14']);
+    });
+
+    it('uses recurring eligibility when completed history exists even if next_service_date is stale', async () => {
+        seedSubscription('stale_first_date_after_completion', 'TUE');
+        simulator.db.prepare(
+            'UPDATE subscriptions SET next_service_date = ? WHERE id = ?'
+        ).run('2024-05-21', 'sub_stale_first_date_after_completion');
+        simulator.db.prepare(
+            "INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES ('completed_before_stale_first_date', 'sub_stale_first_date_after_completion', '2024-04-16', 'Completed')"
+        ).run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        const stops = simulator.db.prepare('SELECT * FROM dispatch_stops').all() as any[];
+        expect(stops).toHaveLength(1);
+        expect(stops[0]).toMatchObject({
+            subscription_id: 'sub_stale_first_date_after_completion',
+            service_date: '2024-05-14',
+        });
+    });
+
+    it('routes a manual first-service reschedule after a skipped first-service attempt', async () => {
+        seedSubscription('skipped_first_service', 'TUE');
+        simulator.db.prepare(
+            "INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES ('skipped_first_attempt', 'sub_skipped_first_service', '2024-05-07', 'Skipped')"
+        ).run();
+        const db = new D1DatabaseAdapter(simulator as any);
+        const adminCustomers = new AdminCustomerService(
+            db,
+            { updateCustomerServiceDetails: vi.fn() },
+            false
+        );
+
+        await adminCustomers.updateCustomer({
+            customerId: 'cust_skipped_first_service',
+            addressId: 'addr_skipped_first_service',
+            serviceDay: 'TUE',
+            manualRescheduleFirstServiceDate: '2024-05-14',
+        });
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        const subscription = simulator.db.prepare(
+            "SELECT next_service_date FROM subscriptions WHERE id = 'sub_skipped_first_service'"
+        ).get() as any;
+        const history = simulator.db.prepare(
+            "SELECT service_date, dispatch_status FROM service_history WHERE subscription_id = 'sub_skipped_first_service' ORDER BY service_date, dispatch_status"
+        ).all() as any[];
+        const stops = simulator.db.prepare(
+            "SELECT subscription_id, service_date FROM dispatch_stops WHERE subscription_id = 'sub_skipped_first_service'"
+        ).all() as any[];
+
+        expect(subscription.next_service_date).toBeNull();
+        expect(stops).toEqual([
+            { subscription_id: 'sub_skipped_first_service', service_date: '2024-05-14' },
+        ]);
+        expect(history).toEqual([
+            { service_date: '2024-05-07', dispatch_status: 'Skipped' },
+            { service_date: '2024-05-14', dispatch_status: 'Pending' },
+        ]);
+    });
+
+    it('does not regenerate a one-time service after it has been skipped', async () => {
+        seedSubscriptionWithOptions('skipped_one_time', {
+            status: 'one-time',
+            currentPeriodEnd: null,
+        });
+        simulator.db.prepare(
+            "UPDATE subscriptions SET frequency_days = 0, next_service_date = NULL WHERE id = 'sub_skipped_one_time'"
+        ).run();
+        simulator.db.prepare(
+            "INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES ('skipped_one_time_attempt', 'sub_skipped_one_time', '2024-05-07', 'Skipped')"
         ).run();
 
         await dailyDispatchCron.handleDispatch(mockEnv);
 
         expect(simulator.db.prepare('SELECT * FROM dispatch_stops').all()).toHaveLength(0);
+        expect(simulator.db.prepare(
+            "SELECT service_date, dispatch_status FROM service_history WHERE subscription_id = 'sub_skipped_one_time' ORDER BY service_date"
+        ).all()).toEqual([
+            { service_date: '2024-05-07', dispatch_status: 'Skipped' },
+        ]);
     });
 
     it('evaluates subscription due eligibility against the target service date', async () => {
