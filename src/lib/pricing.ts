@@ -1,3 +1,5 @@
+import { addDaysToDateString } from '@/lib/date-utils';
+
 export interface PricingResult {
     setupFee: number;
     recurringPrice: number;
@@ -25,6 +27,12 @@ export interface RecurringBillingPresentation {
     defaultStartLabel: string;
 }
 
+export interface CheckoutBillingDisclosure {
+    subscriptionName: string;
+    summaryLine: string;
+    agreementLine: string;
+}
+
 export const ONE_TIME_PRICE = 60;
 
 function defineSubscription(
@@ -40,7 +48,7 @@ const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, Subscriptio
     monthly: defineSubscription({
         frequency: 'monthly',
         customerFacingName: 'Monthly',
-        basePrice: 30,
+        basePrice: 35,
         cadenceWeeks: 4,
         priceSuffix: '',
         includesCadenceInBillingLabel: false,
@@ -48,7 +56,7 @@ const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, Subscriptio
     bimonthly: defineSubscription({
         frequency: 'bimonthly',
         customerFacingName: 'Bi-Monthly',
-        basePrice: 40,
+        basePrice: 50,
         cadenceWeeks: 8,
         priceSuffix: '',
         includesCadenceInBillingLabel: false,
@@ -94,9 +102,45 @@ export function getRecurringBillingPresentation(
 
     return {
         planPriceLabel,
-        summaryBillingLabel: `${planPriceLabel} flat-rate service`,
-        agreementBillingLabel: planPriceLabel,
-        defaultStartLabel: `starting in ${metadata.cadenceWeeks} weeks`,
+        summaryBillingLabel: `${planPriceLabel} ${cadenceLabel}`,
+        agreementBillingLabel: `${planPriceLabel} ${cadenceLabel}`,
+        defaultStartLabel: `after the ${metadata.cadenceDays}-day trial`,
+    };
+}
+
+function formatCustomerDate(dateString: string): string {
+    return new Intl.DateTimeFormat('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC',
+    }).format(new Date(`${dateString}T12:00:00Z`));
+}
+
+export function getCheckoutBillingDisclosure(input: {
+    setupFee: number;
+    recurringPrice: number;
+    frequency: SubscriptionFrequency;
+    firstServiceDate?: string;
+}): CheckoutBillingDisclosure {
+    const definition = getSubscriptionDefinition(input.frequency);
+    const firstCleanDate = input.firstServiceDate
+        ? formatCustomerDate(input.firstServiceDate)
+        : null;
+    const recurringStartDate = input.firstServiceDate
+        ? formatCustomerDate(addDaysToDateString(input.firstServiceDate, definition.cadenceDays))
+        : null;
+
+    const firstCleanClause = firstCleanDate ? ` on ${firstCleanDate}` : '';
+    const recurringStartClause = recurringStartDate
+        ? `on ${recurringStartDate}`
+        : `after the ${definition.cadenceDays}-day trial`;
+    const recurringBillingLabel = `$${input.recurringPrice} every ${definition.cadenceWeeks} weeks`;
+
+    return {
+        subscriptionName: definition.customerFacingName,
+        summaryLine: `$${input.setupFee} initial fee paid today covers your first clean${firstCleanClause}. ${recurringBillingLabel} recurring billing begins ${recurringStartClause}.`,
+        agreementLine: `The one-time initial cleaning fee of $${input.setupFee} paid today covers your first clean${firstCleanClause}. Your ${recurringBillingLabel} recurring billing begins ${recurringStartClause} and will automatically renew until cancelled via the Stripe Billing Portal.`,
     };
 }
 

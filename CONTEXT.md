@@ -36,9 +36,11 @@
 
 | Term | Definition | Aliases to avoid |
 | --- | --- | --- |
-| **Subscription** | An active, recurring agreement (monthly or quarterly) for bin cleaning services. | Plan, membership, contract |
+| **Subscription** | An active, recurring agreement for bin cleaning services. | Plan, membership, contract |
+| **Monthly Subscription** | The customer-named Subscription billed and serviced every 4 weeks (28 days), not by calendar month. | Calendar-month plan, 30-day plan |
+| **Bi-Monthly Subscription** | The customer-named Subscription billed and serviced every 8 weeks (56 days), not by calendar months. | Bimonthly plan, two-calendar-month plan |
 | **Quarterly Subscription** | A Subscription serviced and renewed every 12 weeks, not by calendar quarter. | Calendar-quarter plan, 13-week plan |
-| **Billing Portal** | A Stripe-hosted interface for managing payment methods, viewing invoices, and changing plans. | Account portal, customer dashboard |
+| **Billing Portal** | A Stripe-hosted interface for managing payment methods, viewing invoices, and cancellation. Subscription plan switching is temporarily disabled until local cadence synchronization exists. | Account portal, customer dashboard |
 | **Customer Portal** | A custom, passwordless authenticated dashboard for viewing service history and managing gate access notes or vacation mode. | Settings page, user profile |
 | **Vacation Mode** | A customer-triggered settings state that pauses scheduled cleaning stops. | Service pause, holds, temporary pause |
 

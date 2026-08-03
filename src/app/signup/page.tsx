@@ -18,7 +18,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { normalizeSalesRepId } from "@/lib/sales-rep";
-import { calculatePricing, getRecurringBillingPresentation, getSubscriptionDefinition, PRICING_VERSION } from "@/lib/pricing";
+import { calculatePricing, getCheckoutBillingDisclosure, getRecurringBillingPresentation, getSubscriptionDefinition, PRICING_VERSION } from "@/lib/pricing";
 import { PRICING_VERSION_MISMATCH_CODE } from '@/lib/checkout/pricingVersion';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -135,9 +135,14 @@ function SignupForm() {
     const nextServiceDate = useWatch({ control, name: 'next_service_date' });
     const formValues = useWatch({ control });
     const { recurringPrice } = calculatePricing(binQuantity, frequency);
-    const recurringBilling = frequency === 'one-time'
+    const checkoutDisclosure = frequency === 'one-time'
         ? null
-        : getRecurringBillingPresentation(recurringPrice, frequency);
+        : getCheckoutBillingDisclosure({
+            setupFee: setupFeeOverride,
+            recurringPrice,
+            frequency,
+            firstServiceDate: nextServiceDate || undefined,
+        });
 
     useEffect(() => {
         fetch('/api/serviceable-zips')
@@ -479,7 +484,7 @@ function SignupForm() {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">$30</p>
+                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'monthly').recurringPrice}</p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
@@ -649,7 +654,7 @@ function SignupForm() {
                                         <CheckCircle2 size={24} />
                                     </div>
                                     <p className="text-sm text-slate-600 leading-relaxed">
-                                        <strong>Summary:</strong> You&apos;re signing up for the <span className="capitalize">{frequency.replace('-', ' ')}</span> service for {binQuantity} bin{binQuantity > 1 ? 's' : ''}{address ? ` at ${address}` : ''}.
+                                        <strong>Summary:</strong> You&apos;re signing up for the {frequency === 'one-time' ? 'One-Time Clean' : checkoutDisclosure?.subscriptionName} service for {binQuantity} bin{binQuantity > 1 ? 's' : ''}{address ? ` at ${address}` : ''}.
                                         <br /><br />
                                         <strong>Next Service Date:</strong> {nextServiceDate ? format(new Date(`${nextServiceDate}T12:00:00`), 'PPP') : 'Not set'}
                                         <br /><br />
@@ -662,7 +667,7 @@ function SignupForm() {
                                         <span className="text-xs text-slate-500 block mt-1">
                                             {frequency === 'one-time'
                                                 ? `($${setupFeeOverride} flat-rate one-time clean${nextServiceDate ? ' on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : ''})`
-                                                : `($${setupFeeOverride} initial fee today + ${recurringBilling?.summaryBillingLabel}${nextServiceDate ? ' starting on ' + format(new Date(nextServiceDate + 'T12:00:00'), 'PP') : recurringBilling?.defaultStartLabel ? ' ' + recurringBilling.defaultStartLabel : ''})`}
+                                                : `(${checkoutDisclosure?.summaryLine})`}
                                         </span>
                                     </p>
                                 </div>
@@ -712,13 +717,13 @@ function SignupForm() {
                             <CardContent className="p-8 space-y-6">
                                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 h-64 overflow-y-auto text-sm text-slate-600 space-y-4 leading-relaxed scrollbar-thin scrollbar-thumb-slate-300">
                                     <h3 className="font-bold text-[#1C3D5A] text-base">Service Agreement for {address}</h3>
-                                    <p>This agreement confirms your <span className="capitalize font-semibold">{frequency}</span> subscription for {binQuantity} trash bin{binQuantity > 1 ? 's' : ''} at the address listed above.</p>
+                                    <p>This agreement confirms your <span className="font-semibold">{checkoutDisclosure?.subscriptionName} Subscription</span> for {binQuantity} trash bin{binQuantity > 1 ? 's' : ''} at the address listed above.</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">1. Service Scope</h4>
                                     <p>Bin Butlers NC will provide professional cleaning, sanitizing, and deodorizing services for your specified trash bins. Service will occur on your municipal trash day ({trashDay}).</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">2. Billing & Renewal</h4>
-                                    <p>You will be charged a one-time initial cleaning fee of ${setupFeeOverride} today. Your recurring subscription of {recurringBilling?.agreementBillingLabel} will begin on {nextServiceDate ? format(new Date(nextServiceDate + 'T12:00:00'), 'PPP') : 'your scheduled service date'} and will automatically renew until cancelled via the Stripe Customer Portal.</p>
+                                    <p>{checkoutDisclosure?.agreementLine}</p>
 
                                     <h4 className="font-bold text-[#1C3D5A]">3. Customer Obligations</h4>
                                     <p>Customers must leave their bins at the curb or in a visible, accessible location on the scheduled service day. If bins are not accessible, service may be skipped and rescheduled for the following week.</p>
