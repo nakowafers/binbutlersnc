@@ -3,6 +3,7 @@ import {
     calculatePricing,
     getRecurringBillingPresentation,
     getSubscriptionDefinition,
+    getSubscriptionDefinitionByCadenceDays,
     ONE_TIME_PRICE,
 } from '../../src/lib/pricing';
 
@@ -11,14 +12,15 @@ describe('Pricing Engine', () => {
         ['monthly', 'Monthly', 30, 4, 28],
         ['bimonthly', 'Bi-Monthly', 40, 8, 56],
         ['quarterly', 'Quarterly', 60, 12, 84],
-    ] as const)('defines the current %s Subscription rate card', (frequency, customerName, basePrice, cadenceWeeks, cadenceDays) => {
+    ] as const)('defines the current %s Subscription rate card', (frequency, customerFacingName, basePrice, cadenceWeeks, cadenceDays) => {
         expect(getSubscriptionDefinition(frequency)).toMatchObject({
             frequency,
-            customerName,
+            customerFacingName,
             basePrice,
             cadenceWeeks,
             cadenceDays,
         });
+        expect(getSubscriptionDefinitionByCadenceDays(cadenceDays)?.customerFacingName).toBe(customerFacingName);
     });
 
     it('should charge base rate for 1 bin', () => {
@@ -31,6 +33,12 @@ describe('Pricing Engine', () => {
         const result = calculatePricing(2, 'monthly');
         expect(result.setupFee).toBe(45);
         expect(result.recurringPrice).toBe(30);
+    });
+
+    it.each([1, 2])('should charge the bimonthly base rate for %i included bins', (binQuantity) => {
+        const result = calculatePricing(binQuantity, 'bimonthly');
+        expect(result.setupFee).toBe(45);
+        expect(result.recurringPrice).toBe(40);
     });
 
     it.each([

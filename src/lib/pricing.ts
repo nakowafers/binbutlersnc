@@ -8,7 +8,7 @@ export type SubscriptionFrequency = Exclude<PricingFrequency, 'one-time'>;
 
 export interface SubscriptionDefinition {
     readonly frequency: SubscriptionFrequency;
-    readonly customerName: string;
+    readonly customerFacingName: string;
     readonly basePrice: number;
     readonly cadenceWeeks: number;
     readonly cadenceDays: number;
@@ -28,7 +28,7 @@ export const ONE_TIME_PRICE = 60;
 const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, SubscriptionDefinition>> = {
     monthly: {
         frequency: 'monthly',
-        customerName: 'Monthly',
+        customerFacingName: 'Monthly',
         basePrice: 30,
         cadenceWeeks: 4,
         cadenceDays: 28,
@@ -37,7 +37,7 @@ const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, Subscriptio
     },
     bimonthly: {
         frequency: 'bimonthly',
-        customerName: 'Bi-Monthly',
+        customerFacingName: 'Bi-Monthly',
         basePrice: 40,
         cadenceWeeks: 8,
         cadenceDays: 56,
@@ -46,7 +46,7 @@ const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, Subscriptio
     },
     quarterly: {
         frequency: 'quarterly',
-        customerName: 'Quarterly',
+        customerFacingName: 'Quarterly',
         basePrice: 60,
         cadenceWeeks: 12,
         cadenceDays: 84,
@@ -57,6 +57,10 @@ const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, Subscriptio
 
 export function getSubscriptionDefinition(frequency: SubscriptionFrequency): Readonly<SubscriptionDefinition> {
     return SUBSCRIPTION_RATE_CARD[frequency];
+}
+
+export function getSubscriptionDefinitionByCadenceDays(cadenceDays: number): Readonly<SubscriptionDefinition> | undefined {
+    return Object.values(SUBSCRIPTION_RATE_CARD).find((definition) => definition.cadenceDays === cadenceDays);
 }
 
 export function getServiceCadenceDays(frequency: PricingFrequency): number {

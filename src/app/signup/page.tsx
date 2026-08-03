@@ -18,7 +18,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { normalizeSalesRepId } from "@/lib/sales-rep";
-import { calculatePricing, getRecurringBillingPresentation } from "@/lib/pricing";
+import { calculatePricing, getRecurringBillingPresentation, getSubscriptionDefinition } from "@/lib/pricing";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -28,6 +28,9 @@ import { getTodayDateString, getMaximumDate, isTrashDayMatch, isWeekday, validat
 const todayStr = getTodayDateString();
 const maxDate = getMaximumDate();
 let serviceableZips: string[] = [];
+const monthlyName = getSubscriptionDefinition('monthly').customerFacingName;
+const bimonthlyName = getSubscriptionDefinition('bimonthly').customerFacingName;
+const quarterlyName = getSubscriptionDefinition('quarterly').customerFacingName;
 
 const signupSchema = z.object({
     first_name: z.string().trim().min(1, "First name is required").max(100),
@@ -458,7 +461,7 @@ function SignupForm() {
                                             <div className="flex items-center gap-4">
                                                 <RadioGroupItem value="monthly" id="monthly" className="text-[#7AC142]" />
                                                 <div>
-                                                    <p className="font-bold text-[#1C3D5A]">Monthly Plan</p>
+                                                    <p className="font-bold text-[#1C3D5A]">{monthlyName} Plan</p>
                                                     <p className="text-sm text-slate-500">Cleaned every 4 weeks</p>
                                                 </div>
                                             </div>
@@ -474,7 +477,7 @@ function SignupForm() {
                                             <div className="flex items-center gap-4">
                                                 <RadioGroupItem value="bimonthly" id="bimonthly" className="text-[#7AC142]" />
                                                 <div>
-                                                    <p className="font-bold text-[#1C3D5A]">Bi-Monthly Plan</p>
+                                                    <p className="font-bold text-[#1C3D5A]">{bimonthlyName} Plan</p>
                                                     <p className="text-sm text-slate-500">Cleaned every 8 weeks</p>
                                                 </div>
                                             </div>
@@ -490,7 +493,7 @@ function SignupForm() {
                                             <div className="flex items-center gap-4">
                                                 <RadioGroupItem value="quarterly" id="quarterly" className="text-[#7AC142]" />
                                                 <div>
-                                                    <p className="font-bold text-[#1C3D5A]">Quarterly Plan</p>
+                                                    <p className="font-bold text-[#1C3D5A]">{quarterlyName} Plan</p>
                                                     <p className="text-sm text-slate-500">Cleaned every 12 weeks</p>
                                                 </div>
                                             </div>
