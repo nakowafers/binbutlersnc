@@ -25,34 +25,40 @@ export interface RecurringBillingPresentation {
 
 export const ONE_TIME_PRICE = 60;
 
+function defineSubscription(
+    definition: Omit<SubscriptionDefinition, 'cadenceDays'>
+): SubscriptionDefinition {
+    return {
+        ...definition,
+        cadenceDays: definition.cadenceWeeks * 7,
+    };
+}
+
 const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, SubscriptionDefinition>> = {
-    monthly: {
+    monthly: defineSubscription({
         frequency: 'monthly',
         customerFacingName: 'Monthly',
         basePrice: 30,
         cadenceWeeks: 4,
-        cadenceDays: 28,
         priceSuffix: '',
         includesCadenceInBillingLabel: false,
-    },
-    bimonthly: {
+    }),
+    bimonthly: defineSubscription({
         frequency: 'bimonthly',
         customerFacingName: 'Bi-Monthly',
         basePrice: 40,
         cadenceWeeks: 8,
-        cadenceDays: 56,
         priceSuffix: '',
         includesCadenceInBillingLabel: false,
-    },
-    quarterly: {
+    }),
+    quarterly: defineSubscription({
         frequency: 'quarterly',
         customerFacingName: 'Quarterly',
         basePrice: 60,
         cadenceWeeks: 12,
-        cadenceDays: 84,
         priceSuffix: '',
         includesCadenceInBillingLabel: true,
-    },
+    }),
 };
 
 export function getSubscriptionDefinition(frequency: SubscriptionFrequency): Readonly<SubscriptionDefinition> {
