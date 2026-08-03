@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../../src/app/api/checkout/route';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { DbSimulator } from './db-simulator';
+import { PRICING_VERSION } from '../../src/lib/pricing';
 
 const mockCreateSession = vi.fn();
 const mockRetrievePrice = vi.fn();
@@ -20,6 +21,7 @@ function quarterlyCheckoutBody(overrides: Record<string, unknown> = {}) {
         scent_preference: 'lavender',
         bin_quantity: 3,
         frequency: 'quarterly',
+        pricing_version: PRICING_VERSION,
         tos_accepted: true,
         age_confirmed: true,
         contact_consent: true,
@@ -83,6 +85,48 @@ describe('Checkout API - Integration Tests', () => {
         (getRequestContext as any).mockReturnValue({ env: mockEnv });
     });
 
+    it.each([
+        ['missing', undefined],
+        ['stale', 'old-rate-card'],
+    ])('rejects a %s pricing version before lead or Stripe side effects', async (_case, pricingVersion) => {
+        const request = new Request('http://localhost/api/checkout', {
+            method: 'POST',
+            body: JSON.stringify(quarterlyCheckoutBody({
+                email: `${_case}@example.com`,
+                sales_rep_id: 'REP123',
+                setup_fee_override: 10,
+                pricing_version: pricingVersion,
+            })),
+        });
+
+        const response = await POST(request);
+
+        expect(response.status).toBe(409);
+        await expect(response.json()).resolves.toEqual({
+            code: 'pricing_version_mismatch',
+            error: 'Pricing has changed. Please review the latest prices before checkout.',
+        });
+        expect(simulator.db.prepare('SELECT * FROM leads WHERE email = ?').get(`${_case}@example.com`)).toBeUndefined();
+        expect(mockCreateSession).not.toHaveBeenCalled();
+    });
+
+    it('accepts the current pricing version through the existing Checkout path', async () => {
+        mockCreateSession.mockResolvedValue({ url: 'https://stripe.com/checkout/session/current-pricing' });
+
+        const request = new Request('http://localhost/api/checkout', {
+            method: 'POST',
+            body: JSON.stringify(quarterlyCheckoutBody({
+                email: 'current-pricing@example.com',
+                pricing_version: PRICING_VERSION,
+            })),
+        });
+
+        const response = await POST(request);
+
+        expect(response.status).toBe(200);
+        expect(mockCreateSession).toHaveBeenCalledOnce();
+    });
+
     it('should create a lead and a Stripe session for monthly frequency', async () => {
         mockCreateSession.mockResolvedValue({ url: 'https://stripe.com/checkout/session/123' });
         mockRetrievePrice.mockResolvedValue({ product: 'prod_setup' });
@@ -100,6 +144,7 @@ describe('Checkout API - Integration Tests', () => {
             scent_preference: 'lavender',
             bin_quantity: 2,
             frequency: 'monthly',
+            pricing_version: PRICING_VERSION,
             tos_accepted: true,
             age_confirmed: true,
             contact_consent: true,
@@ -200,6 +245,7 @@ describe('Checkout API - Integration Tests', () => {
             scent_preference: 'lavender',
             bin_quantity: 1,
             frequency: 'bimonthly',
+            pricing_version: PRICING_VERSION,
             tos_accepted: true,
             age_confirmed: true,
             contact_consent: true,
@@ -236,6 +282,7 @@ describe('Checkout API - Integration Tests', () => {
             scent_preference: 'ocean_breeze',
             bin_quantity: 1,
             frequency: 'one-time',
+            pricing_version: PRICING_VERSION,
             sales_rep_id: 'rep_override',
             setup_fee_override: 50,
         };
@@ -266,6 +313,7 @@ describe('Checkout API - Integration Tests', () => {
 
     it('should return 400 for invalid data', async () => {
         const body = {
+            pricing_version: PRICING_VERSION,
             email: 'invalid-email',
             address: 'too-short',
         };
@@ -296,6 +344,7 @@ describe('Checkout API - Integration Tests', () => {
             scent_preference: 'tropical',
             bin_quantity: 1,
             frequency: 'monthly',
+            pricing_version: PRICING_VERSION,
             tos_accepted: true,
             age_confirmed: true,
             contact_consent: true,
@@ -338,6 +387,7 @@ describe('Checkout API - Integration Tests', () => {
             scent_preference: 'lavender',
             bin_quantity: 1,
             frequency: 'one-time',
+            pricing_version: PRICING_VERSION,
             next_service_date: '2026-06-19',
         };
 
@@ -388,6 +438,7 @@ describe('Checkout API - Integration Tests', () => {
             scent_preference: 'ocean_breeze',
             bin_quantity: 3,
             frequency: 'monthly',
+            pricing_version: PRICING_VERSION,
             tos_accepted: true,
             age_confirmed: true,
             contact_consent: true,

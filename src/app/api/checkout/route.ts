@@ -4,11 +4,36 @@ import { Env } from '@/lib/types';
 import { CheckoutHttpError } from '@/lib/checkout/CheckoutService';
 import { createCheckoutService } from '@/lib/checkout/createCheckoutService';
 import { normalizeCheckoutPayload } from '@/lib/checkout/checkoutSchema';
+import {
+    hasCurrentPricingVersion,
+    PRICING_VERSION_MISMATCH_CODE,
+    PRICING_VERSION_MISMATCH_MESSAGE,
+} from '@/lib/checkout/pricingVersion';
 
 export const runtime = 'edge';
 
 export async function POST(request: Request) {
     try {
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        if (!hasCurrentPricingVersion(body)) {
+            return new Response(JSON.stringify({
+                code: PRICING_VERSION_MISMATCH_CODE,
+                error: PRICING_VERSION_MISMATCH_MESSAGE,
+            }), {
+                status: 409,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+
         let env: Env | undefined;
         try {
             const context = getRequestContext() as unknown as { env: Env };
@@ -20,17 +45,6 @@ export async function POST(request: Request) {
         if (!env) {
             return new Response(JSON.stringify({ error: 'Cloudflare environment not detected' }), { 
                 status: 500, 
-                headers: { 'Content-Type': 'application/json' } 
-            });
-        }
-
-        // Parse body safely
-        let body: unknown;
-        try {
-            body = await request.json();
-        } catch {
-            return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), { 
-                status: 400, 
                 headers: { 'Content-Type': 'application/json' } 
             });
         }

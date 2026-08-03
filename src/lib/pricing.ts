@@ -3,6 +3,8 @@ export interface PricingResult {
     recurringPrice: number;
 }
 
+export const PRICING_VERSION = '2026-08-monthly35-bimonthly50';
+
 export type PricingFrequency = 'monthly' | 'bimonthly' | 'quarterly' | 'one-time';
 export type SubscriptionFrequency = Exclude<PricingFrequency, 'one-time'>;
 

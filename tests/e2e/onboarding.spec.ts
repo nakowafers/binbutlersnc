@@ -70,6 +70,53 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         });
     });
 
+    test('reloads stale pricing with an explanation and preserves entered signup data', async ({ page }) => {
+        const signupDocumentRequests: string[] = [];
+        let capturedPayload: Record<string, unknown> | null = null;
+        page.on('request', (request) => {
+            if (request.resourceType() === 'document' && request.url().includes('/signup')) {
+                signupDocumentRequests.push(request.url());
+            }
+        });
+
+        await page.route('**/api/checkout', async (route) => {
+            capturedPayload = route.request().postDataJSON();
+            await route.fulfill({
+                status: 409,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 'pricing_version_mismatch',
+                    error: 'Pricing has changed. Please review the latest prices before checkout.',
+                }),
+            });
+        });
+
+        await page.goto('/signup');
+        await page.fill('#first_name', 'Patricia');
+        await page.fill('#last_name', 'Preserved');
+        await selectAutocompleteAddress(page, '321 Saved Form St, Charlotte, NC');
+        await page.selectOption('#trash_day', 'MON');
+        await page.fill('#bin_quantity', '2');
+        await page.getByRole('button', { name: 'Next Step' }).click();
+        await page.fill('#email', 'preserved@example.com');
+        await page.fill('#phone_number', '7045550199');
+        await page.getByRole('button', { name: 'Review Agreement' }).click();
+        await acceptStepThreeConsents(page);
+        await page.getByRole('button', { name: 'Go to Payment' }).click();
+
+        await expect(page.locator('form').getByText('Pricing has changed. Please review the latest prices before checkout.', { exact: true })).toBeVisible();
+        await expect.poll(() => signupDocumentRequests.length).toBe(2);
+        await expect(page.getByText('Service Agreement', { exact: true })).toBeVisible();
+        await page.locator('form button[type="button"]').first().click();
+        await expect(page.locator('#email')).toHaveValue('preserved@example.com');
+        await page.getByRole('button', { name: 'Review Agreement' }).locator('..').locator('button').first().click();
+        await expect(page.locator('#first_name')).toHaveValue('Patricia');
+        expect(capturedPayload).toMatchObject({
+            frequency: 'monthly',
+            pricing_version: '2026-08-monthly35-bimonthly50',
+        });
+    });
+
     test('Quarterly pricing stays consistent from landing page through agreement', async ({ page }) => {
         let capturedPayload: Record<string, unknown> | null = null;
 

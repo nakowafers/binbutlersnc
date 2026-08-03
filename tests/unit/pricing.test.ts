@@ -5,9 +5,14 @@ import {
     getSubscriptionDefinition,
     getSubscriptionDefinitionByCadenceDays,
     ONE_TIME_PRICE,
+    PRICING_VERSION,
 } from '../../src/lib/pricing';
 
 describe('Pricing Engine', () => {
+    it('exposes the version for the complete public rate card', () => {
+        expect(PRICING_VERSION).toBe('2026-08-monthly35-bimonthly50');
+    });
+
     it.each([
         ['monthly', 'Monthly', 30, 4, 28],
         ['bimonthly', 'Bi-Monthly', 40, 8, 56],

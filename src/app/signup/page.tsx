@@ -18,7 +18,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { normalizeSalesRepId } from "@/lib/sales-rep";
-import { calculatePricing, getRecurringBillingPresentation, getSubscriptionDefinition } from "@/lib/pricing";
+import { calculatePricing, getRecurringBillingPresentation, getSubscriptionDefinition, PRICING_VERSION } from "@/lib/pricing";
+import { PRICING_VERSION_MISMATCH_CODE } from '@/lib/checkout/pricingVersion';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -203,21 +204,33 @@ function SignupForm() {
         setSubmitError(null);
         setIsLoading(true);
         try {
+            try {
+                sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            } catch {
+                // sessionStorage may be full or unavailable
+            }
+
             const response = await fetch('/api/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
+                body: JSON.stringify({ ...data, pricing_version: PRICING_VERSION }),
             });
 
             if (!response.ok) {
                 let errorMsg = 'Failed to initiate checkout.';
+                let errorCode: string | undefined;
                 try {
-                    const errorData = await response.json() as { error?: string };
+                    const errorData = await response.json() as { code?: string; error?: string };
                     errorMsg = errorData.error || errorMsg;
+                    errorCode = errorData.code;
                 } catch (e) {
                     console.error('Non-JSON error response:', e);
                 }
+                setSubmitError(errorMsg);
                 toast.error(errorMsg);
+                if (response.status === 409 && errorCode === PRICING_VERSION_MISMATCH_CODE) {
+                    window.setTimeout(() => window.location.reload(), 1500);
+                }
                 return;
             }
 
