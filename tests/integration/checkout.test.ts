@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../../src/app/api/checkout/route';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { DbSimulator } from './db-simulator';
-import { PRICING_VERSION } from '../../src/lib/pricing';
+import { PRICING_VERSION } from '@/lib/pricing';
 
 const mockCreateSession = vi.fn();
 const mockRetrievePrice = vi.fn();

@@ -3,7 +3,7 @@ import { CheckoutHttpError, CheckoutService } from '../../src/lib/checkout/Check
 import { CheckoutInput } from '../../src/lib/checkout/checkoutSchema';
 import { ILeadRepository, ISalesRepRepository } from '../../src/lib/db/types';
 import { IPaymentService } from '../../src/lib/payment/types';
-import { PRICING_VERSION } from '../../src/lib/pricing';
+import { PRICING_VERSION } from '@/lib/pricing';
 
 function validInput(overrides: Partial<CheckoutInput> = {}): CheckoutInput {
     return {

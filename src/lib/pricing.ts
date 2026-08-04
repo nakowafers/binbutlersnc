@@ -16,7 +16,6 @@ export interface SubscriptionDefinition {
     readonly basePrice: number;
     readonly cadenceWeeks: number;
     readonly cadenceDays: number;
-    readonly priceSuffix: string;
     readonly includesCadenceInBillingLabel: boolean;
 }
 
@@ -50,7 +49,6 @@ const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, Subscriptio
         customerFacingName: 'Monthly',
         basePrice: 35,
         cadenceWeeks: 4,
-        priceSuffix: '',
         includesCadenceInBillingLabel: false,
     }),
     bimonthly: defineSubscription({
@@ -58,7 +56,6 @@ const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, Subscriptio
         customerFacingName: 'Bi-Monthly',
         basePrice: 50,
         cadenceWeeks: 8,
-        priceSuffix: '',
         includesCadenceInBillingLabel: false,
     }),
     quarterly: defineSubscription({
@@ -66,7 +63,6 @@ const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, Subscriptio
         customerFacingName: 'Quarterly',
         basePrice: 60,
         cadenceWeeks: 12,
-        priceSuffix: '',
         includesCadenceInBillingLabel: true,
     }),
 };
@@ -88,7 +84,7 @@ export function getRecurringBillingPresentation(
     frequency: SubscriptionFrequency
 ): RecurringBillingPresentation {
     const metadata = getSubscriptionDefinition(frequency);
-    const planPriceLabel = `$${recurringPrice}${metadata.priceSuffix}`;
+    const planPriceLabel = `$${recurringPrice}`;
     const cadenceLabel = `every ${metadata.cadenceWeeks} weeks`;
 
     if (metadata.includesCadenceInBillingLabel) {

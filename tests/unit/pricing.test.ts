@@ -7,7 +7,7 @@ import {
     getSubscriptionDefinitionByCadenceDays,
     ONE_TIME_PRICE,
     PRICING_VERSION,
-} from '../../src/lib/pricing';
+} from '@/lib/pricing';
 
 describe('Pricing Engine', () => {
     it('exposes the version for the complete public rate card', () => {
