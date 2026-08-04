@@ -100,7 +100,6 @@ export interface ISubscriptionRepository {
     getDueSubscriptions(targetServiceDate: string): Promise<DueSubscriptionResult[]>;
     clearConsumedFirstServiceDates(subscriptionIds: string[], serviceDate: string): Promise<void>;
     getActiveSubscriptionsCount(): Promise<number>;
-    calculateEstimatedWeeklyRevenue(): Promise<number>;
     updateSubscriptionFirstServiceDate(id: string, firstServiceDate: string): Promise<void>;
 }
 

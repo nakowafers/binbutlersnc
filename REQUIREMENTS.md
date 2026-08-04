@@ -77,7 +77,13 @@ Column names in D1 must describe local dispatch concepts:
 3.  **Abandoned Cart Recovery (Future):** The system will persist the customer's `email`, `address`, and `rep_id` to a `leads` table *before* redirecting to Stripe. If a successful `checkout.session.completed` webhook is not received within 24 hours, the system triggers an automated follow-up.
 
 ### 4.2. Checkout & Provisioning
-1.  **Dynamic Stripe Checkout:** The backend generates a dynamic session where the `Setup Fee` defaults to $45 flat regardless of bin count. This is the only fee due at signing. For subscriptions, a trial period is applied (28 days for monthly, 84 days for quarterly) so that the recurring flat rate starts only after the initial cleaning interval. D2D sales reps have the ability to manually edit this initial fee for on-the-spot sales, but the fee cannot be less than $0.
+1.  **Dynamic Stripe Checkout:** The backend generates a dynamic session where the `Setup Fee` defaults to $45 flat regardless of bin count. This is the only fee due at signing and covers the first cleaning. D2D Sales Reps retain the ability to override only this initial fee for on-the-spot sales, but the fee cannot be less than $0.
+    - A Monthly Subscription costs $35 for one or two bins, plus $5 for each additional bin, and renews every 4 weeks (28 days).
+    - A Bi-Monthly Subscription costs $50 for one or two bins, plus $5 for each additional bin, and renews every 8 weeks (56 days).
+    - A Quarterly Subscription remains $60 for one or two bins, plus $5 for each additional bin, and renews every 12 weeks (84 days). One-Time remains $60.
+    - Signup review and the Service Agreement state the selected recurring total as billed every 4, 8, or 12 weeks. The landing page deliberately uses `/mo` and `/2 months` beside adjacent exact-week service language.
+    - When a First Service Date is selected, the initial fee covers the first clean on that date and recurring billing begins one full cadence later. Without one, Checkout uses the matching 28-, 56-, or 84-day trial interval without promising an unspecified service date.
+    - New Checkout Sessions use the current Stripe Price bindings. Existing Subscriptions retain their existing Price references and are not repriced. Billing Portal plan switching remains disabled until Stripe plan changes synchronize local Subscription cadence.
 2.  **Service Day Logic:** The system automatically assigns `service_day = trash_day`. Bins are cleaned on the same day as garbage collection.
 3.  **Route Assignment:** Maps address to `service_route_id` based on the assigned `service_day`.
 
@@ -90,7 +96,7 @@ Column names in D1 must describe local dispatch concepts:
 3.  **Holiday Rescheduling (Manual Offset):** The Admin Dashboard will include a "Shift Routes" feature to manually offset service dates (e.g., shifting all Tuesday stops to Wednesday) to accommodate municipal holiday schedules.
 
 ### 4.4. Client & Admin Management
-1.  **Stripe Billing Portal:** Post-checkout, users are redirected directly to Stripe's hosted Billing Portal for self-service payment management, invoices, and plan changes — no custom auth required.
+1.  **Stripe Billing Portal:** Post-checkout, users are redirected directly to Stripe's hosted Billing Portal for self-service payment management, invoices, and cancellation — no custom auth required. Subscription plan switching is temporarily disabled until Stripe plan changes synchronize local Subscription cadence.
 2.  **Authenticated Settings Page (Future):** Magic-Link login for users to update address/day, toggle "Vacation Mode," view service history, and manage property access details.
 3.  **Bin Identification:** Service relies on physical "Service Stickers" applied during the initial D2D clean. Admin-Drivers clean all bins marked with active stickers.
 4.  **Admin Dashboard (Single User):** A secure administrative view for:

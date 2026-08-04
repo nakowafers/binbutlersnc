@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Header } from '@/components/Header';
 import Link from 'next/link';
 import Image from 'next/image';
-import { calculatePricing, ONE_TIME_PRICE } from '@/lib/pricing';
+import { calculatePricing, getSubscriptionDefinition, ONE_TIME_PRICE } from '@/lib/pricing';
 
 export const runtime = 'edge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,9 @@ export default async function Home() {
   const monthlyPrice = calculatePricing(1, 'monthly').recurringPrice;
   const bimonthlyPrice = calculatePricing(1, 'bimonthly').recurringPrice;
   const quarterlyPrice = calculatePricing(1, 'quarterly').recurringPrice;
+  const monthlyName = getSubscriptionDefinition('monthly').customerFacingName;
+  const bimonthlyName = getSubscriptionDefinition('bimonthly').customerFacingName;
+  const quarterlyName = getSubscriptionDefinition('quarterly').customerFacingName;
   return (
     <div className="flex flex-col min-h-screen font-sans bg-[#F8FAFC]">
       <Header />
@@ -169,7 +172,7 @@ export default async function Home() {
                 <div className="absolute top-0 right-10 -translate-y-1/2 bg-[#7AC142] text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
                   Best for Year-Round Freshness
                 </div>
-                <h3 className="text-2xl font-bold mb-2">Monthly</h3>
+                <h3 className="text-2xl font-bold mb-2">{monthlyName}</h3>
                 <div className="flex items-baseline gap-1 mb-1">
                   <span className="text-4xl font-extrabold text-white">${monthlyPrice}</span>
                   <span className="text-slate-300">/mo</span>
@@ -198,7 +201,7 @@ export default async function Home() {
 
               {/* Bi-Monthly */}
               <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group">
-                <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">Bi-Monthly</h3>
+                <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">{bimonthlyName}</h3>
                 <div className="flex items-baseline gap-1 mb-1">
                   <span className="text-4xl font-extrabold text-[#1C3D5A]">${bimonthlyPrice}</span>
                   <span className="text-slate-500">/2 months</span>
@@ -227,7 +230,7 @@ export default async function Home() {
 
               {/* Quarterly */}
               <div className="flex flex-col p-10 bg-[#F8FAFC] rounded-[2.5rem] border-2 border-transparent transition-all hover:border-[#7AC142] hover:shadow-xl group">
-                <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">Quarterly</h3>
+                <h3 className="text-2xl font-bold text-[#1C3D5A] mb-2">{quarterlyName}</h3>
                 <div className="flex items-baseline gap-1 mb-1">
                   <span className="text-4xl font-extrabold text-[#1C3D5A]">${quarterlyPrice}</span>
                   <span className="text-slate-500">/qtr</span>

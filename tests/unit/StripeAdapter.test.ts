@@ -34,6 +34,7 @@ describe('StripeAdapter', () => {
     const config: StripeConfig = {
         secretKey: 'sk_test_xxx',
         monthlyPriceId: 'price_monthly',
+        bimonthlyPriceId: 'price_bimonthly',
         quarterlyPriceId: 'price_quarterly',
         oneTimePriceId: 'price_onetime',
         setupFeePriceId: 'price_setup',
@@ -100,6 +101,18 @@ describe('StripeAdapter', () => {
             expect(callArgs.subscription_data.trial_end).toBe(1788825599);
         });
 
+        it('should set trial_end to the second bimonthly service date for future date subscription', async () => {
+            await adapter.createCheckoutSession({
+                ...baseParams,
+                frequency: 'bimonthly',
+                nextServiceDate: '2026-06-15',
+            });
+
+            const callArgs = mockCreateCheckoutSession.mock.calls[0][0];
+            expect(callArgs.subscription_data.trial_period_days).toBeUndefined();
+            expect(callArgs.subscription_data.trial_end).toBe(1786406399);
+        });
+
         it('should not set trial_end when nextServiceDate is not provided (falls back to trial)', async () => {
             await adapter.createCheckoutSession(baseParams);
 
@@ -116,6 +129,13 @@ describe('StripeAdapter', () => {
 
             const callArgs = mockCreateCheckoutSession.mock.calls[0][0];
             expect(callArgs.subscription_data.trial_period_days).toBe(84);
+        });
+
+        it('should use 56-day trial for bimonthly when no nextServiceDate', async () => {
+            await adapter.createCheckoutSession({ ...baseParams, frequency: 'bimonthly' });
+
+            const callArgs = mockCreateCheckoutSession.mock.calls[0][0];
+            expect(callArgs.subscription_data.trial_period_days).toBe(56);
         });
 
         it('should use payment mode for one-time regardless of nextServiceDate', async () => {

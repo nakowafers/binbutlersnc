@@ -63,11 +63,57 @@ describe('D1 repository adapters', () => {
         const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE id = ?').get('subscription_tx') as any;
         expect(subscription).toBeDefined();
         expect(subscription.stripe_subscription_id).toBe('sub_tx');
+        expect(subscription.frequency_days).toBe(28);
         expect(subscription.current_period_end).toBe('2026-07-23T00:00:00.000Z');
         expect(subscription.next_service_date).toBe('2026-06-24');
 
         const history = simulator.db.prepare('SELECT * FROM service_history WHERE id = ?').get('history_tx') as any;
         expect(history).toBeUndefined();
+    });
+
+    it.each([
+        ['monthly', 28],
+        ['bimonthly', 56],
+        ['quarterly', 84],
+        ['one-time', 0],
+    ] as const)('persists %s Subscription cadence as %i days during lead conversion', async (frequency, cadenceDays) => {
+        const leads = new D1LeadRepositoryAdapter(simulator as any);
+        const suffix = frequency.replace('-', '_');
+
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(`lead_${suffix}`, `${suffix}@example.com`, '123 Cadence St', null, 0);
+
+        await leads.convertLeadToCustomerTransaction({
+            leadId: `lead_${suffix}`,
+            email: `${suffix}@example.com`,
+            firstName: 'Cadence',
+            lastName: 'Customer',
+            stripeCustomerId: `cus_${suffix}`,
+            stripeSubscriptionId: frequency === 'one-time' ? null : `sub_${suffix}`,
+            phoneNumber: '555-1212',
+            binQuantity: 2,
+            salesRepId: null,
+            tosAcceptedAt: null,
+            rawAddress: '123 cadence st',
+            latitude: 35.1,
+            longitude: -80.1,
+            trashDay: 'TUE',
+            serviceDay: 'TUE',
+            notes: '',
+            scentPreference: 'lavender',
+            subscriptionId: `subscription_${suffix}`,
+            addressId: `address_${suffix}`,
+            customerId: `customer_${suffix}`,
+            currentPeriodEnd: null,
+            serviceHistoryId: `history_${suffix}`,
+            frequency,
+        });
+
+        const subscription = simulator.db.prepare(
+            'SELECT frequency_days FROM subscriptions WHERE id = ?'
+        ).get(`subscription_${suffix}`) as { frequency_days: number };
+        expect(subscription.frequency_days).toBe(cadenceDays);
     });
 
     it('keeps the shared admin read seam intact', async () => {

@@ -39,16 +39,28 @@ jobs:
           umask 077
           SECRETS_FILE=$(mktemp)
           trap 'rm -f "$SECRETS_FILE"' EXIT
+          : "${STRIPE_MONTHLY_PRICE_ID:?STRIPE_MONTHLY_PRICE_ID is required}"
+          : "${STRIPE_BIMONTHLY_PRICE_ID:?STRIPE_BIMONTHLY_PRICE_ID is required}"
+          : "${STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID:?STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID is required}"
+          : "${STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID:?STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID is required}"
           jq -n \
             --arg authSecret "$AUTH_SECRET" \
             --arg authGoogleId "$AUTH_GOOGLE_ID" \
             --arg authGoogleSecret "$AUTH_GOOGLE_SECRET" \
+            --arg monthlyPriceId "$STRIPE_MONTHLY_PRICE_ID" \
+            --arg bimonthlyPriceId "$STRIPE_BIMONTHLY_PRICE_ID" \
             --arg quarterlyPriceId "$STRIPE_QUARTERLY_PRICE_ID" \
+            --arg extraBinMonthlyPriceId "$STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID" \
+            --arg extraBinBimonthlyPriceId "$STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID" \
             '{
               AUTH_SECRET: $authSecret,
               AUTH_GOOGLE_ID: $authGoogleId,
               AUTH_GOOGLE_SECRET: $authGoogleSecret,
-              STRIPE_QUARTERLY_PRICE_ID: $quarterlyPriceId
+              STRIPE_MONTHLY_PRICE_ID: $monthlyPriceId,
+              STRIPE_BIMONTHLY_PRICE_ID: $bimonthlyPriceId,
+              STRIPE_QUARTERLY_PRICE_ID: $quarterlyPriceId,
+              STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID: $extraBinMonthlyPriceId,
+              STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID: $extraBinBimonthlyPriceId
             }' > "$SECRETS_FILE"
           VERSION_ID=$(npx wrangler versions upload --secrets-file "$SECRETS_FILE" 2>&1 | grep -oE '[a-f0-9-]{36}' | tail -1)
           echo "version-id=$VERSION_ID" >> "$GITHUB_OUTPUT"
@@ -57,7 +69,11 @@ jobs:
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
           AUTH_GOOGLE_ID: ${{ secrets.AUTH_GOOGLE_ID }}
           AUTH_GOOGLE_SECRET: ${{ secrets.AUTH_GOOGLE_SECRET }}
+          STRIPE_MONTHLY_PRICE_ID: ${{ secrets.STRIPE_MONTHLY_PRICE_ID }}
+          STRIPE_BIMONTHLY_PRICE_ID: ${{ secrets.STRIPE_BIMONTHLY_PRICE_ID }}
           STRIPE_QUARTERLY_PRICE_ID: ${{ secrets.STRIPE_QUARTERLY_PRICE_ID }}
+          STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID: ${{ secrets.STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID }}
+          STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID: ${{ secrets.STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID }}
 
       - name: Deploy Worker version
         if: github.ref == 'refs/heads/main'

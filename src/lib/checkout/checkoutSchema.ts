@@ -2,8 +2,10 @@ import { z } from 'zod';
 import { Env } from '@/lib/types';
 import { normalizeAddress, normalizeEmail } from '@/lib/utils';
 import { normalizeSalesRepId } from '@/lib/sales-rep';
+import { pricingVersionSchema } from '@/lib/checkout/pricingVersion';
 
 export const checkoutSchema = z.object({
+    pricing_version: pricingVersionSchema,
     email: z.string().email(),
     first_name: z.string().trim().min(1).max(100),
     last_name: z.string().trim().min(1).max(100),

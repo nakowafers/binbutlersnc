@@ -43,6 +43,7 @@ import { toast } from 'sonner';
 import type { CustomerWithDetails } from '@/lib/types';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { EditCustomerDialog } from './edit-customer-dialog';
+import { getSubscriptionDefinitionByCadenceDays } from '@/lib/pricing';
 
 type SortField = 'name' | 'email' | 'subscription_status' | 'created_at';
 type SortDirection = 'asc' | 'desc';
@@ -272,10 +273,8 @@ export function CustomerTable() {
 
     const getFrequencyLabel = (days?: number) => {
         if (!days) return '—';
-        if (days === 28) return 'Monthly';
-        if (days === 56) return 'Bi-Monthly';
-        if (days === 84) return 'Quarterly';
-        if (days === 0) return 'One-Time';
+        const definition = getSubscriptionDefinitionByCadenceDays(days);
+        if (definition) return definition.customerFacingName;
         return `${days}d`;
     };
 

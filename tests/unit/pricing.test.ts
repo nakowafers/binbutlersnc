@@ -1,17 +1,62 @@
 import { describe, it, expect } from 'vitest';
-import { calculatePricing, getRecurringBillingPresentation, ONE_TIME_PRICE } from '../../src/lib/pricing';
+import {
+    calculatePricing,
+    getCheckoutBillingDisclosure,
+    getRecurringBillingPresentation,
+    getSubscriptionDefinition,
+    getSubscriptionDefinitionByCadenceDays,
+    ONE_TIME_PRICE,
+    PRICING_VERSION,
+} from '@/lib/pricing';
 
 describe('Pricing Engine', () => {
+    it('exposes the version for the complete public rate card', () => {
+        expect(PRICING_VERSION).toBe('2026-08-monthly35-bimonthly50');
+    });
+
+    it.each([
+        ['monthly', 'Monthly', 35, 4, 28],
+        ['bimonthly', 'Bi-Monthly', 50, 8, 56],
+        ['quarterly', 'Quarterly', 60, 12, 84],
+    ] as const)('defines the current %s Subscription rate card', (frequency, customerFacingName, basePrice, cadenceWeeks, cadenceDays) => {
+        expect(getSubscriptionDefinition(frequency)).toMatchObject({
+            frequency,
+            customerFacingName,
+            basePrice,
+            cadenceWeeks,
+            cadenceDays,
+        });
+        expect(getSubscriptionDefinitionByCadenceDays(cadenceDays)?.customerFacingName).toBe(customerFacingName);
+    });
+
     it('should charge base rate for 1 bin', () => {
         const result = calculatePricing(1, 'monthly');
         expect(result.setupFee).toBe(45);
-        expect(result.recurringPrice).toBe(30);
+        expect(result.recurringPrice).toBe(35);
     });
 
     it('should charge base rate for 2 bins', () => {
         const result = calculatePricing(2, 'monthly');
         expect(result.setupFee).toBe(45);
-        expect(result.recurringPrice).toBe(30);
+        expect(result.recurringPrice).toBe(35);
+    });
+
+    it.each([1, 2])('should charge the bimonthly base rate for %i included bins', (binQuantity) => {
+        const result = calculatePricing(binQuantity, 'bimonthly');
+        expect(result.setupFee).toBe(45);
+        expect(result.recurringPrice).toBe(50);
+    });
+
+    it.each([
+        ['monthly', 3, 40],
+        ['bimonthly', 3, 55],
+        ['monthly', 5, 50],
+        ['bimonthly', 5, 65],
+    ] as const)('charges $5 per additional bin for %s with %i bins', (frequency, binQuantity, recurringPrice) => {
+        expect(calculatePricing(binQuantity, frequency)).toEqual({
+            setupFee: 45,
+            recurringPrice,
+        });
     });
 
     it.each([
@@ -35,26 +80,57 @@ describe('Pricing Engine', () => {
     });
 
     it.each([
-        ['monthly', 30, {
-            planPriceLabel: '$30',
-            summaryBillingLabel: '$30 flat-rate service',
-            agreementBillingLabel: '$30',
-            defaultStartLabel: 'starting in 4 weeks',
+        ['monthly', 35, {
+            planPriceLabel: '$35',
+            summaryBillingLabel: '$35 every 4 weeks',
+            agreementBillingLabel: '$35 every 4 weeks',
+            defaultStartLabel: 'after the 28-day trial',
         }],
-        ['bimonthly', 40, {
-            planPriceLabel: '$40',
-            summaryBillingLabel: '$40 flat-rate service',
-            agreementBillingLabel: '$40',
-            defaultStartLabel: 'starting in 8 weeks',
+        ['bimonthly', 50, {
+            planPriceLabel: '$50',
+            summaryBillingLabel: '$50 every 8 weeks',
+            agreementBillingLabel: '$50 every 8 weeks',
+            defaultStartLabel: 'after the 56-day trial',
         }],
-    ] as const)('preserves %s recurring billing presentation', (frequency, recurringPrice, expected) => {
+    ] as const)('discloses %s recurring billing cadence', (frequency, recurringPrice, expected) => {
         expect(getRecurringBillingPresentation(recurringPrice, frequency)).toEqual(expected);
     });
 
-    it('should add surcharge for each bin over 2', () => {
-        const result = calculatePricing(5, 'bimonthly');
-        expect(result.setupFee).toBe(45);
-        expect(result.recurringPrice).toBe(55); // 40 + 15
+    it('discloses the default Bi-Monthly trial without inventing a first-service date', () => {
+        expect(getCheckoutBillingDisclosure({
+            setupFee: 45,
+            recurringPrice: 55,
+            frequency: 'bimonthly',
+        })).toEqual({
+            subscriptionName: 'Bi-Monthly',
+            summaryLine: '$45 initial fee paid today covers your first clean. $55 every 8 weeks recurring billing begins after the 56-day trial.',
+            agreementLine: 'The one-time initial cleaning fee of $45 paid today covers your first clean. Your $55 every 8 weeks recurring billing begins after the 56-day trial and will automatically renew until cancelled via the Stripe Billing Portal.',
+        });
+    });
+
+    it('discloses the first clean and next Monthly recurring charge as separate dates', () => {
+        expect(getCheckoutBillingDisclosure({
+            setupFee: 45,
+            recurringPrice: 35,
+            frequency: 'monthly',
+            firstServiceDate: '2026-08-10',
+        })).toEqual({
+            subscriptionName: 'Monthly',
+            summaryLine: '$45 initial fee paid today covers your first clean on August 10, 2026. $35 every 4 weeks recurring billing begins on September 7, 2026.',
+            agreementLine: 'The one-time initial cleaning fee of $45 paid today covers your first clean on August 10, 2026. Your $35 every 4 weeks recurring billing begins on September 7, 2026 and will automatically renew until cancelled via the Stripe Billing Portal.',
+        });
+    });
+
+    it('keeps the Quarterly first clean separate from its 84-day recurring start', () => {
+        expect(getCheckoutBillingDisclosure({
+            setupFee: 45,
+            recurringPrice: 60,
+            frequency: 'quarterly',
+            firstServiceDate: '2026-08-10',
+        })).toMatchObject({
+            subscriptionName: 'Quarterly',
+            summaryLine: '$45 initial fee paid today covers your first clean on August 10, 2026. $60 every 12 weeks recurring billing begins on November 2, 2026.',
+        });
     });
 
     it('should not surcharge one-time', () => {

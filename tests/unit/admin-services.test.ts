@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminCustomerService, AdminServiceError } from '../../src/lib/admin/AdminCustomerService';
 import { AdminSettingsError, AdminSettingsService } from '../../src/lib/admin/AdminSettingsService';
 
@@ -23,6 +23,15 @@ describe('AdminSettingsService', () => {
 });
 
 describe('AdminCustomerService manual first-service reschedule', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-07-24T12:00:00Z'));
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     function createRepo(overrides: Record<string, unknown> = {}) {
         return {
             updateCustomer: vi.fn(),
@@ -117,9 +126,6 @@ describe('AdminCustomerService manual first-service reschedule', () => {
     });
 
     it('rejects one-time reschedules on weekends without changing the Subscription', async () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2026-07-24T12:00:00Z'));
-
         const repo = createRepo({
             getSubscriptionByCustomerId: vi.fn().mockResolvedValue({
                 id: 'sub_1',
@@ -133,18 +139,14 @@ describe('AdminCustomerService manual first-service reschedule', () => {
         });
         const service = new AdminCustomerService(repo as any, paymentService as any, false);
 
-        try {
-            await expect(service.updateCustomer({
-                customerId: 'cust_1',
-                addressId: 'addr_1',
-                manualRescheduleFirstServiceDate: '2026-07-25',
-                serviceDay: 'WED',
-            })).rejects.toEqual(new AdminServiceError(400, 'First Service Date must be a weekday'));
+        await expect(service.updateCustomer({
+            customerId: 'cust_1',
+            addressId: 'addr_1',
+            manualRescheduleFirstServiceDate: '2026-07-25',
+            serviceDay: 'WED',
+        })).rejects.toEqual(new AdminServiceError(400, 'First Service Date must be a weekday'));
 
-            expect(repo.updateSubscriptionFirstServiceDate).not.toHaveBeenCalled();
-        } finally {
-            vi.useRealTimers();
-        }
+        expect(repo.updateSubscriptionFirstServiceDate).not.toHaveBeenCalled();
     });
 
     it('rejects customers that already completed first service without changing the Subscription', async () => {
