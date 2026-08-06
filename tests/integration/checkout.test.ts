@@ -7,7 +7,7 @@ import { PRICING_VERSION } from '@/lib/pricing';
 const mockCreateSession = vi.fn();
 const mockRetrievePrice = vi.fn();
 
-function quarterlyCheckoutBody(overrides: Record<string, unknown> = {}) {
+function recurringCheckoutBody(overrides: Record<string, unknown> = {}) {
     return {
         email: 'quarterly@example.com',
         first_name: 'Quinn',
@@ -92,7 +92,7 @@ describe('Checkout API - Integration Tests', () => {
     ])('rejects a %s pricing version before lead or Stripe side effects', async (_case, pricingVersion) => {
         const request = new Request('http://localhost/api/checkout', {
             method: 'POST',
-            body: JSON.stringify(quarterlyCheckoutBody({
+            body: JSON.stringify(recurringCheckoutBody({
                 email: `${_case}@example.com`,
                 sales_rep_id: 'REP123',
                 setup_fee_override: 10,
@@ -116,7 +116,7 @@ describe('Checkout API - Integration Tests', () => {
 
         const request = new Request('http://localhost/api/checkout', {
             method: 'POST',
-            body: JSON.stringify(quarterlyCheckoutBody({
+            body: JSON.stringify(recurringCheckoutBody({
                 email: 'current-pricing@example.com',
                 pricing_version: PRICING_VERSION,
             })),
@@ -190,7 +190,7 @@ describe('Checkout API - Integration Tests', () => {
 
         const request = new Request('http://localhost/api/checkout', {
             method: 'POST',
-            body: JSON.stringify(quarterlyCheckoutBody()),
+            body: JSON.stringify(recurringCheckoutBody()),
         });
 
         const response = await POST(request);
@@ -215,7 +215,7 @@ describe('Checkout API - Integration Tests', () => {
 
         const request = new Request('http://localhost/api/checkout', {
             method: 'POST',
-            body: JSON.stringify(quarterlyCheckoutBody({
+            body: JSON.stringify(recurringCheckoutBody({
                 email: 'bimonthly@example.com',
                 frequency: 'bimonthly',
             })),
@@ -246,7 +246,7 @@ describe('Checkout API - Integration Tests', () => {
 
         const request = new Request('http://localhost/api/checkout', {
             method: 'POST',
-            body: JSON.stringify(quarterlyCheckoutBody({
+            body: JSON.stringify(recurringCheckoutBody({
                 email: 'missing-quarterly-price@example.com',
                 first_name: 'Missing',
                 bin_quantity: 2,
