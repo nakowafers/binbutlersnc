@@ -1,13 +1,14 @@
 # Recurring Stripe Price Change Runbook
 
-Use this runbook when changing a recurring Subscription rate. Stripe Price amounts are immutable, so a rate change creates a new Price while existing Subscriptions keep their existing Price references.
+Use this runbook when changing a recurring Subscription rate. Stripe Price amounts are immutable, so a rate change reactivates an exact compatible archived Price or creates a replacement while existing Subscriptions keep their existing Price references.
 
 ## 1. Validate the catalog in test mode
 
 1. Confirm the intended existing Stripe Product for every affected Subscription.
-2. Create active test Prices with the approved USD amount and exact weekly interval.
-3. Validate each extra-bin Price before reuse: it must be active, USD, $5, attached to the intended extra-bin Product, and use the matching weekly interval. Create a replacement only when one of those checks fails.
-4. Open unpaid test Checkout Sessions for the included-bin and first-extra-bin cases. Confirm the initial fee, recurring total, Product, interval, tax behavior, and metadata. Do not record credentials, customer data, or full Checkout URLs in evidence.
+2. Search the intended Product for an archived Price with the approved USD amount and exact weekly interval. Validate its Product, currency, billing scheme, tax behavior, and recurrence before reactivating it. Prior use is not proof of current compatibility.
+3. Reactivate and reuse the exact archived Price when every attribute is compatible. If it is incompatible or unavailable, create an exact replacement Price on the intended existing Product.
+4. Validate each extra-bin Price before reuse: it must be active, USD, $5, attached to the intended extra-bin Product, and use the matching weekly interval. Create a replacement only when one of those checks fails.
+5. Open unpaid test Checkout Sessions for the included-bin and first-extra-bin cases. Confirm the initial fee, recurring total, Product, interval, tax behavior, and metadata. Do not record credentials, customer data, or full Checkout URLs in evidence.
 
 ## 2. Prepare the live cutover
 
