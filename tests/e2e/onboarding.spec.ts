@@ -113,7 +113,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await expect(page.locator('#first_name')).toHaveValue('Patricia');
         expect(capturedPayload).toMatchObject({
             frequency: 'monthly',
-            pricing_version: '2026-08-monthly35-bimonthly50',
+            pricing_version: '2026-08-monthly30-bimonthly40',
         });
     });
 
@@ -169,12 +169,12 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.goto('/');
 
         const monthlyCard = page.getByRole('heading', { name: 'Monthly', exact: true }).locator('..');
-        await expect(monthlyCard.getByText('$35', { exact: true })).toBeVisible();
+        await expect(monthlyCard.getByText('$30', { exact: true })).toBeVisible();
         await expect(monthlyCard.getByText('/mo', { exact: true })).toBeVisible();
         await expect(monthlyCard.getByText('Cleaned every 4 weeks', { exact: true })).toBeVisible();
 
         const bimonthlyCard = page.getByRole('heading', { name: 'Bi-Monthly', exact: true }).locator('..');
-        await expect(bimonthlyCard.getByText('$50', { exact: true })).toBeVisible();
+        await expect(bimonthlyCard.getByText('$40', { exact: true })).toBeVisible();
         await expect(bimonthlyCard.getByText('/2 months', { exact: true })).toBeVisible();
         await expect(bimonthlyCard.getByText('Cleaned every 8 weeks', { exact: true })).toBeVisible();
 
@@ -186,27 +186,27 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
 
         const monthlyOption = page.locator('#monthly').locator('xpath=ancestor::div[contains(@class, "justify-between")][1]');
         const bimonthlyOption = page.locator('#bimonthly').locator('xpath=ancestor::div[contains(@class, "justify-between")][1]');
-        await expect(monthlyOption.getByText('$35', { exact: true })).toBeVisible();
-        await expect(bimonthlyOption.getByText('$50', { exact: true })).toBeVisible();
+        await expect(monthlyOption.getByText('$30', { exact: true })).toBeVisible();
+        await expect(bimonthlyOption.getByText('$40', { exact: true })).toBeVisible();
 
         await page.fill('#bin_quantity', '2');
-        await expect(monthlyOption.getByText('$35', { exact: true })).toBeVisible();
-        await expect(bimonthlyOption.getByText('$50', { exact: true })).toBeVisible();
+        await expect(monthlyOption.getByText('$30', { exact: true })).toBeVisible();
+        await expect(bimonthlyOption.getByText('$40', { exact: true })).toBeVisible();
 
         await page.fill('#bin_quantity', '3');
-        await expect(monthlyOption.getByText('$40', { exact: true })).toBeVisible();
-        await expect(bimonthlyOption.getByText('$55', { exact: true })).toBeVisible();
+        await expect(monthlyOption.getByText('$35', { exact: true })).toBeVisible();
+        await expect(bimonthlyOption.getByText('$45', { exact: true })).toBeVisible();
 
         await page.getByRole('button', { name: 'Next Step' }).click();
         await page.fill('#email', 'billing@example.com');
         await page.fill('#phone_number', '7045553535');
 
         await expect(page.getByText(/\$45 initial fee paid today covers your first clean/)).toBeVisible();
-        await expect(page.getByText(/\$55 every 8 weeks recurring billing begins after the 56-day trial/)).toBeVisible();
+        await expect(page.getByText(/\$45 every 8 weeks recurring billing begins after the 56-day trial/)).toBeVisible();
 
         await page.getByRole('button', { name: 'Review Agreement' }).click();
         await expect(page.getByText(/Bi-Monthly Subscription/)).toBeVisible();
-        await expect(page.getByText(/\$55 every 8 weeks recurring billing begins after the 56-day trial/)).toBeVisible();
+        await expect(page.getByText(/\$45 every 8 weeks recurring billing begins after the 56-day trial/)).toBeVisible();
     });
 
     test('selected First Service Date separates the first clean from recurring billing', async ({ page }) => {
@@ -223,11 +223,11 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.locator('[role="dialog"] button:not([disabled])').filter({ hasText: /^\d+$/ }).first().click();
 
         await expect(page.getByText(/\$45 initial fee paid today covers your first clean on/)).toBeVisible();
-        await expect(page.getByText(/\$35 every 4 weeks recurring billing begins on/)).toBeVisible();
+        await expect(page.getByText(/\$30 every 4 weeks recurring billing begins on/)).toBeVisible();
 
         await page.getByRole('button', { name: 'Review Agreement' }).click();
         await expect(page.getByText(/initial cleaning fee of \$45 paid today covers your first clean on/)).toBeVisible();
-        await expect(page.getByText(/\$35 every 4 weeks recurring billing begins on/)).toBeVisible();
+        await expect(page.getByText(/\$30 every 4 weeks recurring billing begins on/)).toBeVisible();
     });
 
     test('Organic Signup Flow (no sales rep ID) - full multi-step form', async ({ page }) => {

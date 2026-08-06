@@ -7,7 +7,7 @@ import { PRICING_VERSION } from '@/lib/pricing';
 const mockCreateSession = vi.fn();
 const mockRetrievePrice = vi.fn();
 
-function quarterlyCheckoutBody(overrides: Record<string, unknown> = {}) {
+function recurringCheckoutBody(overrides: Record<string, unknown> = {}) {
     return {
         email: 'quarterly@example.com',
         first_name: 'Quinn',
@@ -74,6 +74,7 @@ describe('Checkout API - Integration Tests', () => {
             DB: simulator,
             STRIPE_SECRET_KEY: 'sk_test_123',
             STRIPE_MONTHLY_PRICE_ID: 'price_monthly',
+            STRIPE_BIMONTHLY_PRICE_ID: 'price_bimonthly',
             STRIPE_QUARTERLY_PRICE_ID: 'price_quarterly',
             STRIPE_ONETIME_PRICE_ID: 'price_onetime',
             STRIPE_SETUP_FEE_PRICE_ID: 'price_setup',
@@ -91,7 +92,7 @@ describe('Checkout API - Integration Tests', () => {
     ])('rejects a %s pricing version before lead or Stripe side effects', async (_case, pricingVersion) => {
         const request = new Request('http://localhost/api/checkout', {
             method: 'POST',
-            body: JSON.stringify(quarterlyCheckoutBody({
+            body: JSON.stringify(recurringCheckoutBody({
                 email: `${_case}@example.com`,
                 sales_rep_id: 'REP123',
                 setup_fee_override: 10,
@@ -115,7 +116,7 @@ describe('Checkout API - Integration Tests', () => {
 
         const request = new Request('http://localhost/api/checkout', {
             method: 'POST',
-            body: JSON.stringify(quarterlyCheckoutBody({
+            body: JSON.stringify(recurringCheckoutBody({
                 email: 'current-pricing@example.com',
                 pricing_version: PRICING_VERSION,
             })),
@@ -189,7 +190,7 @@ describe('Checkout API - Integration Tests', () => {
 
         const request = new Request('http://localhost/api/checkout', {
             method: 'POST',
-            body: JSON.stringify(quarterlyCheckoutBody()),
+            body: JSON.stringify(recurringCheckoutBody()),
         });
 
         const response = await POST(request);
@@ -209,12 +210,43 @@ describe('Checkout API - Integration Tests', () => {
         }));
     });
 
+    it('creates Bi-Monthly checkout from configured Price references with the 56-day cadence', async () => {
+        mockCreateSession.mockResolvedValue({ url: 'https://stripe.com/checkout/session/bimonthly' });
+
+        const request = new Request('http://localhost/api/checkout', {
+            method: 'POST',
+            body: JSON.stringify(recurringCheckoutBody({
+                email: 'bimonthly@example.com',
+                frequency: 'bimonthly',
+            })),
+        });
+
+        const response = await POST(request);
+
+        expect(response.status).toBe(200);
+        expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({
+            mode: 'subscription',
+            line_items: [
+                { price: 'price_bimonthly', quantity: 1 },
+                { price: 'price_setup', quantity: 1 },
+                { price: 'price_extra_bimonthly', quantity: 1 },
+            ],
+            metadata: expect.objectContaining({
+                frequency: 'bimonthly',
+                bin_quantity: '3',
+            }),
+            subscription_data: expect.objectContaining({
+                trial_period_days: 56,
+            }),
+        }));
+    });
+
     it('should reject quarterly checkout when the Stripe price is missing', async () => {
         delete mockEnv.STRIPE_QUARTERLY_PRICE_ID;
 
         const request = new Request('http://localhost/api/checkout', {
             method: 'POST',
-            body: JSON.stringify(quarterlyCheckoutBody({
+            body: JSON.stringify(recurringCheckoutBody({
                 email: 'missing-quarterly-price@example.com',
                 first_name: 'Missing',
                 bin_quantity: 2,
