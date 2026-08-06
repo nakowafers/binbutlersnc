@@ -5,7 +5,7 @@ export interface PricingResult {
     recurringPrice: number;
 }
 
-export const PRICING_VERSION = '2026-08-monthly35-bimonthly50';
+export const PRICING_VERSION = '2026-08-monthly30-bimonthly40';
 
 export type PricingFrequency = 'monthly' | 'bimonthly' | 'quarterly' | 'one-time';
 export type SubscriptionFrequency = Exclude<PricingFrequency, 'one-time'>;
@@ -47,14 +47,14 @@ const SUBSCRIPTION_RATE_CARD: Readonly<Record<SubscriptionFrequency, Subscriptio
     monthly: defineSubscription({
         frequency: 'monthly',
         customerFacingName: 'Monthly',
-        basePrice: 35,
+        basePrice: 30,
         cadenceWeeks: 4,
         includesCadenceInBillingLabel: false,
     }),
     bimonthly: defineSubscription({
         frequency: 'bimonthly',
         customerFacingName: 'Bi-Monthly',
-        basePrice: 50,
+        basePrice: 40,
         cadenceWeeks: 8,
         includesCadenceInBillingLabel: false,
     }),
