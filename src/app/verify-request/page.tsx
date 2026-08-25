@@ -7,24 +7,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export default function VerifyRequestPage() {
   return (
-    <div className="min-h-screen bg-[#F8FAFC] py-20 px-4 flex flex-col items-center justify-center">
-      <Link href="/" className="mb-10">
-        <Image src="/assets/logo.png" alt="Bin Butlers NC" width={1189} height={1251} className="h-16 w-auto" />
+    <div className="min-h-screen bg-[#F8FAFC] py-12 sm:py-20 px-4 flex flex-col items-center justify-center">
+      <Link href="/" className="mb-8 sm:mb-10">
+        <Image src="/assets/logo.png" alt="Bin Butlers NC" width={1189} height={1251} className="h-14 sm:h-16 w-auto" />
       </Link>
 
-      <Card className="w-full max-w-md border-none shadow-2xl rounded-[2.5rem] overflow-hidden">
-        <CardHeader className="bg-[#1C3D5A] text-white p-10 text-center">
+      <Card className="w-full max-w-md border-none shadow-2xl rounded-2xl sm:rounded-[2.5rem] overflow-hidden">
+        <CardHeader className="bg-[#1C3D5A] text-white p-6 sm:p-10 text-center">
           <div className="flex justify-center mb-4">
             <div className="bg-[#7AC142] rounded-full p-3">
               <Mail size={32} className="text-white" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-extrabold mb-2">Check Your Email</CardTitle>
+          <CardTitle className="text-2xl sm:text-3xl font-extrabold mb-2">Check Your Email</CardTitle>
           <CardDescription className="text-slate-300">
             A secure sign-in link has been sent to your email address.
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-10 space-y-6">
+        <CardContent className="p-6 sm:p-10 space-y-6">
           <p className="text-slate-600 text-center leading-relaxed">
             Click the link in the email to sign in to your account. If you don&apos;t see the email, check your spam folder.
           </p>

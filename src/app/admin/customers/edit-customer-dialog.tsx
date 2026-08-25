@@ -153,8 +153,8 @@ export function EditCustomerDialog({ customer, open, onOpenChange, onSaved }: Ed
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
+            <DialogContent className="sm:max-w-lg rounded-2xl max-h-[90dvh] flex flex-col p-0 overflow-hidden">
+                <DialogHeader className="px-6 pt-6 pb-2 shrink-0 text-left">
                     <DialogTitle className="text-[#1C3D5A] flex items-center gap-2">
                         <Pencil size={18} className="text-[#7AC142]" />
                         Edit Customer
@@ -164,7 +164,7 @@ export function EditCustomerDialog({ customer, open, onOpenChange, onSaved }: Ed
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-5 py-2">
+                <div className="px-6 py-2 flex-1 overflow-y-auto space-y-5 [-webkit-overflow-scrolling:touch]">
                     {/* Name fields */}
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
@@ -282,7 +282,7 @@ export function EditCustomerDialog({ customer, open, onOpenChange, onSaved }: Ed
                     ) : null}
                 </div>
 
-                <DialogFooter className="gap-2 sm:gap-0">
+                <DialogFooter className="px-6 py-4 bg-slate-50 border-t shrink-0 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
                     <Button
                         variant="ghost"
                         onClick={() => onOpenChange(false)}

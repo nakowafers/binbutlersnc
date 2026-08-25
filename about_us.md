@@ -1,0 +1,7 @@
+My name is Evan Yanni, and I started this business at 21 years old — and yes, I dropped out of college to do it.
+That wasn't an easy decision. I've always had a passion for sales and working in the field, not sitting in a classroom waiting for a piece of paper to tell me I was ready. Choosing to leave school was stressful — but I knew if I was going to do this, I had to go all in. No half measures, no backup plan. Just commitment.
+So instead of finishing out a degree, I invested in a trash bin cleaning truck and started knocking on doors.
+What began as one guy and one truck has turned into a business I'm proud to run every single day.
+I do this work because I genuinely love serving my community. There's something simple and honest about taking care of a job most people don't want to think about — and doing it well enough that you never have to think about it either. Every driveway I leave cleaner, every bin I leave fresh, is a small way of showing up for the people in this town.
+I also do this work as an act of faith. I believe I'm called to serve — not just customers, but neighbors — and to do good, honest work as an offering, not just a paycheck. That belief is what gets me up early and keeps me consistent, even on the days nobody's watching.
+This business is still young, just like I am. But it's built on something solid: hard work, integrity, and a genuine desire to make this community a little cleaner and a little better, one bin at a time.
