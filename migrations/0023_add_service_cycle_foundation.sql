@@ -40,10 +40,10 @@ CREATE TRIGGER service_cycle_event_matches_current_state
 BEFORE INSERT ON service_cycle_events
 WHEN NEW.event_type IN ('transition', 'correction')
 BEGIN
-    SELECT CASE WHEN (SELECT state FROM service_cycles WHERE id = NEW.service_cycle_id) IS NOT NEW.to_state
-        THEN RAISE(ABORT, 'Service Cycle event target does not match current state') END;
-    SELECT CASE WHEN (SELECT to_state FROM service_cycle_events WHERE service_cycle_id = NEW.service_cycle_id ORDER BY rowid DESC LIMIT 1) IS NOT NEW.from_state
-        THEN RAISE(ABORT, 'Service Cycle event source does not match latest event') END;
+    SELECT RAISE(ABORT, 'Service Cycle event target does not match current state')
+    WHERE (SELECT state FROM service_cycles WHERE id = NEW.service_cycle_id) IS NOT NEW.to_state;
+    SELECT RAISE(ABORT, 'Service Cycle event source does not match latest event')
+    WHERE (SELECT to_state FROM service_cycle_events WHERE service_cycle_id = NEW.service_cycle_id ORDER BY rowid DESC LIMIT 1) IS NOT NEW.from_state;
 END;
 
 CREATE TRIGGER service_cycle_events_are_append_only_on_update
