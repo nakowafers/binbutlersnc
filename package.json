@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.16",
-    "@cloudflare/workers-types": "^5.20260828.1",
+    "@cloudflare/workers-types": "^4.20260702.1",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^20.19.43",
@@ -61,6 +61,6 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11",
-    "wrangler": "^4.127.0"
+    "wrangler": "4.95.0"
   }
 }
