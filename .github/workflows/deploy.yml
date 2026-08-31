@@ -12,12 +12,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: oven-sh/setup-bun@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: '24'
+          cache: npm
 
       - name: Install dependencies
-        run: bun install
+        run: npm ci
 
       - name: Build for Cloudflare
         run: npm run build:cf
@@ -26,19 +28,23 @@ jobs:
 
       - name: Apply D1 migrations
         if: github.ref == 'refs/heads/main'
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
+          packageManager: npm
+          wranglerVersion: "4.95.0"
           command: d1 migrations apply binbutlersnc-db --remote
 
       - name: Upload Worker version with application secrets
         if: github.ref == 'refs/heads/main'
         id: upload
         run: |
+          set -euo pipefail
           umask 077
           SECRETS_FILE=$(mktemp)
-          trap 'rm -f "$SECRETS_FILE"' EXIT
+          UPLOAD_LOG=$(mktemp)
+          trap 'rm -f "$SECRETS_FILE" "$UPLOAD_LOG"' EXIT
           : "${STRIPE_MONTHLY_PRICE_ID:?STRIPE_MONTHLY_PRICE_ID is required}"
           : "${STRIPE_BIMONTHLY_PRICE_ID:?STRIPE_BIMONTHLY_PRICE_ID is required}"
           : "${STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID:?STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID is required}"
@@ -62,7 +68,9 @@ jobs:
               STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID: $extraBinMonthlyPriceId,
               STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID: $extraBinBimonthlyPriceId
             }' > "$SECRETS_FILE"
-          VERSION_ID=$(npx wrangler versions upload --secrets-file "$SECRETS_FILE" 2>&1 | grep -oE '[a-f0-9-]{36}' | tail -1)
+          npx --no-install wrangler versions upload --secrets-file "$SECRETS_FILE" 2>&1 | tee "$UPLOAD_LOG"
+          VERSION_ID=$(grep -oE '[a-f0-9-]{36}' "$UPLOAD_LOG" | tail -1 || true)
+          : "${VERSION_ID:?Wrangler completed without reporting an uploaded Worker version ID}"
           echo "version-id=$VERSION_ID" >> "$GITHUB_OUTPUT"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -77,23 +85,27 @@ jobs:
 
       - name: Deploy Worker version
         if: github.ref == 'refs/heads/main'
-        run: npx wrangler versions deploy --version-id "${{ steps.upload.outputs.version-id }}" --yes
+        run: npx --no-install wrangler versions deploy --version-id "${{ steps.upload.outputs.version-id }}" --yes
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Upload Workers preview version
         if: github.ref != 'refs/heads/main'
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
+          packageManager: npm
+          wranglerVersion: "4.95.0"
           command: versions upload --preview-alias ${{ github.ref_name }}
 
       - name: Deploy daily-dispatch-cron worker
         if: github.ref == 'refs/heads/main'
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: "4cd5940e1e98aa5f07d422904bc3cfa4"
+          packageManager: npm
+          wranglerVersion: "4.95.0"
           command: deploy
           workingDirectory: workers/daily-dispatch-cron
