@@ -19,6 +19,12 @@ STRIPE_SETUP_FEE_PRICE_ID=price_your_setup_fee_price_id
 STRIPE_EXTRA_BIN_MONTHLY_PRICE_ID=price_your_extra_bin_monthly
 STRIPE_EXTRA_BIN_BIMONTHLY_PRICE_ID=price_your_extra_bin_bimonthly
 STRIPE_EXTRA_BIN_QUARTERLY_PRICE_ID=price_your_extra_bin_quarterly
+# Optional legacy Price IDs retained for read-only service-cycle evidence audits.
+STRIPE_GRANDFATHERED_MONTHLY_PRICE_IDS=price_legacy_monthly_a,price_legacy_monthly_b
+STRIPE_GRANDFATHERED_BIMONTHLY_PRICE_IDS=price_legacy_bimonthly_a
+STRIPE_GRANDFATHERED_QUARTERLY_PRICE_IDS=price_legacy_quarterly_a
+# Restricted read-only Stripe key for explicit local --stripe-live audit commands only.
+STRIPE_LIVE_OPERATIONS_KEY=rk_live_your_restricted_read_only_key
 
 # Google OAuth — https://console.cloud.google.com/apis/credentials
 AUTH_GOOGLE_ID=your_google_client_id

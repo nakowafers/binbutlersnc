@@ -2,8 +2,9 @@ import Stripe from 'stripe';
 
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
 import { IPaymentService, CheckoutSessionParams, CustomerServiceDetails } from './types';
-import { getRecurringBillingStartTimestamp } from '@/lib/date-utils';
+import { getEndOfDayTimestamp, getRecurringBillingStartTimestamp } from '@/lib/date-utils';
 import { getServiceCadenceDays } from '@/lib/pricing';
+import type { BillingDriftStripeEvidence } from '@/lib/reports/billingDriftAudit';
 
 export interface StripeConfig {
     secretKey: string;
@@ -32,6 +33,34 @@ export class StripeAdapter implements IPaymentService {
         }
 
         return priceId;
+    }
+
+    async getBillingDriftEvidence(subscriptionId: string): Promise<BillingDriftStripeEvidence | null> {
+        try {
+            const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
+            const periodEvidence = subscription as unknown as {
+                current_period_end?: number;
+                items: { data: Array<{ current_period_end?: number | null }> };
+            };
+            const cadenceByBasePriceId = new Map<string, number>([
+                [this.config.monthlyPriceId, 28],
+                [this.config.bimonthlyPriceId, 56],
+                [this.config.quarterlyPriceId, 84],
+            ].filter((entry): entry is [string, number] => Boolean(entry[0])));
+            const recurringPrices = subscription.items.data
+                .map((item) => item.price.id)
+                .filter((priceId) => cadenceByBasePriceId.has(priceId))
+                .map((priceId) => ({ id: priceId, intervalDays: cadenceByBasePriceId.get(priceId)! }));
+            return {
+                status: subscription.status,
+                billingCycleAnchor: new Date(subscription.billing_cycle_anchor * 1000).toISOString(),
+                currentPeriodEnd: new Date((periodEvidence.current_period_end ?? periodEvidence.items.data[0]?.current_period_end ?? 0) * 1000).toISOString(),
+                recurringPrice: recurringPrices.length === 1 ? recurringPrices[0] : recurringPrices,
+            };
+        } catch (error) {
+            if (error instanceof Stripe.errors.StripeInvalidRequestError && error.code === 'resource_missing') return null;
+            throw error;
+        }
     }
 
     async createCheckoutSession(params: CheckoutSessionParams): Promise<{ url: string | null }> {
@@ -131,7 +160,9 @@ export class StripeAdapter implements IPaymentService {
         if (mode === 'subscription') {
             subscriptionData = {};
             const frequencyDays = getServiceCadenceDays(params.frequency);
-            if (params.nextServiceDate) {
+            if (params.serviceCycleAnchor) {
+                subscriptionData.trial_end = getEndOfDayTimestamp(params.serviceCycleAnchor);
+            } else if (params.nextServiceDate) {
                 subscriptionData.trial_end = getRecurringBillingStartTimestamp(params.nextServiceDate, frequencyDays);
             } else {
                 subscriptionData.trial_period_days = frequencyDays;
@@ -163,6 +194,9 @@ export class StripeAdapter implements IPaymentService {
                 frequency: params.frequency,
                 tos_accepted_at: params.tosAcceptedAt || '',
                 next_service_date: params.nextServiceDate || '',
+                d2d_service_completed: params.d2dServiceCompleted ? 'true' : 'false',
+                d2d_service_date: params.d2dServiceDate || '',
+                service_cycle_anchor: params.serviceCycleAnchor || '',
             },
         });
 

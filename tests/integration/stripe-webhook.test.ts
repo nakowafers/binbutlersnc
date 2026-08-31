@@ -143,7 +143,7 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         expect(services.length).toBe(0);
     });
 
-    it('should create an immediate service record for D2D signups (with sales_rep_id)', async () => {
+    it('creates one canonical immediate service record only for an attested D2D signup', async () => {
         const leadId = 'lead_456';
 
         // Seed the DB
@@ -165,6 +165,8 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
                         notes: 'Waste Co',
                         bin_quantity: '1',
                         frequency: 'monthly',
+                        d2d_service_completed: 'true',
+                        d2d_service_date: '2026-03-08',
                     },
                 },
             },
@@ -190,6 +192,132 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         expect(services.length).toBe(1);
         expect(services[0].dispatch_status).toBe('Completed');
         expect(services[0].sales_rep_id).toBe('REP_007');
+        expect(services[0].service_date).toBe('2026-03-08');
+        expect(services[0].completed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+        const subscription = simulator.db.prepare('SELECT service_cycle_anchor FROM subscriptions WHERE customer_id = ?').get(customer.id) as any;
+        expect(subscription.service_cycle_anchor).toBe('2026-04-07');
+    });
+
+    it('keeps a D2D signup without attestation on scheduled onboarding and creates no false completion', async () => {
+        const leadId = 'lead_d2d_scheduled';
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'd2d-scheduled@example.com', '789 D2D Ave', 'REP_008', 0);
+
+        mockConstructEventAsync.mockResolvedValue({
+            id: 'evt_d2d_scheduled',
+            type: 'checkout.session.completed',
+            data: { object: {
+                customer: 'cus_d2d_scheduled',
+                subscription: 'sub_d2d_scheduled',
+                metadata: {
+                    lead_id: leadId,
+                    sales_rep_id: 'REP_008',
+                    phone_number: '555-5555',
+                    trash_day: 'TUE',
+                    bin_quantity: '1',
+                    frequency: 'monthly',
+                    next_service_date: '2026-09-01',
+                    d2d_service_completed: 'false',
+                },
+            } },
+        });
+
+        const response = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST', body: '{}', headers: { 'stripe-signature': 'sig_123' },
+        }));
+
+        expect(response.status).toBe(200);
+        expect(simulator.db.prepare('SELECT * FROM service_history').all()).toHaveLength(0);
+        const subscription = simulator.db.prepare('SELECT next_service_date, service_cycle_anchor FROM subscriptions').get() as any;
+        expect(subscription.next_service_date).toBe('2026-09-01');
+        expect(subscription.service_cycle_anchor).toBeNull();
+    });
+
+    it('does not fabricate a subscription or completed service from an unpaid Checkout Session', async () => {
+        const leadId = 'lead_unpaid_d2d';
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'unpaid-d2d@example.com', '101 Unpaid Ave', 'REP_009', 0);
+
+        mockConstructEventAsync.mockResolvedValue({
+            id: 'evt_unpaid_d2d',
+            type: 'checkout.session.completed',
+            data: { object: {
+                id: 'cs_unpaid_d2d',
+                payment_status: 'unpaid',
+                customer: 'cus_unpaid_d2d',
+                subscription: 'sub_unpaid_d2d',
+                metadata: {
+                    lead_id: leadId, sales_rep_id: 'REP_009', phone_number: '555-5555', trash_day: 'WED',
+                    bin_quantity: '1', frequency: 'monthly', d2d_service_completed: 'true', d2d_service_date: '2026-03-08',
+                },
+            } },
+        });
+
+        const response = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST', body: '{}', headers: { 'stripe-signature': 'sig_123' },
+        }));
+
+        expect(response.status).toBe(200);
+        expect(simulator.db.prepare('SELECT * FROM subscriptions').all()).toHaveLength(0);
+        expect(simulator.db.prepare('SELECT * FROM service_history').all()).toHaveLength(0);
+        expect(simulator.db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId)).toBeDefined();
+    });
+
+    it('rejects contradictory D2D completion metadata instead of choosing between immediate and future service', async () => {
+        const leadId = 'lead_d2d_contradictory';
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'd2d-contradictory@example.com', '151 Contradiction Ave', 'REP_011', 0);
+        mockConstructEventAsync.mockResolvedValue({
+            id: 'evt_d2d_contradictory', type: 'checkout.session.completed',
+            data: { object: {
+                customer: 'cus_d2d_contradictory', subscription: 'sub_d2d_contradictory',
+                metadata: {
+                    lead_id: leadId, sales_rep_id: 'REP_011', phone_number: '555-5555', trash_day: 'MON',
+                    bin_quantity: '1', frequency: 'monthly', next_service_date: '2026-04-06',
+                    d2d_service_completed: 'true', d2d_service_date: '2026-03-08',
+                },
+            } },
+        });
+
+        const response = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST', body: '{}', headers: { 'stripe-signature': 'sig_123' },
+        }));
+
+        expect(response.status).toBe(400);
+        expect(simulator.db.prepare('SELECT * FROM subscriptions').all()).toHaveLength(0);
+        expect(simulator.db.prepare('SELECT * FROM service_history').all()).toHaveLength(0);
+    });
+
+    it('creates one D2D completion when Stripe retries the same Checkout event', async () => {
+        const leadId = 'lead_d2d_retry';
+        simulator.db.prepare(
+            'INSERT INTO leads (id, email, address, sales_rep_id, converted) VALUES (?, ?, ?, ?, ?)'
+        ).run(leadId, 'd2d-retry@example.com', '202 Retry Ave', 'REP_010', 0);
+
+        const event = {
+            id: 'evt_d2d_retry',
+            type: 'checkout.session.completed',
+            data: { object: {
+                customer: 'cus_d2d_retry', subscription: 'sub_d2d_retry',
+                metadata: {
+                    lead_id: leadId, sales_rep_id: 'REP_010', phone_number: '555-5555', trash_day: 'THU',
+                    bin_quantity: '1', frequency: 'monthly', d2d_service_completed: 'true', d2d_service_date: '2026-03-08',
+                },
+            } },
+        };
+        mockConstructEventAsync.mockResolvedValue(event);
+        const request = () => new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST', body: '{}', headers: { 'stripe-signature': 'sig_123' },
+        });
+
+        expect((await POST(request())).status).toBe(200);
+        expect((await POST(request())).status).toBe(200);
+        expect(simulator.db.prepare('SELECT * FROM subscriptions').all()).toHaveLength(1);
+        expect(simulator.db.prepare('SELECT * FROM service_history').all()).toHaveLength(1);
     });
 
     it('should fail checkout webhook processing if Stripe customer service details cannot be mirrored', async () => {
@@ -639,6 +767,43 @@ describe('Stripe Webhook - Integration Tests with SQLite', () => {
         // Verify status in DB is past_due
         const subscription = simulator.db.prepare('SELECT * FROM subscriptions WHERE id = ?').get(subscriptionId) as any;
         expect(subscription.status).toBe('past_due');
+    });
+
+    it('keeps an assigned stop and records a cycle-specific billing exception on payment failure', async () => {
+        const customerId = 'cust_payment_cycle_fail';
+        const subscriptionId = 'sub_payment_cycle_fail';
+        const stripeSubId = 'sub_stripe_cycle_fail';
+        simulator.db.prepare('INSERT INTO customers (id, email) VALUES (?, ?)').run(customerId, 'cycle-fail@example.com');
+        simulator.db.prepare("INSERT INTO addresses (id, customer_id, raw_address, trash_day, service_day) VALUES ('addr_payment_cycle_fail', ?, '1 Test St', 'FRI', 'SAT')")
+            .run(customerId);
+        simulator.db.prepare("UPDATE customers SET address_id = 'addr_payment_cycle_fail' WHERE id = ?").run(customerId);
+        simulator.db.prepare('INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days) VALUES (?, ?, ?, ?, ?)')
+            .run(subscriptionId, customerId, stripeSubId, 'active', 28);
+        simulator.db.prepare("UPDATE subscriptions SET service_cycle_anchor = '2026-08-29' WHERE id = ?").run(subscriptionId);
+        simulator.db.prepare("INSERT INTO service_cycles (id, subscription_id, cycle_due_date, state) VALUES ('cycle_payment_fail', ?, '2026-08-29', 'open')")
+            .run(subscriptionId);
+        simulator.db.prepare("INSERT INTO service_cycle_events (id, service_cycle_id, event_type, from_state, to_state, actor_id, actor_capacity, occurred_at, correlation_key) VALUES ('cycle_payment_fail_created', 'cycle_payment_fail', 'created', NULL, 'open', 'system', 'system', '2026-08-29T00:00:00.000Z', 'cycle_payment_fail_created')").run();
+        simulator.db.prepare("INSERT INTO service_history (id, subscription_id, service_cycle_id, cycle_due_date, service_date, dispatch_status) VALUES ('history_payment_fail', ?, 'cycle_payment_fail', '2026-08-29', '2026-08-29', 'Pending')")
+            .run(subscriptionId);
+        simulator.db.prepare("INSERT INTO dispatch_stops (id, subscription_id, service_history_id, service_cycle_id, cycle_due_date, service_date, driver_sales_rep_id, dispatch_status, raw_address) VALUES ('stop_payment_fail', ?, 'history_payment_fail', 'cycle_payment_fail', '2026-08-29', '2026-08-29', 'DRIVER', 'assigned', '1 Test St')")
+            .run(subscriptionId);
+
+        mockConstructEventAsync.mockResolvedValue({
+            id: 'evt_payment_cycle_fail',
+            type: 'invoice.payment_failed',
+            data: { object: { subscription: stripeSubId, created: Date.parse('2026-08-29T12:00:00Z') / 1000 } },
+        });
+
+        const response = await POST(new Request('http://localhost/api/webhooks/stripe', {
+            method: 'POST', body: JSON.stringify({}), headers: { 'stripe-signature': 'sig_123' },
+        }));
+
+        expect(response.status).toBe(200);
+        expect(simulator.db.prepare("SELECT state FROM service_cycles WHERE id = 'cycle_payment_fail'").get()).toEqual({ state: 'exception' });
+        expect(simulator.db.prepare("SELECT dispatch_status FROM dispatch_stops WHERE id = 'stop_payment_fail'").get()).toEqual({ dispatch_status: 'assigned' });
+        expect(simulator.db.prepare(
+            "SELECT reason FROM service_cycle_events WHERE service_cycle_id = 'cycle_payment_fail' ORDER BY rowid DESC LIMIT 1"
+        ).get()).toEqual({ reason: 'billing_delinquency' });
     });
 
     describe('Customer identity (one-time -> subscription) hardening', () => {

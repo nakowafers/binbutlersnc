@@ -63,6 +63,11 @@ export class D1LeadRepositoryAdapter implements ILeadRepository {
         frequency: 'monthly' | 'bimonthly' | 'quarterly' | 'one-time';
         nextServiceDate?: string | null;
         serviceHistoryStatus?: string;
+        serviceCycleAnchor?: string | null;
+        d2dServiceAttestation?: {
+            serviceDate: string;
+            completedAt: string;
+        } | null;
     }): Promise<void> {
         const combinedName = `${params.firstName} ${params.lastName}`.trim();
         const batchStatements = [
@@ -115,7 +120,7 @@ export class D1LeadRepositoryAdapter implements ILeadRepository {
             this.db.prepare('UPDATE customers SET address_id = ? WHERE id = ?')
                 .bind(params.addressId, params.customerId),
             this.db.prepare(
-                'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days, current_period_end, next_service_date) VALUES (?, ?, ?, ?, ?, ?, ?)'
+                'INSERT INTO subscriptions (id, customer_id, stripe_subscription_id, status, frequency_days, current_period_end, next_service_date, service_cycle_anchor) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
             ).bind(
                 params.subscriptionId,
                 params.customerId,
@@ -123,21 +128,23 @@ export class D1LeadRepositoryAdapter implements ILeadRepository {
                 params.stripeSubscriptionId ? 'active' : 'one-time',
                 getServiceCadenceDays(params.frequency),
                 params.currentPeriodEnd,
-                params.nextServiceDate || null
+                params.nextServiceDate || null,
+                params.serviceCycleAnchor || null,
             )
         ];
 
-        if (params.salesRepId) {
+        if (params.d2dServiceAttestation) {
             batchStatements.push(
                 this.db.prepare(
-                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, sales_rep_id, bin_quantity) VALUES (?, ?, ?, ?, ?, ?)'
+                    'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, sales_rep_id, bin_quantity, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
                 ).bind(
                     params.serviceHistoryId,
                     params.subscriptionId,
-                    new Date().toISOString(),
+                    params.d2dServiceAttestation.serviceDate,
                     'Completed',
                     params.salesRepId,
-                    params.binQuantity
+                    params.binQuantity,
+                    params.d2dServiceAttestation.completedAt,
                 )
             );
         }

@@ -7,6 +7,7 @@ import { D1ServiceHistoryRepositoryAdapter } from './adapters/D1ServiceHistoryRe
 import { D1SettingsRepositoryAdapter } from './adapters/D1SettingsRepositoryAdapter';
 import { D1SalesRepRepositoryAdapter } from './adapters/D1SalesRepRepositoryAdapter';
 import { D1DispatchStopRepositoryAdapter } from './adapters/D1DispatchStopRepositoryAdapter';
+import { ServiceCycleActions, ApproveCatchUpServiceInput, WaiveServiceCycleInput } from '@/lib/service-cycle/ServiceCycleActions';
 
 export class D1DatabaseAdapter implements IDatabaseService {
     private readonly leads: D1LeadRepositoryAdapter;
@@ -16,6 +17,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
     private readonly settings: D1SettingsRepositoryAdapter;
     private readonly salesReps: D1SalesRepRepositoryAdapter;
     private readonly dispatchStops: D1DispatchStopRepositoryAdapter;
+    private readonly serviceCycleActions: ServiceCycleActions;
 
     constructor(db: D1Database) {
         this.leads = new D1LeadRepositoryAdapter(db);
@@ -25,6 +27,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
         this.settings = new D1SettingsRepositoryAdapter(db);
         this.salesReps = new D1SalesRepRepositoryAdapter(db);
         this.dispatchStops = new D1DispatchStopRepositoryAdapter(db);
+        this.serviceCycleActions = new ServiceCycleActions(db);
     }
 
     createLead(id: string, email: string, address: string, firstName: string, lastName: string, salesRepId: string | null, tosAcceptedAt: string | null): Promise<void> {
@@ -125,6 +128,10 @@ export class D1DatabaseAdapter implements IDatabaseService {
         return this.subscriptions.getSubscriptionIdByStripeId(stripeSubscriptionId);
     }
 
+    getPaymentFailureCycleSubscription(stripeSubscriptionId: string) {
+        return this.subscriptions.getPaymentFailureCycleSubscription(stripeSubscriptionId);
+    }
+
     updateSubscriptionStatus(stripeSubscriptionId: string, status: string, currentPeriodEnd: string | null): Promise<void> {
         return this.subscriptions.updateSubscriptionStatus(stripeSubscriptionId, status, currentPeriodEnd);
     }
@@ -133,8 +140,26 @@ export class D1DatabaseAdapter implements IDatabaseService {
         return this.subscriptions.isSubscriptionPaused(id);
     }
 
-    getDueSubscriptions(targetServiceDate: string): Promise<DueSubscriptionResult[]> {
-        return this.subscriptions.getDueSubscriptions(targetServiceDate);
+    getDueSubscriptions(cycleDueDate: string, attemptServiceDate?: string): Promise<DueSubscriptionResult[]> {
+        return this.subscriptions.getDueSubscriptions(cycleDueDate, attemptServiceDate);
+    }
+
+    getCycleEligibleSubscriptions(cycleDueDate: string, attemptServiceDate?: string): Promise<{
+        dueSubscriptions: DueSubscriptionResult[];
+        reviewSubscriptionIds: string[];
+        recoveryReviewSuppressions: Array<{ subscriptionId: string; reason: string }>;
+    }> {
+        return this.subscriptions.getCycleEligibleSubscriptions(cycleDueDate, attemptServiceDate);
+    }
+
+    recordCycleException(input: {
+        subscriptionId: string;
+        cycleDueDate: string;
+        reason: 'billing_delinquency' | 'vacation_pause';
+        occurredAt: string;
+        correlationKey: string;
+    }): Promise<void> {
+        return this.subscriptions.recordCycleException(input);
     }
 
     clearConsumedFirstServiceDates(subscriptionIds: string[], serviceDate: string): Promise<void> {
@@ -216,8 +241,16 @@ export class D1DatabaseAdapter implements IDatabaseService {
         return this.dispatchStops.markDispatchStopCompleted(id, updatedBySalesRepId, completedAt);
     }
 
-    skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, skippedAt: string): Promise<void> {
-        return this.dispatchStops.skipDispatchStop(id, updatedBySalesRepId, reason, skippedAt);
+    skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, skippedAt: string, notes?: string): Promise<void> {
+        return this.dispatchStops.skipDispatchStop(id, updatedBySalesRepId, reason, skippedAt, notes);
+    }
+
+    approveCatchUpService(input: ApproveCatchUpServiceInput): Promise<void> {
+        return this.serviceCycleActions.approveCatchUpService(input);
+    }
+
+    waiveServiceCycle(input: WaiveServiceCycleInput): Promise<void> {
+        return this.serviceCycleActions.waiveServiceCycle(input);
     }
 
     getActiveAdminDrivers(): Promise<SalesRep[]> {
@@ -262,6 +295,11 @@ export class D1DatabaseAdapter implements IDatabaseService {
         frequency: 'monthly' | 'bimonthly' | 'quarterly' | 'one-time';
         nextServiceDate?: string | null;
         serviceHistoryStatus?: string;
+        serviceCycleAnchor?: string | null;
+        d2dServiceAttestation?: {
+            serviceDate: string;
+            completedAt: string;
+        } | null;
     }): Promise<void> {
         return this.leads.convertLeadToCustomerTransaction(params);
     }

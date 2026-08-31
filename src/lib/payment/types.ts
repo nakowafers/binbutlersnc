@@ -12,6 +12,9 @@ export interface CheckoutSessionParams {
     setup_fee_override?: number;
     tosAcceptedAt?: string | null;
     nextServiceDate?: string;
+    d2dServiceCompleted?: boolean;
+    d2dServiceDate?: string;
+    serviceCycleAnchor?: string;
     lat?: number;
     lng?: number;
     leadId: string;
@@ -41,6 +44,7 @@ export interface IPaymentService {
     updateCustomerServiceDetails(customerId: string, details: CustomerServiceDetails): Promise<void>;
     createBillingPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }>;
     retrieveSubscriptionPeriodEnd(subscriptionId: string): Promise<number>;
+    getBillingDriftEvidence?(subscriptionId: string): Promise<import('@/lib/reports/billingDriftAudit').BillingDriftStripeEvidence | null>;
     retrieveCheckoutSession(sessionId: string): Promise<{ id: string; payment_status: string; customer_email: string | null; amount_total: number | null; customer: string | null }>;
     verifyWebhookEvent(body: string, signature: string, secret: string): Promise<unknown>;
 }

@@ -100,4 +100,27 @@ describe('CheckoutService', () => {
             setup_fee_override: undefined,
         }));
     });
+
+    it.each([
+        ['monthly', '2026-04-06'],
+        ['bimonthly', '2026-05-04'],
+        ['quarterly', '2026-06-01'],
+    ] as const)('anchors an attested %s D2D subscription on the first Service Day after its cadence', async (frequency, expectedAnchor) => {
+        const payment = paymentMock();
+        const service = new CheckoutService(env, null, null, payment);
+
+        await service.createCheckout(validInput({
+            frequency,
+            sales_rep_id: 'REP_1',
+            d2d_service_completed: true,
+            d2d_service_date: '2026-03-08', // Sunday before the configured Monday Service Day
+            next_service_date: '2026-03-08',
+        }), 'https://example.com');
+
+        expect(payment.createCheckoutSession).toHaveBeenCalledWith(expect.objectContaining({
+            d2dServiceCompleted: true,
+            d2dServiceDate: '2026-03-08',
+            serviceCycleAnchor: expectedAnchor,
+        }));
+    });
 });

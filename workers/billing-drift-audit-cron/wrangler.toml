@@ -1,0 +1,21 @@
+name = "binbutlersnc-billing-drift-audit-cron"
+main = "index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = ["15 1 * * *"] # Daily at 01:15 UTC, after the existing dispatch cron.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "binbutlersnc-db"
+database_id = "99e70f3e-e151-44e0-92d1-1cf52a1f5094"
+migrations_dir = "../../migrations"
+
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false

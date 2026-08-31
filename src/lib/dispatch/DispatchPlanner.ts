@@ -13,6 +13,9 @@ export interface PlannedDispatchCandidate {
     service_notes?: string | null;
     customer_scent?: string | null;
     first_service_date?: string | null;
+    frequency_days?: number;
+    service_cycle_id?: string | null;
+    cycle_due_date?: string | null;
 }
 
 export interface PlannedDispatchBatch {
@@ -32,6 +35,10 @@ export class DispatchPlanner {
     getTargetServiceDate(now: Date, holidayOffsetHours: number): string {
         const targetServiceDayDate = this.getTargetServiceDayDate(now);
         return addDaysToDateString(targetServiceDayDate, holidayOffsetHoursToServiceDateDays(holidayOffsetHours));
+    }
+
+    getTargetCycleDueDate(now: Date): string {
+        return this.getTargetServiceDayDate(now);
     }
 
     planDueDispatches(now: Date, results: DueSubscriptionResult[], holidayOffsetHours: number): PlannedDispatchBatch {
@@ -57,6 +64,9 @@ export class DispatchPlanner {
                 service_notes: row.notes || null,
                 customer_scent: row.scent_preference || null,
                 first_service_date: row.next_service_date || null,
+                frequency_days: row.frequency_days,
+                service_cycle_id: row.service_cycle_id || null,
+                cycle_due_date: row.cycle_due_date || null,
             });
         }
 

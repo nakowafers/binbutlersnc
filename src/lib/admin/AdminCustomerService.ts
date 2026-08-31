@@ -48,6 +48,8 @@ export class AdminCustomerService {
             throw new AdminServiceError(400, 'Missing customerId');
         }
 
+        await this.assertNoDirectRecurringTrashDayChange(input);
+
         if (input.manualRescheduleFirstServiceDate !== undefined) {
             await this.manualRescheduleFirstService(input);
         }
@@ -183,6 +185,24 @@ export class AdminCustomerService {
         }
 
         await this.customerRepo.updateSubscriptionFirstServiceDate(subscription.id, input.manualRescheduleFirstServiceDate || '');
+    }
+
+    /**
+     * Trash Day determines the effective Service Day.  Once a recurring
+     * Subscription is active, changing it is an audited cross-provider
+     * re-anchor, not a generic customer-profile edit.
+     */
+    private async assertNoDirectRecurringTrashDayChange(input: AdminCustomerUpdateInput): Promise<void> {
+        if (input.trashDay === undefined || !input.addressId) return;
+
+        const [subscription, address] = await Promise.all([
+            this.customerRepo.getSubscriptionByCustomerId(input.customerId),
+            this.customerRepo.getAddressById(input.addressId),
+        ]);
+        if (address?.trash_day === input.trashDay) return;
+        if (subscription?.status === 'active' && subscription.frequency_days > 0) {
+            throw new AdminServiceError(409, 'Changing Trash Day for an active recurring Subscription requires the audited Service Day re-anchor operation');
+        }
     }
 }
 
