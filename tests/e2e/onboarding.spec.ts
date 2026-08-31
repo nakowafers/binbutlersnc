@@ -300,7 +300,7 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         expect(capturedPayload!.sales_rep_id || '').toBe('');
     });
 
-    test('D2D Signup Flow (with sales rep ID and setup fee override)', async ({ page }) => {
+    test('D2D Signup Flow carries explicit immediate-service attestation with the setup fee override', async ({ page }) => {
         let capturedPayload: Record<string, unknown> | null = null;
 
         await page.route('**/api/checkout', async (route) => {
@@ -333,6 +333,10 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         await page.waitForTimeout(1000);
         await expect(page.getByLabel('Initial Clean Fee ($)')).toBeVisible({ timeout: 10000 });
 
+        const attestedServiceDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/New_York' }).format(new Date());
+        await page.getByLabel('The initial bin cleaning was completed during this D2D sale').check();
+        await page.locator('#d2d_service_date').fill(attestedServiceDate);
+
         // Override the setup fee to $50
         const feeInput = page.locator('#setup_fee_override');
         await feeInput.clear();
@@ -354,6 +358,8 @@ test.describe('Onboarding Flow - D2D vs Organic Routing', () => {
         expect(capturedPayload!.sales_rep_id).toBe('REP123');
         expect(capturedPayload!.setup_fee_override).toBe(50);
         expect(capturedPayload!.frequency).toBe('monthly');
+        expect(capturedPayload!.d2d_service_completed).toBe(true);
+        expect(capturedPayload!.d2d_service_date).toBe(attestedServiceDate);
     });
 
     test('One-Time Clean Flow (skips agreement step entirely)', async ({ page }) => {

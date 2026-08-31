@@ -2,6 +2,9 @@ import { D1DatabaseAdapter } from '@/lib/db/D1DatabaseAdapter';
 import { DispatchCoordinator } from '@/lib/dispatch/DispatchCoordinator';
 import { GeoapifyGeocoder } from '@/lib/geocoding/GeoapifyGeocoder';
 import { StripeAdapter } from '@/lib/payment/StripeAdapter';
+import { StripeServiceDayReanchorGateway } from '@/lib/payment/StripeServiceDayReanchorGateway';
+import { D1ServiceDayReanchorRepository } from '@/lib/service-cycle/D1ServiceDayReanchorRepository';
+import { ServiceDayReanchor } from '@/lib/service-cycle/ServiceDayReanchor';
 import { SubscriptionLifecycle } from '@/lib/payment/SubscriptionLifecycle';
 import { Env } from '@/lib/types';
 
@@ -31,4 +34,15 @@ export function createDispatchCoordinator(env: Env): DispatchCoordinator {
 export function createSubscriptionLifecycle(env: Env): SubscriptionLifecycle {
     const db = createDatabase(env);
     return new SubscriptionLifecycle(db, db, db, db, createPaymentService(env));
+}
+
+/**
+ * Creates the deliberately narrow audited schedule re-anchor operation.
+ * It does not modify Stripe pricing or Stripe's billing-cycle anchor.
+ */
+export function createServiceDayReanchor(env: Env): ServiceDayReanchor {
+    return new ServiceDayReanchor(
+        new D1ServiceDayReanchorRepository(env.DB),
+        new StripeServiceDayReanchorGateway(env.STRIPE_SECRET_KEY),
+    );
 }

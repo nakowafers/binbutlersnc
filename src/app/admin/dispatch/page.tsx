@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { AlertTriangle, CheckCircle2, Map, Navigation, Phone, SkipForward } from 'lucide-react';
 import { createDatabase } from '@/lib/backend/createServices';
 import { DispatchStop, Env, SalesRep } from '@/lib/types';
-import { markStopComplete, skipStop } from './actions';
+import { approveCatchUpService, markStopComplete, skipStop, waiveServiceCycle } from './actions';
 
 export const runtime = 'edge';
 
@@ -157,6 +157,11 @@ function StopCard({ stop, index }: { stop: DispatchStop; index: number }) {
                         placeholder="Skip reason"
                         className="min-h-12 min-w-0 rounded-md border border-slate-300 px-3 text-base"
                     />
+                    <input
+                        name="notes"
+                        placeholder="Notes (required for Other)"
+                        className="min-h-12 min-w-0 rounded-md border border-slate-300 px-3 text-base sm:col-span-2"
+                    />
                     <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-slate-700 px-4 font-bold text-white">
                         <SkipForward size={18} />
                         Skip
@@ -206,6 +211,31 @@ export default async function DispatchPage({
             ) : null}
 
             <RouteControls drivers={drivers} selectedDriverId={selectedDriverId} selectedDate={selectedDate} />
+
+            <details className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <summary className="cursor-pointer font-bold text-[#1C3D5A]">Resolve a Service Cycle exception</summary>
+                <p className="mt-2 text-sm text-slate-600">For an exception caused by a skipped attempt, enter its Service Cycle ID to schedule one Catch-Up attempt or waive it.</p>
+                <div className="mt-3 grid gap-4 md:grid-cols-2">
+                    <form action={approveCatchUpService} className="grid gap-2 rounded-md bg-slate-50 p-3">
+                        <input name="cycle_id" required placeholder="Service Cycle ID" className="min-h-11 rounded-md border border-slate-300 px-3" />
+                        <input name="service_date" required type="date" className="min-h-11 rounded-md border border-slate-300 px-3" />
+                        <button className="min-h-11 rounded-md bg-[#1C3D5A] px-3 font-bold text-white">Approve Catch-Up</button>
+                    </form>
+                    <form action={waiveServiceCycle} className="grid gap-2 rounded-md bg-slate-50 p-3">
+                        <input name="cycle_id" required placeholder="Service Cycle ID" className="min-h-11 rounded-md border border-slate-300 px-3" />
+                        <select name="reason" required defaultValue="" className="min-h-11 rounded-md border border-slate-300 px-3">
+                            <option value="" disabled>Select waiver reason</option>
+                            <option value="customer_request">Customer request</option>
+                            <option value="access_unavailable">Access unavailable</option>
+                            <option value="weather_or_holiday">Weather or holiday</option>
+                            <option value="operational_failure">Operational failure</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <input name="notes" required placeholder="Waiver notes" className="min-h-11 rounded-md border border-slate-300 px-3" />
+                        <button className="min-h-11 rounded-md bg-slate-700 px-3 font-bold text-white">Waive Cycle</button>
+                    </form>
+                </div>
+            </details>
 
             <section className="grid gap-3">
                 {stops.length > 0 ? (

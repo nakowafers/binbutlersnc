@@ -17,7 +17,7 @@ import { toast } from "sonner";
 export default function SignInPage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen bg-[#F8FAFC] py-20 px-4 flex flex-col items-center justify-center">
+            <div className="min-h-screen bg-[#F8FAFC] py-12 sm:py-20 px-4 flex flex-col items-center justify-center">
                 <Loader2 size={40} className="animate-spin text-[#7AC142]" />
             </div>
         }>
@@ -58,22 +58,22 @@ function SignInForm() {
     };
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] py-20 px-4 flex flex-col items-center justify-center">
-            <Link href="/" className="mb-10">
-                <Image src="/assets/logo.png" alt="Bin Butlers NC" width={1189} height={1251} className="h-16 w-auto" />
+        <div className="min-h-screen bg-[#F8FAFC] py-12 sm:py-20 px-4 flex flex-col items-center justify-center">
+            <Link href="/" className="mb-8 sm:mb-10">
+                <Image src="/assets/logo.png" alt="Bin Butlers NC" width={1189} height={1251} className="h-14 sm:h-16 w-auto" />
             </Link>
 
-            <Card className="w-full max-w-md border-none shadow-2xl rounded-[2.5rem] overflow-hidden">
-                <CardHeader className="bg-[#1C3D5A] text-white p-10 text-center">
-                    <CardTitle className="text-3xl font-extrabold mb-2">Welcome Back</CardTitle>
+            <Card className="w-full max-w-md border-none shadow-2xl rounded-2xl sm:rounded-[2.5rem] overflow-hidden">
+                <CardHeader className="bg-[#1C3D5A] text-white p-6 sm:p-10 text-center">
+                    <CardTitle className="text-2xl sm:text-3xl font-extrabold mb-2">Welcome Back</CardTitle>
                     <CardDescription className="text-slate-300">Sign in to manage your account.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-10 space-y-6">
+                <CardContent className="p-6 sm:p-10 space-y-6">
                     <Button
                         onClick={handleGoogleSignIn}
                         disabled={isLoading}
                         variant="outline"
-                        className="w-full h-14 rounded-xl text-lg font-bold border-slate-200 hover:bg-slate-50 transition-all active:scale-95"
+                        className="w-full h-12 sm:h-14 rounded-xl text-base sm:text-lg font-bold border-slate-200 hover:bg-slate-50 transition-all active:scale-95"
                     >
                         {isLoading ? (
                             <Loader2 size={20} className="mr-2 animate-spin" />
@@ -99,7 +99,7 @@ function SignInForm() {
 
                     <form onSubmit={handleEmailSignIn} className="space-y-6">
                         <div className="space-y-3">
-                            <Label htmlFor="email" className="text-[#1C3D5A] font-bold text-lg">Email Address</Label>
+                            <Label htmlFor="email" className="text-[#1C3D5A] font-bold text-base sm:text-lg">Email Address</Label>
                             <div className="relative">
                                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                                 <Input
@@ -109,14 +109,14 @@ function SignInForm() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="h-14 pl-12 rounded-xl border-slate-200 focus:ring-[#7AC142]"
+                                    className="h-12 sm:h-14 pl-12 rounded-xl border-slate-200 focus:ring-[#7AC142]"
                                 />
                             </div>
                         </div>
                         <Button
                             type="submit"
                             disabled={isLoading}
-                            className="w-full bg-[#7AC142] hover:bg-[#68a638] text-white h-14 rounded-xl text-lg font-bold transition-all active:scale-95"
+                            className="w-full bg-[#7AC142] hover:bg-[#68a638] text-white h-12 sm:h-14 rounded-xl text-base sm:text-lg font-bold transition-all active:scale-95"
                         >
                             {isLoading ? (
                                 <>
@@ -128,7 +128,7 @@ function SignInForm() {
                         </Button>
                     </form>
                 </CardContent>
-                <CardFooter className="p-10 bg-slate-50 border-t text-center">
+                <CardFooter className="p-6 sm:p-10 bg-slate-50 border-t text-center">
                     <p className="text-slate-500 w-full text-sm">
                         Don&apos;t have an account? <Link href="/signup" className="text-[#7AC142] font-bold hover:underline">Sign up today</Link>
                     </p>

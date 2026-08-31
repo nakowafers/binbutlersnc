@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import {
     Route,
+    CalendarCog,
     Users,
     Settings,
 } from 'lucide-react';
@@ -15,6 +16,7 @@ const navItems = [
     // { href: '/admin', label: 'Schedule', icon: Calendar },
     { href: '/admin/dispatch', label: 'My Route', icon: Route },
     { href: '/admin/customers', label: 'Customers', icon: Users },
+    { href: '/admin/service-day-reanchor', label: 'Service Day Repair', icon: CalendarCog },
     // { href: '/admin', label: 'Routes', icon: Truck },
     // { href: '/admin', label: 'History', icon: History },
 ];

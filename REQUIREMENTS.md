@@ -108,7 +108,10 @@ Column names in D1 must describe local dispatch concepts:
 ### 4.5. Admin-Driver Operations & Exception Handling
 1.  **Execution:** Admin-Drivers use the admin Service Route workflow for navigation context and job completion.
 2.  **Service Verification (Photos):** Admin-Drivers capture proof-of-service photos which are uploaded to **Cloudflare R2** and linked in the customer portal.
-3.  **Missed/Skipped Stops:** If a stop is marked as 'skipped' or 'missed' (e.g., bins not left out), the system logs the status and automatically reschedules the customer for the **following week**, overriding their standard Monthly/Quarterly recurrence interval for that specific cycle.
+3.  **Missed/Skipped Stops:** If a stop is marked as `skipped` or `missed` (e.g., bins not left out), the system records the Service Attempt and places the Service Cycle in an exception state for admin review. Catch-Up Service requires explicit approval, retains the original Cycle Due Date, and does not move the Service Cycle Anchor.
+4.  **Holiday Shifts:** A Holiday Shift changes the Service Date of the affected attempt while retaining its Cycle Due Date and Service Cycle Anchor.
+5.  **Cancellation:** Normal cycles remain eligible only when their Cycle Due Date is before paid-through coverage ends. Existing owed cycles survive cancellation until fulfilled or explicitly waived.
+6.  **Vacation Mode:** Paused customers receive no automatically generated routes or Catch-Up Service. Ambiguous paid cycles require review until coordinated billing pause behavior is implemented.
 
 ---
 
@@ -119,17 +122,19 @@ Column names in D1 must describe local dispatch concepts:
 - **Action:** 
     1. Capture `sales_rep_id` from metadata.
     2. Persist `bin_quantity` and `customer` details to D1.
-    3. **D2D Fulfillment:** If `sales_rep_id` is present, immediately create a record in `service_history` with `dispatch_status = 'completed'` and `service_date = NOW()`.
+    3. **D2D Fulfillment:** If cleaning genuinely occurred during the field sale, require an explicit Sales Rep service attestation containing the actual Eastern Service Date. After successful Checkout, create completed Service History with that Service Date and a separate completion timestamp. Sales Rep identity or webhook time alone is insufficient. Otherwise, use scheduled onboarding with a First Service Date.
     4. **Agreement Delivery:** Trigger an automated email via Resend containing a copy of the agreed-upon Terms of Service.
-    5. Calculate the first scheduled cleaning date for the dispatch cron.
+    5. Establish the Service Cycle Anchor from the selected First Service Date or, for completed D2D Onboarding, the first configured Service Day on or after one cadence has elapsed from the immediate cleaning.
 - **Event:** `customer.subscription.deleted`
 - **Action:** Update `status = 'cancelled'` in D1. Note: Service continues until the `current_period_end` stored in D1/Stripe.
+- **Drift Handling:** Relevant Stripe events trigger a read-only comparison of Price cadence, billing anchor weekday, and local Service Cycle state. Unknown or contradictory state is classified for review and never rewrites fulfillment history automatically.
 
 ### 5.2. Admin Service Route Actions
 - **Action:**
     1. Identify the dispatch stop from the local Service Route.
     2. Record Admin-Driver completion or skip attestation.
-    3. Update the matching `service_history` record with the final dispatch status and service timestamp.
+    3. Update the matching Service Attempt with the final dispatch status, actual Eastern Service Date, Cycle Due Date, and separate completion timestamp.
+    4. Transition the linked Service Cycle atomically without allowing more than one successful completion.
 
 ---
 
@@ -173,11 +178,37 @@ Column names in D1 must describe local dispatch concepts:
 - `tier` (String)
 - `current_period_end` (Timestamp)
 - `is_paused` (Boolean, Default: false)
+- `service_cycle_anchor` (Date)
+
+### Table: `service_cycles`
+- `id` (UUID, PK)
+- `subscription_id` (FK)
+- `cycle_due_date` (Date)
+- `status` (Enum: open, exception, fulfilled, waived)
+- `exception_reason` (String, Optional)
+- `resolved_at` (Timestamp, Optional)
+- Unique obligation per `subscription_id` and `cycle_due_date`
+- One-time service uses one Service Cycle and no recurring anchor.
+
+### Table: `service_cycle_events`
+- `id` (UUID, PK)
+- `service_cycle_id` (FK)
+- `transition` (String)
+- `actor_id` (String)
+- `actor_capacity` (Enum: sales, fulfillment, administration, system)
+- `reason_code` (Enum: access_unavailable, bins_not_out, weather_or_holiday, billing_delinquency, vacation_pause, customer_request, operational_failure, data_integrity, other)
+- `notes` (Text, Required for other, waiver, and data correction)
+- `correlation_key` (String, Unique within the transition source)
+- `created_at` (Timestamp)
+- Events are append-only and preserve every cycle transition and production correction.
 
 ### Table: `service_history`
 - `id` (UUID, PK)
-- `customer_id` (FK)
-- `service_date` (Timestamp)
+- `subscription_id` (FK)
+- `service_cycle_id` (FK)
+- `cycle_due_date` (Date)
+- `service_date` (Date)
+- `completed_at` (Timestamp, Optional)
 - `dispatch_status` (String)
 - `sales_rep_id` (String)
 

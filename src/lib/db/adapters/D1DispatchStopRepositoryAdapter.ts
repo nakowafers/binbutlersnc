@@ -1,6 +1,9 @@
 import { DispatchStop, SalesRep } from '@/lib/types';
 import { DISPATCH_SETTING_KEYS, DISPATCH_SETTING_KEY_VALUES } from '@/lib/dispatch/settings';
 import { CreateDispatchRouteInput, CreateDispatchStopInput, DispatchSetupStatus, IDispatchStopRepository } from '../types';
+import { actualServiceDate } from '@/lib/service-cycle/dates';
+import { SERVICE_CYCLE_EXCEPTION_REASONS, ServiceCycleExceptionReason } from '@/lib/service-cycle/types';
+import { asServiceCycleInvariantError } from '@/lib/service-cycle/invariants';
 
 function parseNumberSetting(value: string | null): number | null {
     if (!value) return null;
@@ -18,11 +21,71 @@ export class D1DispatchStopRepositoryAdapter implements IDispatchStopRepository 
     async createDispatchRoute(route: CreateDispatchRouteInput): Promise<void> {
         if (route.history.length === 0 && route.stops.length === 0) return;
 
-        const historyStatements = route.history.map((item) => this.db.prepare(
-            'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, bin_quantity) VALUES (?, ?, ?, ?, ?)'
-        ).bind(item.id, item.subscriptionId, item.date, item.status, item.binQuantity ?? null));
+        const cycleStatements = (route.cycles || []).flatMap((cycle) => [
+            this.db.prepare(
+                'INSERT OR IGNORE INTO service_cycles (id, subscription_id, cycle_due_date, state) VALUES (?, ?, ?, \'open\')'
+            ).bind(cycle.id, cycle.subscriptionId, cycle.cycleDueDate),
+            this.db.prepare(
+                `INSERT OR IGNORE INTO service_cycle_events (
+                    id, service_cycle_id, event_type, from_state, to_state, actor_id, actor_capacity,
+                    occurred_at, reason, notes, correlation_key
+                 ) SELECT ?, sc.id, 'created', NULL, 'open', 'daily-dispatch-cron', 'system', ?, NULL, 'shadow_dispatch', ?
+                 FROM service_cycles sc
+                 WHERE sc.subscription_id = ? AND sc.cycle_due_date = ?
+                   AND NOT EXISTS (
+                     SELECT 1 FROM service_cycle_events existing
+                     WHERE existing.service_cycle_id = sc.id AND existing.event_type = 'created'
+                   )`
+            ).bind(cycle.eventId, cycle.occurredAt, cycle.correlationKey, cycle.subscriptionId, cycle.cycleDueDate),
+        ]);
 
-        const stopStatements = route.stops.map((stop) => this.db.prepare(
+        const historyStatements = route.history.map((item) => item.serviceCycleId && item.cycleDueDate
+            ? this.db.prepare(
+                `INSERT OR IGNORE INTO service_history (
+                    id, subscription_id, service_cycle_id, cycle_due_date, service_date, dispatch_status, bin_quantity, completed_at
+                 ) SELECT ?, ?, sc.id, ?, ?, ?, ?, NULL
+                 FROM service_cycles sc
+                 WHERE sc.subscription_id = ? AND sc.cycle_due_date = ?
+                   AND NOT EXISTS (
+                     SELECT 1 FROM dispatch_stops existing
+                     WHERE existing.subscription_id = ? AND existing.service_date = ?
+                   )`
+            ).bind(item.id, item.subscriptionId, item.cycleDueDate, item.date, item.status, item.binQuantity ?? null, item.subscriptionId, item.cycleDueDate, item.subscriptionId, item.date)
+            : this.db.prepare(
+                'INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, bin_quantity) VALUES (?, ?, ?, ?, ?)'
+            ).bind(item.id, item.subscriptionId, item.date, item.status, item.binQuantity ?? null));
+
+        const stopStatements = route.stops.map((stop) => stop.serviceCycleId && stop.cycleDueDate
+            ? this.db.prepare(
+                `INSERT INTO dispatch_stops (
+                    id, subscription_id, service_history_id, service_cycle_id, cycle_due_date, service_date, driver_sales_rep_id,
+                    route_sequence_order, dispatch_status, customer_name, raw_address, latitude, longitude, bin_count,
+                    customer_scent, service_notes, customer_phone
+                 ) SELECT ?, ?, ?, sc.id, ?, ?, ?, ?, 'assigned', ?, ?, ?, ?, ?, ?, ?, ?
+                 FROM service_cycles sc
+                 WHERE sc.subscription_id = ? AND sc.cycle_due_date = ?
+                 ON CONFLICT(subscription_id, service_date) DO UPDATE SET
+                    service_history_id = excluded.service_history_id,
+                    service_cycle_id = excluded.service_cycle_id,
+                    cycle_due_date = excluded.cycle_due_date,
+                    driver_sales_rep_id = excluded.driver_sales_rep_id,
+                    route_sequence_order = excluded.route_sequence_order,
+                    customer_name = excluded.customer_name,
+                    raw_address = excluded.raw_address,
+                    latitude = excluded.latitude,
+                    longitude = excluded.longitude,
+                    bin_count = excluded.bin_count,
+                    customer_scent = excluded.customer_scent,
+                    service_notes = excluded.service_notes,
+                    customer_phone = excluded.customer_phone,
+                    updated_at = datetime('now')`
+            ).bind(
+                stop.id, stop.subscriptionId, stop.serviceHistoryId, stop.cycleDueDate, stop.serviceDate,
+                stop.driverSalesRepId, stop.routeSequenceOrder, stop.customerName, stop.rawAddress, stop.latitude,
+                stop.longitude, stop.binCount, stop.customerScent, stop.serviceNotes, stop.customerPhone,
+                stop.subscriptionId, stop.cycleDueDate
+            )
+            : this.db.prepare(
             `INSERT INTO dispatch_stops (
                 id, subscription_id, service_history_id, service_date, driver_sales_rep_id,
                 route_sequence_order, dispatch_status, customer_name, raw_address, latitude,
@@ -70,7 +133,11 @@ export class D1DispatchStopRepositoryAdapter implements IDispatchStopRepository 
             ]
             : [];
 
-        await this.db.batch([...historyStatements, ...stopStatements, ...clearConsumedFirstServiceStatements]);
+        try {
+            await this.db.batch([...cycleStatements, ...historyStatements, ...stopStatements, ...clearConsumedFirstServiceStatements]);
+        } catch (error) {
+            throw asServiceCycleInvariantError(error, 'route creation');
+        }
     }
 
     async getRouteStops(driverSalesRepId: string, serviceDate: string, includeTerminal = false): Promise<DispatchStop[]> {
@@ -93,45 +160,127 @@ export class D1DispatchStopRepositoryAdapter implements IDispatchStopRepository 
         const stop = await this.getStopById(id);
         if (!stop || stop.dispatch_status !== 'assigned') return;
 
-        await this.db.batch([
+        if (!stop.service_cycle_id) {
+            await this.db.batch([
+                this.db.prepare(
+                    `UPDATE dispatch_stops
+                     SET dispatch_status = 'completed',
+                         completed_at = ?,
+                         updated_by_sales_rep_id = ?,
+                         updated_at = datetime('now')
+                     WHERE id = ?`
+                ).bind(completedAt, updatedBySalesRepId, id),
+                this.db.prepare(
+                    `UPDATE service_history
+                     SET dispatch_status = 'Completed',
+                         service_date = ?
+                     WHERE id = ?`
+                ).bind(stop.service_date, stop.service_history_id),
+            ]);
+            return;
+        }
+
+        const cycle = await this.db.prepare('SELECT state FROM service_cycles WHERE id = ?').bind(stop.service_cycle_id)
+            .first<{ state: 'open' | 'exception' | 'fulfilled' | 'waived' }>();
+        if (!cycle) throw new Error(`Linked Service Cycle ${stop.service_cycle_id} was not found`);
+        if (cycle.state === 'fulfilled' || cycle.state === 'waived') {
+            throw new Error(`Service Cycle ${stop.service_cycle_id} is terminal and cannot be completed again`);
+        }
+        const serviceDate = actualServiceDate(new Date(completedAt));
+
+        try {
+            await this.db.batch([
             this.db.prepare(
                 `UPDATE dispatch_stops
                  SET dispatch_status = 'completed',
                      completed_at = ?,
                      updated_by_sales_rep_id = ?,
                      updated_at = datetime('now')
-                 WHERE id = ?`
+                 WHERE id = ? AND dispatch_status = 'assigned'`
             ).bind(completedAt, updatedBySalesRepId, id),
             this.db.prepare(
                 `UPDATE service_history
                  SET dispatch_status = 'Completed',
-                     service_date = ?
-                 WHERE id = ?`
-            ).bind(stop.service_date, stop.service_history_id),
-        ]);
+                     service_date = ?,
+                     completed_at = ?
+                 WHERE id = ? AND dispatch_status = 'Pending'`
+            ).bind(serviceDate, completedAt, stop.service_history_id),
+            this.db.prepare(
+                'UPDATE service_cycles SET state = ?, updated_at = ? WHERE id = ? AND state = ?'
+            ).bind('fulfilled', completedAt, stop.service_cycle_id, cycle.state),
+            this.db.prepare(
+                `INSERT INTO service_cycle_events (
+                    id, service_cycle_id, event_type, from_state, to_state, actor_id, actor_capacity,
+                    occurred_at, reason, notes, correlation_key
+                 ) VALUES (?, ?, 'transition', ?, 'fulfilled', ?, 'fulfillment', ?, NULL, NULL, ?)`
+            ).bind(`dispatch-completed:${id}`, stop.service_cycle_id, cycle.state, updatedBySalesRepId, completedAt, `dispatch-completed:${id}`),
+            ]);
+        } catch (error) {
+            throw asServiceCycleInvariantError(error, 'cycle completion');
+        }
     }
 
-    async skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, _skippedAt: string): Promise<void> {
-        void _skippedAt;
+    async skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, skippedAt: string, notes?: string): Promise<void> {
         const stop = await this.getStopById(id);
         if (!stop || stop.dispatch_status !== 'assigned') return;
 
-        await this.db.batch([
+        if (!stop.service_cycle_id) {
+            await this.db.batch([
+                this.db.prepare(
+                    `UPDATE dispatch_stops
+                     SET dispatch_status = 'skipped',
+                         skip_reason = ?,
+                         updated_by_sales_rep_id = ?,
+                         updated_at = datetime('now')
+                     WHERE id = ?`
+                ).bind(reason, updatedBySalesRepId, id),
+                this.db.prepare(
+                    `UPDATE service_history
+                     SET dispatch_status = 'Skipped',
+                         service_date = ?
+                     WHERE id = ?`
+                ).bind(stop.service_date, stop.service_history_id),
+            ]);
+            return;
+        }
+
+        if (!SERVICE_CYCLE_EXCEPTION_REASONS.includes(reason as ServiceCycleExceptionReason)) {
+            throw new Error('A controlled Service Cycle exception reason is required');
+        }
+        if (reason === 'other' && !notes?.trim()) throw new Error('Notes are required for other Service Cycle exceptions');
+        const cycle = await this.db.prepare('SELECT state FROM service_cycles WHERE id = ?').bind(stop.service_cycle_id)
+            .first<{ state: 'open' | 'exception' | 'fulfilled' | 'waived' }>();
+        if (!cycle) throw new Error(`Linked Service Cycle ${stop.service_cycle_id} was not found`);
+        if (cycle.state !== 'open') throw new Error(`Service Cycle ${stop.service_cycle_id} cannot be skipped from ${cycle.state}`);
+
+        try {
+            await this.db.batch([
             this.db.prepare(
                 `UPDATE dispatch_stops
                  SET dispatch_status = 'skipped',
                      skip_reason = ?,
                      updated_by_sales_rep_id = ?,
                      updated_at = datetime('now')
-                 WHERE id = ?`
+                 WHERE id = ? AND dispatch_status = 'assigned'`
             ).bind(reason, updatedBySalesRepId, id),
             this.db.prepare(
                 `UPDATE service_history
                  SET dispatch_status = 'Skipped',
                      service_date = ?
-                 WHERE id = ?`
+                 WHERE id = ? AND dispatch_status = 'Pending'`
             ).bind(stop.service_date, stop.service_history_id),
-        ]);
+            this.db.prepare('UPDATE service_cycles SET state = ?, updated_at = ? WHERE id = ? AND state = ?')
+                .bind('exception', skippedAt, stop.service_cycle_id, cycle.state),
+            this.db.prepare(
+                `INSERT INTO service_cycle_events (
+                    id, service_cycle_id, event_type, from_state, to_state, actor_id, actor_capacity,
+                    occurred_at, reason, notes, correlation_key
+                 ) VALUES (?, ?, 'transition', ?, 'exception', ?, 'fulfillment', ?, ?, ?, ?)`
+            ).bind(`dispatch-skipped:${id}`, stop.service_cycle_id, cycle.state, updatedBySalesRepId, skippedAt, reason, notes?.trim() || null, `dispatch-skipped:${id}`),
+            ]);
+        } catch (error) {
+            throw asServiceCycleInvariantError(error, 'cycle skip');
+        }
     }
 
     async getActiveAdminDrivers(): Promise<SalesRep[]> {

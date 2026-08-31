@@ -25,6 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { getTodayDateString, getMaximumDate, isTrashDayMatch, isWeekday, validateFirstServiceDate } from "@/lib/date-utils";
+import { actualServiceDate } from '@/lib/service-cycle/dates';
 
 const todayStr = getTodayDateString();
 const maxDate = getMaximumDate();
@@ -50,6 +51,8 @@ const signupSchema = z.object({
     sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined).optional(),
     setup_fee_override: z.number().min(0, "Setup fee must be at least $0").optional(),
     next_service_date: z.string().optional(),
+    d2d_service_completed: z.boolean().optional(),
+    d2d_service_date: z.string().optional(),
     tos_accepted: z.boolean().optional(),
     age_confirmed: z.boolean().optional(),
     contact_consent: z.boolean().optional(),
@@ -68,6 +71,19 @@ const signupSchema = z.object({
         });
         if (dateError) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: dateError });
+        }
+    }
+    if (data.d2d_service_completed) {
+        if (!data.sales_rep_id) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['sales_rep_id'], message: 'A Sales Rep ID is required to attest immediate D2D service' });
+        }
+        if (!data.d2d_service_date) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['d2d_service_date'], message: 'Enter the actual Service Date for the completed D2D clean' });
+        } else if (data.d2d_service_date > actualServiceDate(new Date())) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['d2d_service_date'], message: 'Immediate D2D service cannot be attested for a future date' });
+        }
+        if (data.next_service_date && data.next_service_date !== data.d2d_service_date) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['next_service_date'], message: 'Immediate D2D service cannot also have a different First Service Date' });
         }
     }
     if (data.frequency === 'one-time') return;
@@ -119,6 +135,8 @@ function SignupForm() {
             age_confirmed: false,
             contact_consent: false,
             next_service_date: '',
+            d2d_service_completed: false,
+            d2d_service_date: '',
         }
     });
 
@@ -133,6 +151,7 @@ function SignupForm() {
     const contactConsent = useWatch({ control, name: 'contact_consent' });
     const trashDay = useWatch({ control, name: 'trash_day' });
     const nextServiceDate = useWatch({ control, name: 'next_service_date' });
+    const d2dServiceCompleted = useWatch({ control, name: 'd2d_service_completed' });
     const formValues = useWatch({ control });
     const { recurringPrice } = calculatePricing(binQuantity, frequency);
     const checkoutDisclosure = frequency === 'one-time'
@@ -271,7 +290,7 @@ function SignupForm() {
             return;
         }
 
-        if (formErrors.email || formErrors.phone_number || formErrors.sales_rep_id || formErrors.setup_fee_override || formErrors.next_service_date) {
+        if (formErrors.email || formErrors.phone_number || formErrors.sales_rep_id || formErrors.setup_fee_override || formErrors.next_service_date || formErrors.d2d_service_date) {
             if (step < 2) {
                 goToStep(2);
             }
@@ -319,29 +338,25 @@ function SignupForm() {
     const prevStep = () => goToStep(step - 1);
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 flex flex-col items-center">
-            <Link href="/" className="mb-8">
-                <Image src="/assets/logo.png" alt="Bin Butlers NC" width={1189} height={1251} className="h-12 w-auto" />
+        <div className="min-h-screen bg-[#F8FAFC] py-8 sm:py-12 px-3 sm:px-4 flex flex-col items-center">
+            <Link href="/" className="mb-6 sm:mb-8">
+                <Image src="/assets/logo.png" alt="Bin Butlers NC" width={1189} height={1251} className="h-10 sm:h-12 w-auto" />
             </Link>
 
-            <div className="w-full max-w-xl">
+            <div className="w-full max-w-xl mx-auto">
                 {/* Progress Bar */}
-                <div className="flex items-center justify-between mb-8 px-2">
-                    {[1, 2, 3].map((i) => (
-                        <div key={i} className="flex items-center">
-                            {(i < 3 || (i === 3 && frequency !== 'one-time')) && (
-                                <>
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
-                                        step >= i ? 'bg-[#7AC142] text-white shadow-lg shadow-lime-500/20' : 'bg-slate-200 text-slate-500'
-                                    }`}>
-                                        {step > i ? <CheckCircle2 size={20} /> : i}
-                                    </div>
-                                    {((i === 1) || (i === 2 && frequency !== 'one-time')) && (
-                                        <div className={`w-24 md:w-48 h-1 mx-2 rounded-full transition-all ${
-                                            step > i ? 'bg-[#7AC142]' : 'bg-slate-200'
-                                        }`} />
-                                    )}
-                                </>
+                <div className="flex items-center justify-center w-full max-w-xl mx-auto mb-6 sm:mb-8 px-2">
+                    {(frequency === 'one-time' ? [1, 2] : [1, 2, 3]).map((i, idx, arr) => (
+                        <div key={i} className="flex items-center flex-1 last:flex-none justify-center">
+                            <div className={`w-8 h-8 sm:w-10 sm:h-10 text-sm sm:text-base rounded-full flex items-center justify-center font-bold shrink-0 transition-all ${
+                                step >= i ? 'bg-[#7AC142] text-white shadow-lg shadow-lime-500/20' : 'bg-slate-200 text-slate-500'
+                            }`}>
+                                {step > i ? <CheckCircle2 className="size-4 sm:size-5" /> : i}
+                            </div>
+                            {idx < arr.length - 1 && (
+                                <div className={`flex-1 min-w-[20px] max-w-[120px] h-1 mx-2 rounded-full transition-all ${
+                                    step > i ? 'bg-[#7AC142]' : 'bg-slate-200'
+                                }`} />
                             )}
                         </div>
                     ))}
@@ -349,18 +364,19 @@ function SignupForm() {
 
                 <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
                     {step === 1 && (
-                        <Card className="border-none shadow-xl rounded-[2rem] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <CardHeader className="bg-[#1C3D5A] text-white p-8">
+                        <Card className="border-none shadow-xl rounded-2xl sm:rounded-[2rem] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <CardHeader className="bg-[#1C3D5A] text-white p-5 sm:p-8">
                                 <CardTitle className="text-2xl font-extrabold">Where should we clean?</CardTitle>
                                 <CardDescription className="text-slate-300">Enter your address and choose your service plan.</CardDescription>
                             </CardHeader>
-                            <CardContent className="p-8 space-y-8">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <CardContent className="p-5 sm:p-8 space-y-6 sm:space-y-8">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-3">
                                         <Label htmlFor="first_name" className="text-[#1C3D5A] font-bold">First Name</Label>
                                         <Input
                                             id="first_name"
                                             {...register('first_name')}
+                                            autoComplete="given-name"
                                             placeholder="John"
                                             className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
                                         />
@@ -371,6 +387,7 @@ function SignupForm() {
                                         <Input
                                             id="last_name"
                                             {...register('last_name')}
+                                            autoComplete="family-name"
                                             placeholder="Doe"
                                             className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
                                         />
@@ -403,7 +420,7 @@ function SignupForm() {
                                     {errors.address && <p className="text-red-500 text-sm">{errors.address.message}</p>}
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-3">
                                         <Label htmlFor="trash_day" className="text-[#1C3D5A] font-bold">Trash Day</Label>
                                         <select
@@ -451,14 +468,14 @@ function SignupForm() {
                                             { value: 'ocean_breeze', label: 'Ocean Breeze', description: 'Fresh coastal air' },
                                             { value: 'tropical', label: 'Tropical', description: 'Exotic fruit medley' },
                                         ].map((scent) => (
-                                            <div key={scent.value} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                                            <div key={scent.value} className={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all cursor-pointer ${
                                                 scentPreference === scent.value ? 'border-[#7AC142] bg-lime-50' : 'border-slate-100 hover:border-slate-200'
                                             }`} onClick={() => setValue('scent_preference', scent.value as "lavender" | "ocean_breeze" | "tropical")}>
-                                                <div className="flex items-center gap-4">
-                                                    <RadioGroupItem value={scent.value} id={scent.value} className="text-[#7AC142]" />
-                                                    <div>
-                                                        <p className="font-bold text-[#1C3D5A]">{scent.label}</p>
-                                                        <p className="text-sm text-slate-500">{scent.description}</p>
+                                                <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                                                    <RadioGroupItem value={scent.value} id={scent.value} className="text-[#7AC142] shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <p className="font-bold text-[#1C3D5A] text-sm sm:text-base">{scent.label}</p>
+                                                        <p className="text-xs sm:text-sm text-slate-500">{scent.description}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -471,77 +488,77 @@ function SignupForm() {
                                     <RadioGroup
                                         value={frequency}
                                         onValueChange={(val) => setValue('frequency', val as "monthly" | "bimonthly" | "quarterly" | "one-time")}
-                                        className="grid gap-4"
+                                        className="grid gap-3 sm:gap-4"
                                     >
-                                        <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                                        <div className={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all cursor-pointer ${
                                             frequency === 'monthly' ? 'border-[#7AC142] bg-lime-50' : 'border-slate-100 hover:border-slate-200'
                                         }`} onClick={() => setValue('frequency', 'monthly')}>
-                                            <div className="flex items-center gap-4">
-                                                <RadioGroupItem value="monthly" id="monthly" className="text-[#7AC142]" />
-                                                <div>
-                                                    <p className="font-bold text-[#1C3D5A]">{monthlyName} Plan</p>
-                                                    <p className="text-sm text-slate-500">Cleaned every 4 weeks</p>
+                                            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                                                <RadioGroupItem value="monthly" id="monthly" className="text-[#7AC142] shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-[#1C3D5A] text-sm sm:text-base">{monthlyName} Plan</p>
+                                                    <p className="text-xs sm:text-sm text-slate-500">Cleaned every 4 weeks</p>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'monthly').recurringPrice}</p>
+                                            <div className="text-right shrink-0 pl-2">
+                                                <p className="font-extrabold text-[#1C3D5A] text-base sm:text-lg">${calculatePricing(binQuantity, 'monthly').recurringPrice}</p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
 
-                                        <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                                        <div className={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all cursor-pointer ${
                                             frequency === 'bimonthly' ? 'border-[#7AC142] bg-lime-50' : 'border-slate-100 hover:border-slate-200'
                                         }`} onClick={() => setValue('frequency', 'bimonthly')}>
-                                            <div className="flex items-center gap-4">
-                                                <RadioGroupItem value="bimonthly" id="bimonthly" className="text-[#7AC142]" />
-                                                <div>
-                                                    <p className="font-bold text-[#1C3D5A]">{bimonthlyName} Plan</p>
-                                                    <p className="text-sm text-slate-500">Cleaned every 8 weeks</p>
+                                            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                                                <RadioGroupItem value="bimonthly" id="bimonthly" className="text-[#7AC142] shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-[#1C3D5A] text-sm sm:text-base">{bimonthlyName} Plan</p>
+                                                    <p className="text-xs sm:text-sm text-slate-500">Cleaned every 8 weeks</p>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'bimonthly').recurringPrice}</p>
+                                            <div className="text-right shrink-0 pl-2">
+                                                <p className="font-extrabold text-[#1C3D5A] text-base sm:text-lg">${calculatePricing(binQuantity, 'bimonthly').recurringPrice}</p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
 
-                                        <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                                        <div className={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all cursor-pointer ${
                                             frequency === 'quarterly' ? 'border-[#7AC142] bg-lime-50' : 'border-slate-100 hover:border-slate-200'
                                         }`} onClick={() => setValue('frequency', 'quarterly')}>
-                                            <div className="flex items-center gap-4">
-                                                <RadioGroupItem value="quarterly" id="quarterly" className="text-[#7AC142]" />
-                                                <div>
-                                                    <p className="font-bold text-[#1C3D5A]">{quarterlyName} Plan</p>
-                                                    <p className="text-sm text-slate-500">Cleaned every 12 weeks</p>
+                                            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                                                <RadioGroupItem value="quarterly" id="quarterly" className="text-[#7AC142] shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-[#1C3D5A] text-sm sm:text-base">{quarterlyName} Plan</p>
+                                                    <p className="text-xs sm:text-sm text-slate-500">Cleaned every 12 weeks</p>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">
+                                            <div className="text-right shrink-0 pl-2">
+                                                <p className="font-extrabold text-[#1C3D5A] text-base sm:text-lg">
                                                     {getRecurringBillingPresentation(calculatePricing(binQuantity, 'quarterly').recurringPrice, 'quarterly').planPriceLabel}
                                                 </p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
 
-                                        <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                                        <div className={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all cursor-pointer ${
                                             frequency === 'one-time' ? 'border-[#7AC142] bg-lime-50' : 'border-slate-100 hover:border-slate-200'
                                         }`} onClick={() => setValue('frequency', 'one-time')}>
-                                            <div className="flex items-center gap-4">
-                                                <RadioGroupItem value="one-time" id="one-time" className="text-[#7AC142]" />
-                                                <div>
-                                                    <p className="font-bold text-[#1C3D5A]">One-Time Clean</p>
-                                                    <p className="text-sm text-slate-500">Single deep cleaning service</p>
+                                            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                                                <RadioGroupItem value="one-time" id="one-time" className="text-[#7AC142] shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-[#1C3D5A] text-sm sm:text-base">One-Time Clean</p>
+                                                    <p className="text-xs sm:text-sm text-slate-500">Single deep cleaning service</p>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="font-extrabold text-[#1C3D5A]">${calculatePricing(binQuantity, 'one-time').setupFee}</p>
+                                            <div className="text-right shrink-0 pl-2">
+                                                <p className="font-extrabold text-[#1C3D5A] text-base sm:text-lg">${calculatePricing(binQuantity, 'one-time').setupFee}</p>
                                                 <p className="text-xs text-slate-400">flat rate</p>
                                             </div>
                                         </div>
                                     </RadioGroup>
                                 </div>
                             </CardContent>
-                            <CardFooter className="p-8 bg-slate-50 border-t">
+                            <CardFooter className="p-5 sm:p-8 bg-slate-50 border-t">
                                 <Button
                                     type="button"
                                     onClick={nextStep}
@@ -554,17 +571,19 @@ function SignupForm() {
                     )}
 
                     {step === 2 && (
-                        <Card className="border-none shadow-xl rounded-[2rem] overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500">
-                            <CardHeader className="bg-[#1C3D5A] text-white p-8">
+                        <Card className="border-none shadow-xl rounded-2xl sm:rounded-[2rem] overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500">
+                            <CardHeader className="bg-[#1C3D5A] text-white p-5 sm:p-8">
                                 <CardTitle className="text-2xl font-extrabold">Final Details</CardTitle>
                                 <CardDescription className="text-slate-300">Just a few more things before secure checkout.</CardDescription>
                             </CardHeader>
-                            <CardContent className="p-8 space-y-6">
+                            <CardContent className="p-5 sm:p-8 space-y-6">
                                 <div className="space-y-3">
                                     <Label htmlFor="email" className="text-[#1C3D5A] font-bold">Email Address</Label>
                                     <Input
                                         id="email"
                                         type="email"
+                                        autoComplete="email"
+                                        spellCheck={false}
                                         {...register('email')}
                                         placeholder="you@example.com"
                                         className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
@@ -577,6 +596,7 @@ function SignupForm() {
                                     <Input
                                         id="phone_number"
                                         type="tel"
+                                        autoComplete="tel"
                                         {...register('phone_number')}
                                         placeholder="(704) 555-0123"
                                         className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
@@ -588,6 +608,8 @@ function SignupForm() {
                                     <Label htmlFor="sales_rep_id" className="text-[#1C3D5A] font-bold">Sales Rep ID (Optional)</Label>
                                     <Input
                                         id="sales_rep_id"
+                                        autoComplete="off"
+                                        spellCheck={false}
                                         {...register('sales_rep_id', {
                                             onChange: (e) => {
                                                 e.target.value = e.target.value.toUpperCase();
@@ -596,7 +618,35 @@ function SignupForm() {
                                         placeholder="REP123"
                                         className="h-14 rounded-xl border-slate-200 focus:ring-[#7AC142]"
                                     />
+                                    {errors.sales_rep_id && <p className="text-red-500 text-sm">{errors.sales_rep_id.message}</p>}
                                 </div>
+
+                                {salesRepId && (
+                                    <div className="space-y-3 rounded-xl border border-lime-100 bg-lime-50 p-4">
+                                        <label className="flex cursor-pointer items-center gap-3 text-sm font-semibold text-[#1C3D5A]">
+                                            <input
+                                                type="checkbox"
+                                                {...register('d2d_service_completed')}
+                                                className="size-4 accent-[#7AC142]"
+                                            />
+                                            The initial bin cleaning was completed during this D2D sale
+                                        </label>
+                                        {d2dServiceCompleted && (
+                                            <div className="space-y-2">
+                                                <Label htmlFor="d2d_service_date" className="text-[#1C3D5A] font-bold">Actual Service Date</Label>
+                                                <Input
+                                                    id="d2d_service_date"
+                                                    type="date"
+                                                    max={actualServiceDate(new Date())}
+                                                    {...register('d2d_service_date')}
+                                                    className="h-12 rounded-xl border-slate-200 focus:ring-[#7AC142]"
+                                                />
+                                                <p className="text-xs text-slate-600">Only attest this after the cleaning has actually occurred. A Sales Rep ID alone does not mark service complete.</p>
+                                                {errors.d2d_service_date && <p className="text-red-500 text-sm">{errors.d2d_service_date.message}</p>}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {canOverrideFee && (
                                     <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -649,7 +699,7 @@ function SignupForm() {
                                     {errors.next_service_date && <p className="text-red-500 text-sm">{errors.next_service_date.message}</p>}
                                 </div>
 
-                                <div className="p-4 bg-lime-50 rounded-2xl border border-lime-100 flex gap-4">
+                                <div className="p-3.5 sm:p-4 bg-lime-50 rounded-xl sm:rounded-2xl border border-lime-100 flex gap-3 sm:gap-4">
                                     <div className="text-[#7AC142] shrink-0 mt-1">
                                         <CheckCircle2 size={24} />
                                     </div>
@@ -660,7 +710,7 @@ function SignupForm() {
                                         <br /><br />
                                         <strong>Total due today:</strong>
                                         {frequency === 'one-time' ? (
-                                            <span className="text-[#1C3D5A] font-bold"> ${setupFeeOverride}</span>
+                                             <span className="text-[#1C3D5A] font-bold"> ${setupFeeOverride}</span>
                                         ) : (
                                             <span className="text-[#1C3D5A] font-bold"> ${setupFeeOverride}</span>
                                         )}
@@ -672,7 +722,7 @@ function SignupForm() {
                                     </p>
                                 </div>
                             </CardContent>
-                            <CardFooter className="p-8 bg-slate-50 border-t flex gap-4">
+                            <CardFooter className="p-5 sm:p-8 bg-slate-50 border-t flex gap-3 sm:gap-4">
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -709,13 +759,13 @@ function SignupForm() {
                     )}
 
                     {step === 3 && frequency !== 'one-time' && (
-                        <Card className="border-none shadow-xl rounded-[2rem] overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500">
-                            <CardHeader className="bg-[#1C3D5A] text-white p-8">
+                        <Card className="border-none shadow-xl rounded-2xl sm:rounded-[2rem] overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500">
+                            <CardHeader className="bg-[#1C3D5A] text-white p-5 sm:p-8">
                                 <CardTitle className="text-2xl font-extrabold">Service Agreement</CardTitle>
                                 <CardDescription className="text-slate-300">Please review and accept our service terms.</CardDescription>
                             </CardHeader>
-                            <CardContent className="p-8 space-y-6">
-                                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 h-64 overflow-y-auto text-sm text-slate-600 space-y-4 leading-relaxed scrollbar-thin scrollbar-thumb-slate-300">
+                            <CardContent className="p-5 sm:p-8 space-y-6">
+                                <div className="bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 h-48 sm:h-64 overflow-y-auto text-sm text-slate-600 space-y-4 leading-relaxed scrollbar-thin scrollbar-thumb-slate-300 [-webkit-overflow-scrolling:touch]">
                                     <h3 className="font-bold text-[#1C3D5A] text-base">Service Agreement for {address}</h3>
                                     <p>This agreement confirms your <span className="font-semibold">{checkoutDisclosure?.subscriptionName} Subscription</span> for {binQuantity} trash bin{binQuantity > 1 ? 's' : ''} at the address listed above.</p>
 
@@ -734,8 +784,8 @@ function SignupForm() {
                                     <p className="pt-4 border-t border-slate-200 italic">By checking the box below, you acknowledge that you have read, understood, and agreed to be bound by these terms.</p>
                                 </div>
 
-                                <div className="flex items-start gap-3 p-4 bg-lime-50 rounded-xl border border-lime-100">
-                                    <div className="flex items-center h-6">
+                                <div className="flex items-start gap-3 p-3.5 sm:p-4 bg-lime-50 rounded-xl border border-lime-100">
+                                    <div className="flex items-center h-6 shrink-0">
                                         <input
                                             id="age_confirmed"
                                             type="checkbox"
@@ -749,8 +799,8 @@ function SignupForm() {
                                 </div>
                                 {errors.age_confirmed && <p className="text-red-500 text-xs font-medium pl-1">{errors.age_confirmed.message}</p>}
 
-                                <div className="flex items-start gap-3 p-4 bg-lime-50 rounded-xl border border-lime-100">
-                                    <div className="flex items-center h-6">
+                                <div className="flex items-start gap-3 p-3.5 sm:p-4 bg-lime-50 rounded-xl border border-lime-100">
+                                    <div className="flex items-center h-6 shrink-0">
                                         <input
                                             id="tos_accepted"
                                             type="checkbox"
@@ -764,8 +814,8 @@ function SignupForm() {
                                 </div>
                                 {errors.tos_accepted && <p className="text-red-500 text-xs font-medium pl-1">{errors.tos_accepted.message}</p>}
 
-                                <div className="flex items-start gap-3 p-4 bg-lime-50 rounded-xl border border-lime-100">
-                                    <div className="flex items-center h-6">
+                                <div className="flex items-start gap-3 p-3.5 sm:p-4 bg-lime-50 rounded-xl border border-lime-100">
+                                    <div className="flex items-center h-6 shrink-0">
                                         <input
                                             id="contact_consent"
                                             type="checkbox"
@@ -784,7 +834,7 @@ function SignupForm() {
                                     </div>
                                 )}
                             </CardContent>
-                            <CardFooter className="p-8 bg-slate-50 border-t flex gap-4">
+                            <CardFooter className="p-5 sm:p-8 bg-slate-50 border-t flex gap-3 sm:gap-4">
                                 <Button
                                     type="button"
                                     variant="outline"

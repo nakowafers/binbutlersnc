@@ -3,6 +3,7 @@ import { POST } from '../../src/app/api/webhooks/stripe/route';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { DbSimulator } from './db-simulator';
 import { today, futureDate } from '../test-utils';
+import { actualServiceDate } from '@/lib/service-cycle/dates';
 
 const mockConstructEventAsync = vi.fn();
 const mockCustomerUpdate = vi.fn();
@@ -193,13 +194,16 @@ describe('Next Service Date - Webhook Integration', () => {
     });
 
     describe('D2D with next_service_date', () => {
-        it('should create Completed for D2D with same-day date', async () => {
+        it('creates Completed only when D2D service is explicitly attested', async () => {
             const leadId = 'lead_d2d_sameday';
+            const serviceDate = actualServiceDate(new Date());
             seedLead(simulator, leadId, 'd2d-sameday@example.com', '505 D2D SameDay Rd', 'REP_001');
 
             const event = createEvent(leadId, {
                 sales_rep_id: 'REP_001',
-                next_service_date: today(),
+                next_service_date: serviceDate,
+                d2d_service_completed: 'true',
+                d2d_service_date: serviceDate,
             });
 
             const response = await processWebhook(simulator, event);
@@ -209,10 +213,11 @@ describe('Next Service Date - Webhook Integration', () => {
             expect(services.length).toBe(1);
             expect(services[0].dispatch_status).toBe('Completed');
             expect(services[0].sales_rep_id).toBe('REP_001');
-            expect(services[0].service_date).toContain(today());
+            expect(services[0].service_date).toBe(serviceDate);
+            expect(services[0].completed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
         });
 
-        it('creates immediate Completed history for D2D and does not schedule the future date', async () => {
+        it('keeps an unattested D2D signup scheduled for its future First Service Date', async () => {
             const leadId = 'lead_d2d_future';
             const future = futureDate(7);
             seedLead(simulator, leadId, 'd2d-future@example.com', '606 D2D Future Ln', 'REP_002');
@@ -227,13 +232,10 @@ describe('Next Service Date - Webhook Integration', () => {
 
             const customer = getCustomer(simulator, 'd2d-future@example.com');
             const sub = getSubscription(simulator, customer.id);
-            expect(sub.next_service_date).toBeNull();
+            expect(sub.next_service_date).toBe(future);
 
             const services = getServiceRecords(simulator);
-            expect(services.length).toBe(1);
-            expect(services[0].dispatch_status).toBe('Completed');
-            expect(services[0].sales_rep_id).toBe('REP_002');
-            expect(services[0].service_date).toContain(today());
+            expect(services).toHaveLength(0);
         });
     });
 
@@ -251,7 +253,7 @@ describe('Next Service Date - Webhook Integration', () => {
             expect(services.length).toBe(0);
         });
 
-        it('should create immediate Completed for D2D without next_service_date', async () => {
+        it('does not infer Completed service from a Sales Rep ID without attestation', async () => {
             const leadId = 'lead_no_nsd_d2d';
             seedLead(simulator, leadId, 'no-nsd-d2d@example.com', '808 Legacy D2D Ave', 'REP_003');
 
@@ -263,10 +265,7 @@ describe('Next Service Date - Webhook Integration', () => {
             expect(response.status).toBe(200);
 
             const services = getServiceRecords(simulator);
-            expect(services.length).toBe(1);
-            expect(services[0].dispatch_status).toBe('Completed');
-            expect(services[0].sales_rep_id).toBe('REP_003');
-            expect(services[0].service_date).toContain(today());
+            expect(services).toHaveLength(0);
         });
     });
 

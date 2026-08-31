@@ -1,4 +1,5 @@
 import { Lead, Customer, Address, Subscription, ServiceHistory, CustomerWithDetails, DispatchStop, SalesRep } from '@/lib/types';
+import { ApproveCatchUpServiceInput, WaiveServiceCycleInput } from '@/lib/service-cycle/ServiceCycleActions';
 
 export interface DueSubscriptionResult extends Subscription {
     raw_address: string;
@@ -14,6 +15,17 @@ export interface DueSubscriptionResult extends Subscription {
     scent_preference?: string | null;
     bin_quantity?: number;
     next_service_date?: string | null;
+    /** Present only when the enabled Service Cycle cutover selected an already-open cycle. */
+    service_cycle_id?: string | null;
+    cycle_due_date?: string | null;
+}
+
+export interface CycleShadowSubscriptionResult {
+    subscriptionId: string;
+    frequencyDays: number;
+    serviceCycleAnchor: string | null;
+    serviceDay: string | null;
+    completedServiceDates: string[];
 }
 
 // 1. Lead Operations & Transactions
@@ -50,6 +62,11 @@ export interface ILeadRepository {
         frequency: 'monthly' | 'bimonthly' | 'quarterly' | 'one-time';
         nextServiceDate?: string | null;
         serviceHistoryStatus?: string;
+        serviceCycleAnchor?: string | null;
+        d2dServiceAttestation?: {
+            serviceDate: string;
+            completedAt: string;
+        } | null;
     }): Promise<void>;
 
     claimWebhookEvent(id: string, eventType: string): Promise<boolean>;
@@ -94,10 +111,36 @@ export interface ISubscriptionRepository {
     getSubscriptionByCustomerId(customerId: string): Promise<Subscription | null>;
     getSubscriptionByIdAndCustomer(id: string, customerId: string): Promise<Subscription | null>;
     getSubscriptionIdByStripeId(stripeSubscriptionId: string): Promise<string | null>;
+    getPaymentFailureCycleSubscription?(stripeSubscriptionId: string): Promise<{
+        id: string;
+        frequencyDays: number;
+        serviceCycleAnchor: string | null;
+        serviceDay: string | null;
+    } | null>;
     updateSubscriptionPauseStatus(id: string, isPaused: number): Promise<void>;
     updateSubscriptionStatus(stripeSubscriptionId: string, status: string, currentPeriodEnd: string | null): Promise<void>;
     isSubscriptionPaused(id: string): Promise<boolean>;
-    getDueSubscriptions(targetServiceDate: string): Promise<DueSubscriptionResult[]>;
+    /** Eligibility is evaluated against the unshifted cycle date; duplicate attempts use the actual service date. */
+    getDueSubscriptions(cycleDueDate: string, attemptServiceDate?: string): Promise<DueSubscriptionResult[]>;
+    /**
+     * Enabled-cutover authority. Implementations materialize the canonical recurring
+     * cycle for the target date, then return only due open Service Cycles.
+     */
+    getCycleEligibleSubscriptions?(cycleDueDate: string, attemptServiceDate?: string): Promise<{
+        dueSubscriptions: DueSubscriptionResult[];
+        reviewSubscriptionIds: string[];
+        /** PII-free persisted recovery blockers that were excluded from enabled-cutover eligibility. */
+        recoveryReviewSuppressions: Array<{ subscriptionId: string; reason: string }>;
+    }>;
+    /** Creates or records a reviewable exception without creating or changing any Service Attempt. */
+    recordCycleException?(input: {
+        subscriptionId: string;
+        cycleDueDate: string;
+        reason: 'billing_delinquency' | 'vacation_pause';
+        occurredAt: string;
+        correlationKey: string;
+    }): Promise<void>;
+    getCycleShadowSubscriptions?(): Promise<CycleShadowSubscriptionResult[]>;
     clearConsumedFirstServiceDates(subscriptionIds: string[], serviceDate: string): Promise<void>;
     getActiveSubscriptionsCount(): Promise<number>;
     updateSubscriptionFirstServiceDate(id: string, firstServiceDate: string): Promise<void>;
@@ -156,10 +199,13 @@ export interface CreateDispatchStopInput {
     customerScent: string | null;
     serviceNotes: string | null;
     customerPhone: string | null;
+    serviceCycleId?: string | null;
+    cycleDueDate?: string | null;
 }
 
 export interface CreateDispatchRouteInput {
-    history: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number }>;
+    cycles?: Array<{ id: string; subscriptionId: string; cycleDueDate: string; eventId: string; occurredAt: string; correlationKey: string }>;
+    history: Array<{ id: string; subscriptionId: string; date: string; status: string; binQuantity?: number; serviceCycleId?: string | null; cycleDueDate?: string | null }>;
     stops: CreateDispatchStopInput[];
     consumedFirstService?: { subscriptionIds: string[]; serviceDate: string };
 }
@@ -170,11 +216,16 @@ export interface IDispatchStopRepository {
     getRouteStops(driverSalesRepId: string, serviceDate: string, includeTerminal?: boolean): Promise<DispatchStop[]>;
     getStopById(id: string): Promise<DispatchStop | null>;
     markDispatchStopCompleted(id: string, updatedBySalesRepId: string, completedAt: string): Promise<void>;
-    skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, skippedAt: string): Promise<void>;
+    skipDispatchStop(id: string, updatedBySalesRepId: string, reason: string, skippedAt: string, notes?: string): Promise<void>;
     getActiveAdminDrivers(): Promise<SalesRep[]>;
     getAdminDriverByEmail(email: string): Promise<SalesRep | null>;
     getDispatchSetupStatus(): Promise<DispatchSetupStatus>;
     updateAddressCoordinates(address: string, latitude: number, longitude: number): Promise<void>;
+}
+
+export interface IServiceCycleActionRepository {
+    approveCatchUpService(input: ApproveCatchUpServiceInput): Promise<void>;
+    waiveServiceCycle(input: WaiveServiceCycleInput): Promise<void>;
 }
 
 // Monolithic DB Service interface that extends all segregated repositories for backward compatibility
@@ -185,4 +236,5 @@ export interface IDatabaseService extends
     IServiceHistoryRepository, 
     ISettingsRepository, 
     ISalesRepRepository,
-    IDispatchStopRepository {}
+    IDispatchStopRepository,
+    IServiceCycleActionRepository {}

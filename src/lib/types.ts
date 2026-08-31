@@ -56,6 +56,7 @@ export interface Subscription {
     is_paused: boolean;
     frequency_days: number;
     next_service_date?: string | null;
+    service_cycle_anchor?: string | null;
     created_at: string;
 }
 
@@ -67,6 +68,9 @@ export interface ServiceHistory {
     dispatch_status: string;
     sales_rep_id?: string;
     bin_quantity?: number;
+    service_cycle_id?: string | null;
+    cycle_due_date?: string | null;
+    completed_at?: string | null;
     created_at: string;
 }
 
@@ -90,6 +94,8 @@ export interface DispatchStop {
     customer_phone?: string | null;
     skip_reason?: string | null;
     completed_at?: string | null;
+    service_cycle_id?: string | null;
+    cycle_due_date?: string | null;
     updated_by_sales_rep_id?: string | null;
     created_at: string;
     updated_at: string;

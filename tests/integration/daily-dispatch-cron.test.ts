@@ -3,6 +3,7 @@ import dailyDispatchCron from '../../workers/daily-dispatch-cron/index';
 import { DbSimulator } from './db-simulator';
 import { AdminCustomerService } from '../../src/lib/admin/AdminCustomerService';
 import { D1DatabaseAdapter } from '../../src/lib/db/D1DatabaseAdapter';
+import { D1DispatchStopRepositoryAdapter } from '../../src/lib/db/adapters/D1DispatchStopRepositoryAdapter';
 
 describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
     let simulator: DbSimulator;
@@ -193,6 +194,150 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
         expect(stop.service_date).toBe('2024-05-15');
     });
 
+    it('dual-writes an atomically linked recurring cycle while preserving the legacy holiday-shifted route date', async () => {
+        simulator.db.prepare(
+            "INSERT OR REPLACE INTO global_settings (key, value) VALUES ('holiday_offset_hours', '24')"
+        ).run();
+        seedSubscription('shadow_cycle', 'TUE');
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        const cycles = simulator.db.prepare('SELECT subscription_id, cycle_due_date, state FROM service_cycles').all() as any[];
+        const events = simulator.db.prepare("SELECT event_type, actor_capacity FROM service_cycle_events").all() as any[];
+        const history = simulator.db.prepare('SELECT service_cycle_id, cycle_due_date, service_date, dispatch_status FROM service_history').all() as any[];
+        const stops = simulator.db.prepare('SELECT service_cycle_id, cycle_due_date, service_date, dispatch_status FROM dispatch_stops').all() as any[];
+
+        expect(cycles).toEqual([{ subscription_id: 'sub_shadow_cycle', cycle_due_date: '2024-05-14', state: 'open' }]);
+        expect(events).toEqual([{ event_type: 'created', actor_capacity: 'system' }]);
+        expect(history).toHaveLength(1);
+        expect(stops).toHaveLength(1);
+        expect(history[0]).toMatchObject({ cycle_due_date: '2024-05-14', service_date: '2024-05-15', dispatch_status: 'Pending' });
+        expect(stops[0]).toMatchObject({ cycle_due_date: '2024-05-14', service_date: '2024-05-15', dispatch_status: 'assigned' });
+        expect(history[0].service_cycle_id).toBe(cycles[0] && stops[0].service_cycle_id);
+        expect(stops[0].service_cycle_id).toBeTruthy();
+    });
+
+    it('uses the stable anchor on cutover despite timestamp-shaped history and a late catch-up, without rewriting history', async () => {
+        simulator.db.prepare(
+            "INSERT INTO global_settings (key, value) VALUES ('service_cycle_dispatch_cutover', ?)"
+        ).run(JSON.stringify({ enabled: true, parityVerified: true, recoveryAuditVerified: true, billingDriftAuditVerified: true }));
+        seedSubscription('cutover_anchor', 'TUE');
+        simulator.db.prepare(
+            "UPDATE subscriptions SET service_cycle_anchor = '2024-04-16' WHERE id = 'sub_cutover_anchor'"
+        ).run();
+        simulator.db.prepare(
+            "INSERT INTO service_history (id, subscription_id, service_date, dispatch_status, completed_at) VALUES ('normal_completed', 'sub_cutover_anchor', '2024-04-16', 'Completed', '2024-04-16T20:44:00.000Z'), ('late_catch_up', 'sub_cutover_anchor', '2024-05-07', 'Completed', '2024-05-08T01:10:00.000Z')"
+        ).run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        expect(simulator.db.prepare(
+            "SELECT subscription_id, cycle_due_date, service_date FROM dispatch_stops WHERE subscription_id = 'sub_cutover_anchor'"
+        ).all()).toEqual([{ subscription_id: 'sub_cutover_anchor', cycle_due_date: '2024-05-14', service_date: '2024-05-14' }]);
+        expect(simulator.db.prepare(
+            "SELECT id, service_date, completed_at, dispatch_status FROM service_history WHERE subscription_id = 'sub_cutover_anchor' AND id IN ('normal_completed', 'late_catch_up') ORDER BY id"
+        ).all()).toEqual([
+            { id: 'late_catch_up', service_date: '2024-05-07', completed_at: '2024-05-08T01:10:00.000Z', dispatch_status: 'Completed' },
+            { id: 'normal_completed', service_date: '2024-04-16', completed_at: '2024-04-16T20:44:00.000Z', dispatch_status: 'Completed' },
+        ]);
+    });
+
+    it('materializes exact 28/56/84-day calendar anniversaries and dispatches their open cycles', async () => {
+        simulator.db.prepare(
+            "INSERT INTO global_settings (key, value) VALUES ('service_cycle_dispatch_cutover', ?)"
+        ).run(JSON.stringify({ enabled: true, parityVerified: true, recoveryAuditVerified: true, billingDriftAuditVerified: true }));
+        seedSubscription('cycle_28', 'TUE');
+        seedSubscription('cycle_56', 'TUE');
+        seedSubscription('cycle_84', 'TUE');
+        simulator.db.prepare(`
+            UPDATE subscriptions
+            SET frequency_days = CASE id
+                WHEN 'sub_cycle_56' THEN 56
+                WHEN 'sub_cycle_84' THEN 84
+                ELSE 28
+            END,
+            service_cycle_anchor = CASE id
+                WHEN 'sub_cycle_28' THEN '2024-04-16'
+                WHEN 'sub_cycle_56' THEN '2024-03-19'
+                WHEN 'sub_cycle_84' THEN '2024-02-20'
+            END
+            WHERE id IN ('sub_cycle_28', 'sub_cycle_56', 'sub_cycle_84')
+        `).run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        expect(simulator.db.prepare(
+            'SELECT subscription_id, cycle_due_date, state FROM service_cycles ORDER BY subscription_id'
+        ).all()).toEqual([
+            { subscription_id: 'sub_cycle_28', cycle_due_date: '2024-05-14', state: 'open' },
+            { subscription_id: 'sub_cycle_56', cycle_due_date: '2024-05-14', state: 'open' },
+            { subscription_id: 'sub_cycle_84', cycle_due_date: '2024-05-14', state: 'open' },
+        ]);
+        expect(simulator.db.prepare(
+            'SELECT subscription_id, service_cycle_id, cycle_due_date FROM dispatch_stops ORDER BY subscription_id'
+        ).all()).toEqual([
+            { subscription_id: 'sub_cycle_28', service_cycle_id: 'service-cycle:sub_cycle_28:2024-05-14', cycle_due_date: '2024-05-14' },
+            { subscription_id: 'sub_cycle_56', service_cycle_id: 'service-cycle:sub_cycle_56:2024-05-14', cycle_due_date: '2024-05-14' },
+            { subscription_id: 'sub_cycle_84', service_cycle_id: 'service-cycle:sub_cycle_84:2024-05-14', cycle_due_date: '2024-05-14' },
+        ]);
+    });
+
+    it('does not guess a missing-anchor subscription into an enabled cutover route and emits a PII-free review alert', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        simulator.db.prepare(
+            "INSERT INTO global_settings (key, value) VALUES ('service_cycle_dispatch_cutover', ?)"
+        ).run(JSON.stringify({ enabled: true, parityVerified: true, recoveryAuditVerified: true, billingDriftAuditVerified: true }));
+        seedSubscription('missing_anchor', 'TUE');
+        simulator.db.prepare(
+            "INSERT INTO service_history (id, subscription_id, service_date, dispatch_status) VALUES ('prior_completed', 'sub_missing_anchor', '2024-04-16', 'Completed')"
+        ).run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        expect(simulator.db.prepare("SELECT * FROM dispatch_stops WHERE subscription_id = 'sub_missing_anchor'").all()).toEqual([]);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('"reviewSubscriptionIds":["sub_missing_anchor"]'));
+        warn.mockRestore();
+    });
+
+    it('uses the unshifted cycle due date for a holiday-shifted first service', async () => {
+        simulator.db.prepare(
+            "INSERT OR REPLACE INTO global_settings (key, value) VALUES ('holiday_offset_hours', '24')"
+        ).run();
+        seedSubscription('holiday_first_service', 'TUE');
+        simulator.db.prepare(
+            "UPDATE subscriptions SET next_service_date = '2024-05-14' WHERE id = 'sub_holiday_first_service'"
+        ).run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        expect(simulator.db.prepare(
+            "SELECT cycle_due_date, state FROM service_cycles WHERE subscription_id = 'sub_holiday_first_service'"
+        ).get()).toEqual({ cycle_due_date: '2024-05-14', state: 'open' });
+        expect(simulator.db.prepare(
+            "SELECT service_date, cycle_due_date FROM dispatch_stops WHERE subscription_id = 'sub_holiday_first_service'"
+        ).get()).toEqual({ service_date: '2024-05-15', cycle_due_date: '2024-05-14' });
+        expect(simulator.db.prepare(
+            "SELECT next_service_date FROM subscriptions WHERE id = 'sub_holiday_first_service'"
+        ).get()).toEqual({ next_service_date: null });
+    });
+
+    it('suppresses paused paid service without attempts and records a reviewable vacation exception', async () => {
+        seedSubscription('vacation', 'TUE');
+        simulator.db.prepare("UPDATE subscriptions SET is_paused = 1 WHERE id = 'sub_vacation'").run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        expect(simulator.db.prepare("SELECT * FROM dispatch_stops WHERE subscription_id = 'sub_vacation'").all()).toEqual([]);
+        expect(simulator.db.prepare("SELECT * FROM service_history WHERE subscription_id = 'sub_vacation'").all()).toEqual([]);
+        expect(simulator.db.prepare(
+            "SELECT cycle_due_date, state FROM service_cycles WHERE subscription_id = 'sub_vacation'"
+        ).get()).toEqual({ cycle_due_date: '2024-05-14', state: 'exception' });
+        expect(simulator.db.prepare(
+            "SELECT reason FROM service_cycle_events WHERE service_cycle_id = (SELECT id FROM service_cycles WHERE subscription_id = 'sub_vacation') ORDER BY rowid DESC LIMIT 1"
+        ).get()).toEqual({ reason: 'vacation_pause' });
+    });
+
     it('applies holiday shift as one local calendar day after the Eastern target date', async () => {
         vi.setSystemTime(new Date('2024-03-11T00:00:00Z'));
         simulator.db.prepare(
@@ -322,6 +467,102 @@ describe('Daily Dispatch Cron Worker - Local Dispatch', () => {
             "SELECT service_date, dispatch_status FROM service_history WHERE subscription_id = 'sub_skipped_one_time' ORDER BY service_date"
         ).all()).toEqual([
             { service_date: '2024-05-07', dispatch_status: 'Skipped' },
+        ]);
+    });
+
+    it('gives one-time service exactly one cycle without a recurring anchor', async () => {
+        seedSubscriptionWithOptions('one_time_cycle', {
+            status: 'one-time',
+            currentPeriodEnd: null,
+        });
+        simulator.db.prepare(
+            "UPDATE subscriptions SET frequency_days = 0, next_service_date = '2024-05-14', service_cycle_anchor = NULL WHERE id = 'sub_one_time_cycle'"
+        ).run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        expect(simulator.db.prepare(
+            "SELECT cycle_due_date, state FROM service_cycles WHERE subscription_id = 'sub_one_time_cycle'"
+        ).all()).toEqual([{ cycle_due_date: '2024-05-14', state: 'open' }]);
+        expect(simulator.db.prepare(
+            "SELECT service_cycle_anchor FROM subscriptions WHERE id = 'sub_one_time_cycle'"
+        ).get()).toEqual({ service_cycle_anchor: null });
+    });
+
+    it('fails closed for persisted recovery reviews while an unreviewed one-time first service remains a single idempotent cycle', async () => {
+        simulator.db.prepare(
+            "INSERT INTO global_settings (key, value) VALUES ('service_cycle_dispatch_cutover', ?)"
+        ).run(JSON.stringify({ enabled: true, parityVerified: true, recoveryAuditVerified: true, billingDriftAuditVerified: true }));
+        seedSubscription('reviewed_recurring', 'TUE');
+        seedSubscriptionWithOptions('unreviewed_one_time', { status: 'one-time', currentPeriodEnd: null });
+        simulator.db.prepare(
+            "UPDATE subscriptions SET service_cycle_anchor = '2024-04-16' WHERE id = 'sub_reviewed_recurring'"
+        ).run();
+        simulator.db.prepare(
+            "UPDATE subscriptions SET frequency_days = 0, next_service_date = '2024-05-14', service_cycle_anchor = NULL WHERE id = 'sub_unreviewed_one_time'"
+        ).run();
+        simulator.db.prepare(
+            "INSERT INTO subscription_recovery_reviews (subscription_id, classification, reason, observed_at) VALUES ('sub_reviewed_recurring', 'needs_review', 'missing_anchor', '2024-05-13T12:00:00.000Z')"
+        ).run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        expect(simulator.db.prepare(
+            "SELECT * FROM service_cycles WHERE subscription_id = 'sub_reviewed_recurring'"
+        ).all()).toEqual([]);
+        expect(simulator.db.prepare(
+            "SELECT * FROM dispatch_stops WHERE subscription_id = 'sub_reviewed_recurring'"
+        ).all()).toEqual([]);
+        expect(simulator.db.prepare(
+            "SELECT cycle_due_date, state FROM service_cycles WHERE subscription_id = 'sub_unreviewed_one_time'"
+        ).all()).toEqual([{ cycle_due_date: '2024-05-14', state: 'open' }]);
+        expect(simulator.db.prepare(
+            "SELECT service_cycle_anchor, next_service_date FROM subscriptions WHERE id = 'sub_unreviewed_one_time'"
+        ).get()).toEqual({ service_cycle_anchor: null, next_service_date: null });
+        expect(simulator.db.prepare(
+            "SELECT service_cycle_id, cycle_due_date, dispatch_status FROM service_history WHERE subscription_id = 'sub_unreviewed_one_time'"
+        ).all()).toEqual([{ service_cycle_id: 'service-cycle:sub_unreviewed_one_time:2024-05-14', cycle_due_date: '2024-05-14', dispatch_status: 'Pending' }]);
+        expect(simulator.db.prepare(
+            "SELECT service_cycle_id, cycle_due_date FROM dispatch_stops WHERE subscription_id = 'sub_unreviewed_one_time'"
+        ).all()).toEqual([{ service_cycle_id: 'service-cycle:sub_unreviewed_one_time:2024-05-14', cycle_due_date: '2024-05-14' }]);
+    });
+
+    it('does not create recurrence after enabled-cutover one-time completion or skip', async () => {
+        simulator.db.prepare(
+            "INSERT INTO global_settings (key, value) VALUES ('service_cycle_dispatch_cutover', ?)"
+        ).run(JSON.stringify({ enabled: true, parityVerified: true, recoveryAuditVerified: true, billingDriftAuditVerified: true }));
+        seedSubscriptionWithOptions('one_time_completed', { status: 'one-time', currentPeriodEnd: null });
+        seedSubscriptionWithOptions('one_time_skipped', { status: 'one-time', currentPeriodEnd: null });
+        simulator.db.prepare(
+            "UPDATE subscriptions SET frequency_days = 0, next_service_date = '2024-05-14', service_cycle_anchor = NULL WHERE id IN ('sub_one_time_completed', 'sub_one_time_skipped')"
+        ).run();
+
+        await dailyDispatchCron.handleDispatch(mockEnv);
+        const stopRepository = new D1DispatchStopRepositoryAdapter(simulator as unknown as D1Database);
+        await stopRepository.markDispatchStopCompleted('shadow-stop:sub_one_time_completed:2024-05-14', 'DRIVER', '2024-05-14T18:00:00.000Z');
+        await stopRepository.skipDispatchStop('shadow-stop:sub_one_time_skipped:2024-05-14', 'DRIVER', 'bins_not_out', '2024-05-14T18:00:00.000Z');
+
+        vi.setSystemTime(new Date('2024-06-10T12:00:00Z'));
+        await dailyDispatchCron.handleDispatch(mockEnv);
+
+        expect(simulator.db.prepare(
+            "SELECT subscription_id, cycle_due_date, state FROM service_cycles WHERE subscription_id IN ('sub_one_time_completed', 'sub_one_time_skipped') ORDER BY subscription_id"
+        ).all()).toEqual([
+            { subscription_id: 'sub_one_time_completed', cycle_due_date: '2024-05-14', state: 'fulfilled' },
+            { subscription_id: 'sub_one_time_skipped', cycle_due_date: '2024-05-14', state: 'exception' },
+        ]);
+        expect(simulator.db.prepare(
+            "SELECT id, service_cycle_anchor, next_service_date FROM subscriptions WHERE id IN ('sub_one_time_completed', 'sub_one_time_skipped') ORDER BY id"
+        ).all()).toEqual([
+            { id: 'sub_one_time_completed', service_cycle_anchor: null, next_service_date: null },
+            { id: 'sub_one_time_skipped', service_cycle_anchor: null, next_service_date: null },
+        ]);
+        expect(simulator.db.prepare(
+            "SELECT subscription_id, service_date FROM dispatch_stops WHERE subscription_id IN ('sub_one_time_completed', 'sub_one_time_skipped') ORDER BY subscription_id"
+        ).all()).toEqual([
+            { subscription_id: 'sub_one_time_completed', service_date: '2024-05-14' },
+            { subscription_id: 'sub_one_time_skipped', service_date: '2024-05-14' },
         ]);
     });
 

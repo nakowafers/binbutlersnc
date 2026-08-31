@@ -94,6 +94,22 @@ describe('AdminCustomerService manual first-service reschedule', () => {
         expect(localPaymentService.updateCustomerServiceDetails).not.toHaveBeenCalled();
     });
 
+    it('rejects a direct Trash Day edit for an active recurring Subscription', async () => {
+        const repo = createRepo({
+            getAddressById: vi.fn().mockResolvedValue({ id: 'addr_1', service_day: 'WED', trash_day: 'WED' }),
+        });
+        const service = new AdminCustomerService(repo as any, paymentService as any, false);
+
+        await expect(service.updateCustomer({
+            customerId: 'cust_1',
+            addressId: 'addr_1',
+            trashDay: 'THU',
+        })).rejects.toEqual(new AdminServiceError(409, 'Changing Trash Day for an active recurring Subscription requires the audited Service Day re-anchor operation'));
+
+        expect(repo.updateAddress).not.toHaveBeenCalled();
+        expect(paymentService.updateCustomerServiceDetails).not.toHaveBeenCalled();
+    });
+
 
     it('rejects recurring reschedules that do not match the Service Day without changing the Subscription', async () => {
         const repo = createRepo();

@@ -3,6 +3,7 @@ import { Env } from '@/lib/types';
 import { normalizeAddress, normalizeEmail } from '@/lib/utils';
 import { normalizeSalesRepId } from '@/lib/sales-rep';
 import { pricingVersionSchema } from '@/lib/checkout/pricingVersion';
+import { assertEasternServiceDate, actualServiceDate } from '@/lib/service-cycle/dates';
 
 export const checkoutSchema = z.object({
     pricing_version: pricingVersionSchema,
@@ -22,10 +23,55 @@ export const checkoutSchema = z.object({
     sales_rep_id: z.string().optional().transform(val => normalizeSalesRepId(val) ?? undefined),
     setup_fee_override: z.number().min(0).optional(),
     next_service_date: z.string().optional(),
+    d2d_service_completed: z.boolean().optional().default(false),
+    d2d_service_date: z.string().optional(),
     tos_accepted: z.boolean().optional().default(false),
     age_confirmed: z.boolean().optional().default(false),
     contact_consent: z.boolean().optional().default(false),
 }).superRefine((data, ctx) => {
+    if (data.d2d_service_completed) {
+        if (!data.sales_rep_id) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['sales_rep_id'],
+                message: 'A Sales Rep ID is required to attest immediate D2D service',
+            });
+        }
+
+        if (!data.d2d_service_date) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['d2d_service_date'],
+                message: 'An actual Eastern Service Date is required for immediate D2D service',
+            });
+        } else {
+            try {
+                assertEasternServiceDate(data.d2d_service_date);
+                if (data.d2d_service_date > actualServiceDate(new Date())) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['d2d_service_date'],
+                        message: 'Immediate D2D service cannot be attested for a future date',
+                    });
+                }
+            } catch {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['d2d_service_date'],
+                    message: 'An actual canonical Eastern Service Date is required for immediate D2D service',
+                });
+            }
+        }
+
+        if (data.next_service_date && data.next_service_date !== data.d2d_service_date) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['next_service_date'],
+                message: 'Immediate D2D service cannot also have a different First Service Date',
+            });
+        }
+    }
+
     if (data.frequency === 'one-time') {
         return;
     }

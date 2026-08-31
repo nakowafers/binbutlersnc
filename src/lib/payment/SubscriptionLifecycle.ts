@@ -4,6 +4,9 @@ import { IPaymentService } from './types';
 import { normalizeSalesRepId } from '../sales-rep';
 import { normalizeEmail, normalizeAddress } from '../utils';
 import { WebhookHttpError } from '../webhooks/WebhookHttpError';
+import { actualServiceDate, addEasternDays, assertEasternServiceDate, firstServiceDayOnOrAfter } from '../service-cycle/dates';
+import { getServiceCadenceDays } from '../pricing';
+import { resolvePaymentFailureCycleDueDate } from './paymentFailureCycle';
 
 export class SubscriptionLifecycle {
     constructor(
@@ -31,7 +34,7 @@ export class SubscriptionLifecycle {
     }
 
     private async handleEvent(event: Stripe.Event): Promise<void> {
-        if (event.type === 'checkout.session.completed') {
+        if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
             await this.handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
             return;
         }
@@ -62,7 +65,13 @@ export class SubscriptionLifecycle {
         }
 
         if (event.type === 'invoice.payment_failed') {
-            await this.handleInvoicePaymentFailed(event.data.object as unknown as { subscription: string | null; customer: string });
+            await this.handleInvoicePaymentFailed(event.id, event.data.object as unknown as {
+                subscription: string | null;
+                customer: string;
+                created?: number;
+                period_start?: number;
+                lines?: { data?: Array<{ period?: { start?: number } }> };
+            });
             return;
         }
     }
@@ -83,6 +92,8 @@ export class SubscriptionLifecycle {
         const frequency = (metadata.frequency || 'monthly') as 'monthly' | 'bimonthly' | 'quarterly' | 'one-time';
         const tosAcceptedAt = metadata.tos_accepted_at || null;
         const combinedName = `${firstName} ${lastName}`.trim();
+        const d2dServiceCompleted = metadata.d2d_service_completed === 'true';
+        const d2dServiceDate = metadata.d2d_service_date || null;
 
         if (!leadId) {
             throw new WebhookHttpError(400, 'Missing lead_id in metadata');
@@ -97,6 +108,40 @@ export class SubscriptionLifecycle {
         lead.address = normalizeAddress(lead.address);
 
         const isSubscription = !!session.subscription;
+
+        if (session.payment_status === 'unpaid') {
+            console.log(`Skipping unpaid Checkout Session ${session.id}`);
+            return;
+        }
+
+        let d2dServiceAttestation: { serviceDate: string; completedAt: string } | null = null;
+        let serviceCycleAnchor: string | null = null;
+        if (d2dServiceCompleted) {
+            if (!salesRepId || !d2dServiceDate) {
+                throw new WebhookHttpError(400, 'Immediate D2D service requires a Sales Rep ID and Service Date attestation');
+            }
+            try {
+                assertEasternServiceDate(d2dServiceDate);
+            } catch {
+                throw new WebhookHttpError(400, 'Immediate D2D service requires a canonical Eastern Service Date');
+            }
+            if (d2dServiceDate > actualServiceDate(new Date())) {
+                throw new WebhookHttpError(400, 'Immediate D2D service cannot be attested for a future date');
+            }
+            if (metadata.next_service_date && metadata.next_service_date !== d2dServiceDate) {
+                throw new WebhookHttpError(400, 'Immediate D2D service cannot also have a different First Service Date');
+            }
+            d2dServiceAttestation = {
+                serviceDate: d2dServiceDate,
+                completedAt: new Date().toISOString(),
+            };
+            if (isSubscription) {
+                serviceCycleAnchor = firstServiceDayOnOrAfter(
+                    addEasternDays(d2dServiceDate, getServiceCadenceDays(frequency)),
+                    trashDay,
+                );
+            }
+        }
 
         const existingCustomer = await this.customerRepo.getCustomerByEmail(lead.email);
         const customerId = existingCustomer?.id || crypto.randomUUID();
@@ -120,7 +165,7 @@ export class SubscriptionLifecycle {
             }
         }
 
-        const firstServiceDate = salesRepId ? null : nextServiceDate;
+        const firstServiceDate = d2dServiceAttestation ? null : nextServiceDate;
 
         try {
             await this.paymentService.updateCustomerServiceDetails(session.customer as string, {
@@ -167,7 +212,8 @@ export class SubscriptionLifecycle {
             serviceHistoryId,
             frequency,
             nextServiceDate: firstServiceDate,
-            serviceHistoryStatus: salesRepId ? 'Completed' : undefined,
+            serviceCycleAnchor,
+            d2dServiceAttestation,
         });
 
         console.log(`Successfully converted lead ${leadId} to customer ${customerId}`);
@@ -228,10 +274,31 @@ export class SubscriptionLifecycle {
         }
     }
 
-    private async handleInvoicePaymentFailed(invoice: { subscription: string | null; customer: string }): Promise<void> {
+    private async handleInvoicePaymentFailed(eventId: string, invoice: {
+        subscription: string | null;
+        customer: string;
+        created?: number;
+        period_start?: number;
+        lines?: { data?: Array<{ period?: { start?: number } }> };
+    }): Promise<void> {
         const stripeSubscriptionId = invoice.subscription;
         if (stripeSubscriptionId) {
             await this.subscriptionRepo.updateSubscriptionStatus(stripeSubscriptionId, 'past_due', null);
+            const billingCycleStart = invoice.period_start ?? invoice.lines?.data?.[0]?.period?.start ?? invoice.created;
+            const subscription = await this.subscriptionRepo.getPaymentFailureCycleSubscription?.(stripeSubscriptionId) ?? null;
+            const cycleDueDate = resolvePaymentFailureCycleDueDate(
+                subscription,
+                typeof billingCycleStart === 'number' ? billingCycleStart : null,
+            );
+            if (cycleDueDate) {
+                await this.subscriptionRepo.recordCycleException?.({
+                    subscriptionId: subscription!.id,
+                    cycleDueDate,
+                    reason: 'billing_delinquency',
+                    occurredAt: new Date().toISOString(),
+                    correlationKey: `billing-delinquency:${eventId}`,
+                });
+            }
 
             console.log(`Successfully set subscription to past_due: ${stripeSubscriptionId}`);
         }

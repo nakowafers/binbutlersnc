@@ -2,6 +2,8 @@ import { ILeadRepository, ISalesRepRepository } from '@/lib/db/types';
 import { IPaymentService } from '@/lib/payment/types';
 import { Env } from '@/lib/types';
 import { CheckoutInput, getMissingStripeConfig } from './checkoutSchema';
+import { getServiceCadenceDays } from '@/lib/pricing';
+import { addEasternDays, assertEasternServiceDate, firstServiceDayOnOrAfter } from '@/lib/service-cycle/dates';
 
 export class CheckoutService {
     constructor(
@@ -20,6 +22,8 @@ export class CheckoutService {
         this.assertServiceableZip(data);
         await this.authorizeSetupFeeOverride(data);
 
+        const serviceCycleAnchor = this.getD2dServiceCycleAnchor(data);
+
         const tosAcceptedAt = data.tos_accepted ? new Date().toISOString() : null;
         const leadId = await this.captureLead(data, tosAcceptedAt);
 
@@ -37,6 +41,9 @@ export class CheckoutService {
             setup_fee_override: data.setup_fee_override,
             tosAcceptedAt,
             nextServiceDate: data.next_service_date,
+            d2dServiceCompleted: data.d2d_service_completed,
+            d2dServiceDate: data.d2d_service_date,
+            serviceCycleAnchor,
             lat: data.lat,
             lng: data.lng,
             leadId,
@@ -49,6 +56,21 @@ export class CheckoutService {
         }
 
         return { url };
+    }
+
+    private getD2dServiceCycleAnchor(data: CheckoutInput): string | undefined {
+        if (!data.d2d_service_completed || !data.d2d_service_date || data.frequency === 'one-time') {
+            return undefined;
+        }
+
+        // CheckoutInput is also constructed directly by server-side callers and tests.
+        // Revalidate here before crossing into the branded service-date API.
+        assertEasternServiceDate(data.d2d_service_date);
+
+        return firstServiceDayOnOrAfter(
+            addEasternDays(data.d2d_service_date, getServiceCadenceDays(data.frequency)),
+            data.trash_day,
+        );
     }
 
     private assertServiceableZip(data: CheckoutInput): void {
