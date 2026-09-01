@@ -1,6 +1,7 @@
 import { ICustomerRepository, IServiceHistoryRepository, ISubscriptionRepository } from '@/lib/db/types';
 import { getTodayDateString, validateFirstServiceDate } from '@/lib/date-utils';
 import { IPaymentService } from '@/lib/payment/types';
+import { BinQuantityAdjustmentService, BinQuantityAdjustmentInput, ConfirmBinQuantityAdjustmentInput } from './BinQuantityAdjustmentService';
 
 type AdminCustomerRepository = ICustomerRepository & ISubscriptionRepository & IServiceHistoryRepository;
 
@@ -24,7 +25,8 @@ export class AdminCustomerService {
     constructor(
         private readonly customerRepo: AdminCustomerRepository,
         private readonly paymentService: IPaymentService,
-        private readonly stripeConfigured: boolean
+        private readonly stripeConfigured: boolean,
+        private readonly binQuantityService?: BinQuantityAdjustmentService,
     ) {}
 
     async listCustomers() {
@@ -92,6 +94,16 @@ export class AdminCustomerService {
         }
 
         await this.customerRepo.updateAddressNotes(addressId, notes);
+    }
+
+    async preview(input: BinQuantityAdjustmentInput) {
+        if (!this.binQuantityService) throw new AdminServiceError(500, 'Stripe API key not configured');
+        return this.binQuantityService.preview(input);
+    }
+
+    async confirm(input: ConfirmBinQuantityAdjustmentInput) {
+        if (!this.binQuantityService) throw new AdminServiceError(500, 'Stripe API key not configured');
+        return this.binQuantityService.confirm(input);
     }
 
     async deleteCustomer(customerId: string): Promise<void> {

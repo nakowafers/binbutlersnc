@@ -23,6 +23,7 @@ test.describe('Admin Dashboard E2E Tests', () => {
         runDb(`INSERT OR IGNORE INTO customers (id, email, address_id, name) VALUES ('cust_1', 'customer1@example.com', 'addr_1', 'Jane Doe')`);
         runDb(`INSERT OR IGNORE INTO subscriptions (id, customer_id, status, frequency_days) VALUES ('sub_1', 'cust_1', 'active', 28)`);
         runDb(`INSERT OR IGNORE INTO service_history (id, subscription_id, customer_id, dispatch_status, service_date) VALUES ('srv_1', 'sub_1', 'cust_1', 'Completed', datetime('now', '-1 days'))`);
+        runDb(`UPDATE customers SET bin_quantity = 3 WHERE id = 'cust_1'`);
     });
 
     test.beforeEach(async ({ context }) => {
@@ -104,5 +105,29 @@ test.describe('Admin Dashboard E2E Tests', () => {
         // Should be redirected to home
         await page.waitForURL('http://localhost:3000/');
         await expect(page.getByText('Bin Butlers NC')).toBeVisible();
+    });
+
+    test('customer editor previews and explicitly confirms a bin quantity change', async ({ page }) => {
+        await page.route('**/api/admin/customers/bin-quantity/preview', async route => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+                customerId: 'cust_1', targetBins: 4, mismatch: false, requiresNoProration: true,
+                before: { d1Bins: 3, stripeCadenceDays: 28, stripeBasePriceId: 'price_base', stripeExtraBinQuantity: 1, stripeExtraBinPriceId: 'price_observed', stripeExtraBinSubscriptionItemId: 'si_observed', stripeCustomerBinQuantity: 3 },
+            }) });
+        });
+        await page.route('**/api/admin/customers/bin-quantity/confirm', async route => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ customerId: 'cust_1', targetBins: 4, status: 'changed' }) });
+        });
+
+        await page.goto('/admin/customers');
+        await page.getByTitle('Edit customer').first().click();
+        await expect(page.getByTestId('bin-quantity-adjustment')).toBeVisible();
+        await page.getByLabel('Target total bins').fill('4');
+        await page.getByLabel(/Reason/).fill('Customer requested change');
+        await page.getByRole('button', { name: 'Preview bin change' }).click();
+        await expect(page.getByText('Observed extra bins:')).toBeVisible();
+        await expect(page.getByText('No proration:')).toBeVisible();
+        await page.getByLabel(/I confirm this exact preview/).check();
+        await page.getByRole('button', { name: 'Confirm bin quantity adjustment' }).click();
+        await expect(page.getByText('Bin quantity updated')).toBeVisible();
     });
 });

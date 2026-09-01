@@ -20,10 +20,11 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
-import { CalendarClock, Loader2, Pencil } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CheckCircle2, Loader2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CustomerWithDetails } from '@/lib/types';
 import { getDayLabel } from '@/lib/date-utils';
+import type { BinQuantityAdjustmentPreview, BinQuantityPreviewBeforeState } from '@/lib/admin/BinQuantityAdjustmentService';
 
 interface EditCustomerDialogProps {
     customer: CustomerWithDetails | null;
@@ -53,6 +54,66 @@ export function EditCustomerDialog({ customer, open, onOpenChange, onSaved }: Ed
     const [saving, setSaving] = useState(false);
     const [manualRescheduleDate, setManualRescheduleDate] = useState(customer?.next_service_date || '');
     const [rescheduling, setRescheduling] = useState(false);
+    const [targetBins, setTargetBins] = useState(customer?.bin_quantity ?? 1);
+    const [binReason, setBinReason] = useState('');
+    const [binCorrelationKey, setBinCorrelationKey] = useState('');
+    const [binPreview, setBinPreview] = useState<BinQuantityAdjustmentPreview | null>(null);
+    const [binBefore, setBinBefore] = useState<BinQuantityPreviewBeforeState | null>(null);
+    const [previewingBins, setPreviewingBins] = useState(false);
+    const [confirmingBins, setConfirmingBins] = useState(false);
+    const [confirmBins, setConfirmBins] = useState(false);
+    const [binError, setBinError] = useState<string | null>(null);
+
+    const createCorrelationKey = () => {
+        if (binCorrelationKey) return binCorrelationKey;
+        const key = `admin-bin-quantity:${customer?.id}:${Date.now()}`;
+        setBinCorrelationKey(key);
+        return key;
+    };
+
+    const handleBinPreview = async () => {
+        if (!customer) return;
+        setPreviewingBins(true);
+        setBinError(null);
+        try {
+            const correlationKey = createCorrelationKey();
+            const res = await fetch('/api/admin/customers/bin-quantity/preview', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customerId: customer.id, targetBins, reason: binReason, correlationKey }),
+            });
+            const data = await res.json() as BinQuantityAdjustmentPreview & { error?: string };
+            if (!res.ok) throw new Error(data.error || 'Unable to preview bin quantity change');
+            if (!data.before) throw new Error('Preview did not include the exact before-state');
+            setBinPreview(data);
+            setBinBefore(data.before);
+            setConfirmBins(false);
+        } catch (error) {
+            setBinError(error instanceof Error ? error.message : 'Unable to preview bin quantity change');
+        } finally {
+            setPreviewingBins(false);
+        }
+    };
+
+    const handleBinConfirm = async () => {
+        if (!customer || !binBefore || !binPreview || !confirmBins) return;
+        setConfirmingBins(true);
+        setBinError(null);
+        try {
+            const res = await fetch('/api/admin/customers/bin-quantity/confirm', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customerId: customer.id, targetBins, reason: binReason, correlationKey: binCorrelationKey, previewBefore: binBefore }),
+            });
+            const data = await res.json() as { error?: string };
+            if (!res.ok) throw new Error(data.error || 'Unable to confirm bin quantity change');
+            toast.success('Bin quantity updated');
+            onOpenChange(false);
+            onSaved();
+        } catch (error) {
+            setBinError(error instanceof Error ? error.message : 'Unable to confirm bin quantity change');
+        } finally {
+            setConfirmingBins(false);
+        }
+    };
 
     const handleAddressSelected = (address: string, lat?: number, lng?: number) => {
         setRawAddress(address);
@@ -244,6 +305,42 @@ export function EditCustomerDialog({ customer, open, onOpenChange, onSaved }: Ed
                             onChange={e => setNotes(e.target.value)}
                             className="w-full min-h-[80px] text-sm border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-[#7AC142]/30 focus:border-[#7AC142] resize-y"
                         />
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3" data-testid="bin-quantity-adjustment">
+                        <div>
+                            <Label className="text-[#1C3D5A] font-semibold text-sm">Bin Quantity Adjustment</Label>
+                            <p className="text-xs text-slate-500 mt-1">Current D1 bins: <strong>{customer.bin_quantity ?? '—'}</strong>. Preview the provider state before confirming.</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="target-bins" className="text-xs">Target total bins</Label>
+                                <Input id="target-bins" type="number" min={1} step={1} value={targetBins} onChange={e => { setTargetBins(Number(e.target.value)); setBinPreview(null); }} className="rounded-xl bg-white" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="bin-reason" className="text-xs">Reason <span className="text-red-600">*</span></Label>
+                                <Input id="bin-reason" value={binReason} onChange={e => { setBinReason(e.target.value); setBinPreview(null); }} placeholder="Customer requested change" className="rounded-xl bg-white" />
+                            </div>
+                        </div>
+                        <Button type="button" variant="outline" onClick={handleBinPreview} disabled={previewingBins || !binReason.trim() || !Number.isInteger(targetBins) || targetBins < 1} className="rounded-xl">
+                            {previewingBins ? <><Loader2 size={16} className="mr-2 animate-spin" />Previewing...</> : 'Preview bin change'}
+                        </Button>
+                        {binPreview ? <div className="space-y-3 rounded-lg border border-white bg-white p-3 text-sm">
+                            <div className="flex items-center gap-2 font-semibold text-[#1C3D5A]"><CheckCircle2 size={16} className="text-[#7AC142]" /> Verified preview</div>
+                            <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                                <span>D1 bins: <strong>{binPreview.before!.d1Bins}</strong></span>
+                                <span>Target: <strong>{binPreview.targetBins}</strong></span>
+                                <span>Observed extra bins: <strong>{binPreview.before!.stripeExtraBinQuantity}</strong></span>
+                                <span>Observed Price ID: <strong>{binPreview.before!.stripeExtraBinPriceId || 'none'}</strong></span>
+                            </div>
+                            {binPreview.mismatch ? <p className="text-amber-700">Mismatch detected between D1 and Stripe. The service will reconcile this only after this exact preview is confirmed.</p> : null}
+                            {binPreview.requiresNoProration ? <p className="flex gap-2 text-amber-700"><AlertTriangle size={16} className="shrink-0" />No proration: this adjustment will not create an immediate prorated charge.</p> : null}
+                            <label className="flex items-start gap-2 text-xs text-slate-700"><input type="checkbox" checked={confirmBins} onChange={e => setConfirmBins(e.target.checked)} className="mt-0.5" /> I confirm this exact preview and authorize the bin quantity adjustment.</label>
+                            <Button type="button" onClick={handleBinConfirm} disabled={confirmingBins || !confirmBins} className="rounded-xl bg-[#1C3D5A] hover:bg-[#153149] text-white">
+                                {confirmingBins ? <><Loader2 size={16} className="mr-2 animate-spin" />Applying...</> : 'Confirm bin quantity adjustment'}
+                            </Button>
+                        </div> : null}
+                        {binError ? <p role="alert" className="text-sm text-red-700">{binError}</p> : null}
                     </div>
 
                     {customer.needs_first_service_reschedule ? (

@@ -5,6 +5,10 @@ import { CheckoutSessionParams } from '../../src/lib/payment/types';
 const mockCreateCheckoutSession = vi.fn();
 const mockRetrievePrice = vi.fn();
 const mockCustomerList = vi.fn();
+const mockCustomerRetrieve = vi.fn();
+const mockCustomerUpdate = vi.fn();
+const mockSubscriptionRetrieve = vi.fn();
+const mockSubscriptionItemUpdate = vi.fn();
 
 vi.mock('stripe', () => {
     const StripeMock = function () {
@@ -19,7 +23,11 @@ vi.mock('stripe', () => {
             },
             customers: {
                 list: mockCustomerList,
+                retrieve: mockCustomerRetrieve,
+                update: mockCustomerUpdate,
             },
+            subscriptions: { retrieve: mockSubscriptionRetrieve },
+            subscriptionItems: { update: mockSubscriptionItemUpdate },
         };
     };
     StripeMock.createSubtleCryptoProvider = () => ({
@@ -178,7 +186,7 @@ describe('StripeAdapter', () => {
             expect(callArgs.subscription_data.trial_period_days).toBe(28);
         });
 
-        it('should throw a clear error when an extra bin price ID is missing', async () => {
+    it('should throw a clear error when an extra bin price ID is missing', async () => {
             adapter = new StripeAdapter({
                 ...config,
                 extraBinMonthlyPriceId: undefined,
@@ -189,5 +197,44 @@ describe('StripeAdapter', () => {
                 binQuantity: 3,
             })).rejects.toThrow('Missing Stripe extra bin price ID for monthly subscriptions');
         });
+    });
+
+    it('updates only the cadence-matched extra-bin item without proration and verifies Stripe state', async () => {
+        adapter = new StripeAdapter({ ...config, extraBinMonthlyPriceId: 'price_extra_monthly', extraBinBimonthlyPriceId: 'price_extra_bimonthly', extraBinQuarterlyPriceId: 'price_extra_quarterly' });
+        mockCustomerRetrieve
+            .mockResolvedValueOnce({ id: 'cus_1', metadata: { bin_quantity: '3', keep: 'yes' } })
+            .mockResolvedValueOnce({ id: 'cus_1', metadata: { bin_quantity: '3', keep: 'yes' } })
+            .mockResolvedValueOnce({ id: 'cus_1', metadata: { bin_quantity: '4', keep: 'yes' } });
+        mockCustomerUpdate.mockResolvedValue({ id: 'cus_1' });
+        mockSubscriptionRetrieve
+            .mockResolvedValueOnce({ id: 'sub_1', customer: 'cus_1', status: 'active', items: { data: [
+                { id: 'si_base', quantity: 1, price: { id: 'price_monthly', recurring: { interval: 'day', interval_count: 28 } } },
+                { id: 'si_extra', quantity: 1, price: { id: 'price_extra_monthly', recurring: { interval: 'day', interval_count: 28 } } },
+            ] } })
+            .mockResolvedValueOnce({ id: 'sub_1', customer: 'cus_1', status: 'active', items: { data: [
+                { id: 'si_base', quantity: 1, price: { id: 'price_monthly', recurring: { interval: 'day', interval_count: 28 } } },
+                { id: 'si_extra', quantity: 2, price: { id: 'price_extra_monthly', recurring: { interval: 'day', interval_count: 28 } } },
+            ] } });
+        mockSubscriptionItemUpdate.mockResolvedValue({ id: 'si_extra', quantity: 2 });
+
+        const before = await adapter.getBinQuantityAdjustmentState('cus_1', 'sub_1');
+        const after = await adapter.updateBinQuantityAdjustment({ customerId: 'cus_1', subscriptionId: 'sub_1', extraBinSubscriptionItemId: before.extraBinSubscriptionItemId, extraBinQuantity: 2, binQuantity: 4, idempotencyKey: 'adjustment-1' });
+
+        expect(mockSubscriptionItemUpdate).toHaveBeenCalledWith('si_extra', { quantity: 2, proration_behavior: 'none' }, { idempotencyKey: 'adjustment-1:item' });
+        expect(mockCustomerUpdate).toHaveBeenCalledWith('cus_1', { metadata: { bin_quantity: '4', keep: 'yes' } }, { idempotencyKey: 'adjustment-1:customer' });
+        expect(after.extraBinQuantity).toBe(2);
+        expect(after.customerBinQuantity).toBe(4);
+    });
+
+    it('rejects an ambiguous cadence-matched extra-bin configuration', async () => {
+        adapter = new StripeAdapter({ ...config, extraBinMonthlyPriceId: 'price_extra_monthly', extraBinBimonthlyPriceId: 'price_extra_bimonthly', extraBinQuarterlyPriceId: 'price_extra_quarterly' });
+        mockCustomerRetrieve.mockResolvedValue({ id: 'cus_1', metadata: {} });
+        mockSubscriptionRetrieve.mockResolvedValue({ id: 'sub_1', customer: 'cus_1', status: 'active', items: { data: [
+            { id: 'si_base', quantity: 1, price: { id: 'price_monthly', recurring: { interval: 'day', interval_count: 28 } } },
+            { id: 'si_extra_1', quantity: 1, price: { id: 'price_extra_monthly', recurring: { interval: 'day', interval_count: 28 } } },
+            { id: 'si_extra_2', quantity: 1, price: { id: 'price_extra_monthly', recurring: { interval: 'day', interval_count: 28 } } },
+        ] } });
+
+        await expect(adapter.getBinQuantityAdjustmentState('cus_1', 'sub_1')).rejects.toThrow('exactly one cadence-matched extra-bin price');
     });
 });

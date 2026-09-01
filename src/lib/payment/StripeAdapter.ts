@@ -1,10 +1,17 @@
 import Stripe from 'stripe';
 
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
-import { IPaymentService, CheckoutSessionParams, CustomerServiceDetails } from './types';
+import { IPaymentService, CheckoutSessionParams, CustomerServiceDetails, StripeBinQuantityAdjustmentPaymentService, StripeBinQuantityAdjustmentState, SupportedRecurringCadenceDays } from './types';
 import { getEndOfDayTimestamp, getRecurringBillingStartTimestamp } from '@/lib/date-utils';
 import { getServiceCadenceDays } from '@/lib/pricing';
 import type { BillingDriftStripeEvidence } from '@/lib/reports/billingDriftAudit';
+import { stripeRecurringCadenceDays } from './stripeRecurringCadence';
+
+function parseMetadataInteger(value: string | undefined): number | null {
+    if (!value || !/^\d+$/.test(value)) return null;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+}
 
 export interface StripeConfig {
     secretKey: string;
@@ -18,7 +25,7 @@ export interface StripeConfig {
     extraBinQuarterlyPriceId?: string;
 }
 
-export class StripeAdapter implements IPaymentService {
+export class StripeAdapter implements IPaymentService, StripeBinQuantityAdjustmentPaymentService {
     private stripe: Stripe;
     private config: StripeConfig;
 
@@ -233,6 +240,86 @@ export class StripeAdapter implements IPaymentService {
                 next_service_date: details.nextServiceDate || '',
             },
         });
+    }
+
+    async getBinQuantityAdjustmentState(customerId: string, subscriptionId: string): Promise<StripeBinQuantityAdjustmentState> {
+        const [customer, subscription] = await Promise.all([
+            this.stripe.customers.retrieve(customerId),
+            this.stripe.subscriptions.retrieve(subscriptionId),
+        ]);
+        if (customer.deleted) throw new Error('Stripe customer is deleted');
+        if (subscription.customer !== customerId) throw new Error('Stripe subscription belongs to a different customer');
+        if (subscription.status !== 'active') throw new Error('Stripe subscription is not active');
+
+        const basePrices = new Map<string, SupportedRecurringCadenceDays>([
+            [this.requirePriceId(this.config.monthlyPriceId, 'monthly subscriptions'), 28],
+            [this.requirePriceId(this.config.bimonthlyPriceId, 'bimonthly subscriptions'), 56],
+            [this.requirePriceId(this.config.quarterlyPriceId, 'quarterly subscriptions'), 84],
+        ]);
+        const extraPrices = new Map<string, SupportedRecurringCadenceDays>([
+            [this.requirePriceId(this.config.extraBinMonthlyPriceId, 'monthly extra bins'), 28],
+            [this.requirePriceId(this.config.extraBinBimonthlyPriceId, 'bimonthly extra bins'), 56],
+            [this.requirePriceId(this.config.extraBinQuarterlyPriceId, 'quarterly extra bins'), 84],
+        ]);
+        const recurringItems = subscription.items.data.filter((item) => Boolean(item.price.recurring));
+        const baseItems = recurringItems.filter((item) => basePrices.has(item.price.id)
+            && stripeRecurringCadenceDays(item.price.recurring) === basePrices.get(item.price.id));
+        if (baseItems.length !== 1) throw new Error('Stripe subscription does not have exactly one configured base price');
+        const baseItem = baseItems[0];
+        const cadenceDays = basePrices.get(baseItem.price.id)!;
+        const invalidRecurringItems = recurringItems.filter((item) => !basePrices.has(item.price.id) && !extraPrices.has(item.price.id));
+        if (invalidRecurringItems.length > 0) throw new Error('Stripe subscription contains a non-allowlisted recurring price');
+        const extraItems = recurringItems.filter((item) => extraPrices.get(item.price.id) === cadenceDays
+            && stripeRecurringCadenceDays(item.price.recurring) === cadenceDays);
+        const wrongCadenceExtraItems = recurringItems.filter((item) => extraPrices.has(item.price.id)
+            && (extraPrices.get(item.price.id) !== cadenceDays || stripeRecurringCadenceDays(item.price.recurring) !== cadenceDays));
+        if (wrongCadenceExtraItems.length > 0 || extraItems.length !== 1) {
+            throw new Error('Stripe subscription does not have exactly one cadence-matched extra-bin price');
+        }
+        const extraItem = extraItems[0];
+        const extraBinQuantity = extraItem.quantity;
+        if (typeof extraBinQuantity !== 'number' || !Number.isInteger(extraBinQuantity) || extraBinQuantity < 0) throw new Error('Stripe extra-bin quantity is invalid');
+        return {
+            customerId,
+            subscriptionId,
+            status: subscription.status,
+            cadenceDays,
+            basePriceId: baseItem.price.id,
+            extraBinPriceId: extraItem.price.id,
+            extraBinSubscriptionItemId: extraItem.id,
+            extraBinQuantity,
+            customerBinQuantity: parseMetadataInteger(customer.metadata.bin_quantity),
+        };
+    }
+
+    async updateBinQuantityAdjustment(input: {
+        customerId: string;
+        subscriptionId: string;
+        extraBinSubscriptionItemId: string;
+        extraBinQuantity: number;
+        binQuantity: number;
+        idempotencyKey: string;
+    }): Promise<StripeBinQuantityAdjustmentState> {
+        if (!Number.isInteger(input.extraBinQuantity) || input.extraBinQuantity < 0) throw new Error('Stripe extra-bin quantity is invalid');
+        if (!Number.isInteger(input.binQuantity) || input.binQuantity < 2 || input.extraBinQuantity !== input.binQuantity - 2) {
+            throw new Error('Stripe bin quantity is invalid');
+        }
+        const customer = await this.stripe.customers.retrieve(input.customerId);
+        if (customer.deleted) throw new Error('Stripe customer is deleted');
+        await this.stripe.subscriptionItems.update(input.extraBinSubscriptionItemId, {
+            quantity: input.extraBinQuantity,
+            proration_behavior: 'none',
+        }, { idempotencyKey: `${input.idempotencyKey}:item` });
+        await this.stripe.customers.update(input.customerId, {
+            metadata: { ...customer.metadata, bin_quantity: String(input.binQuantity) },
+        }, { idempotencyKey: `${input.idempotencyKey}:customer` });
+        const state = await this.getBinQuantityAdjustmentState(input.customerId, input.subscriptionId);
+        if (state.extraBinSubscriptionItemId !== input.extraBinSubscriptionItemId
+            || state.extraBinQuantity !== input.extraBinQuantity
+            || state.customerBinQuantity !== input.binQuantity) {
+            throw new Error('Stripe bin quantity verification failed');
+        }
+        return state;
     }
 
     async createBillingPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }> {

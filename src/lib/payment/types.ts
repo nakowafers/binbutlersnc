@@ -38,6 +38,32 @@ export interface CustomerServiceDetails {
     binQuantity?: string;
 }
 
+export type SupportedRecurringCadenceDays = 28 | 56 | 84;
+
+export interface StripeBinQuantityAdjustmentState {
+    customerId: string;
+    subscriptionId: string;
+    status: string;
+    cadenceDays: SupportedRecurringCadenceDays;
+    basePriceId: string;
+    extraBinPriceId: string;
+    extraBinSubscriptionItemId: string;
+    extraBinQuantity: number;
+    customerBinQuantity: number | null;
+}
+
+export interface StripeBinQuantityAdjustmentPaymentService {
+    getBinQuantityAdjustmentState(customerId: string, subscriptionId: string): Promise<StripeBinQuantityAdjustmentState>;
+    updateBinQuantityAdjustment(input: {
+        customerId: string;
+        subscriptionId: string;
+        extraBinSubscriptionItemId: string;
+        extraBinQuantity: number;
+        binQuantity: number;
+        idempotencyKey: string;
+    }): Promise<StripeBinQuantityAdjustmentState>;
+}
+
 export interface IPaymentService {
     createCheckoutSession(params: CheckoutSessionParams): Promise<{ url: string | null }>;
     getCustomerIdByEmail(email: string): Promise<string | null>;

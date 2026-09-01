@@ -1,5 +1,5 @@
 import { Lead, Customer, Address, Subscription, ServiceHistory, CustomerWithDetails, DispatchStop, SalesRep } from '@/lib/types';
-import { IDatabaseService, DueSubscriptionResult, CreateDispatchRouteInput, CreateDispatchStopInput, DispatchSetupStatus } from './types';
+import { IDatabaseService, DueSubscriptionResult, CreateDispatchRouteInput, CreateDispatchStopInput, DispatchSetupStatus, ApplyBinQuantityAdjustmentInput, RecordBillingAdjustmentOutcomeInput, BillingAdjustmentAudit, BinQuantityAdjustmentState } from './types';
 import { D1LeadRepositoryAdapter } from './adapters/D1LeadRepositoryAdapter';
 import { D1CustomerRepositoryAdapter } from './adapters/D1CustomerRepositoryAdapter';
 import { D1SubscriptionRepositoryAdapter } from './adapters/D1SubscriptionRepositoryAdapter';
@@ -7,6 +7,7 @@ import { D1ServiceHistoryRepositoryAdapter } from './adapters/D1ServiceHistoryRe
 import { D1SettingsRepositoryAdapter } from './adapters/D1SettingsRepositoryAdapter';
 import { D1SalesRepRepositoryAdapter } from './adapters/D1SalesRepRepositoryAdapter';
 import { D1DispatchStopRepositoryAdapter } from './adapters/D1DispatchStopRepositoryAdapter';
+import { D1BillingAdjustmentRepositoryAdapter } from './adapters/D1BillingAdjustmentRepositoryAdapter';
 import { ServiceCycleActions, ApproveCatchUpServiceInput, WaiveServiceCycleInput } from '@/lib/service-cycle/ServiceCycleActions';
 
 export class D1DatabaseAdapter implements IDatabaseService {
@@ -18,6 +19,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
     private readonly salesReps: D1SalesRepRepositoryAdapter;
     private readonly dispatchStops: D1DispatchStopRepositoryAdapter;
     private readonly serviceCycleActions: ServiceCycleActions;
+    private readonly billingAdjustments: D1BillingAdjustmentRepositoryAdapter;
 
     constructor(db: D1Database) {
         this.leads = new D1LeadRepositoryAdapter(db);
@@ -28,6 +30,7 @@ export class D1DatabaseAdapter implements IDatabaseService {
         this.salesReps = new D1SalesRepRepositoryAdapter(db);
         this.dispatchStops = new D1DispatchStopRepositoryAdapter(db);
         this.serviceCycleActions = new ServiceCycleActions(db);
+        this.billingAdjustments = new D1BillingAdjustmentRepositoryAdapter(db);
     }
 
     createLead(id: string, email: string, address: string, firstName: string, lastName: string, salesRepId: string | null, tosAcceptedAt: string | null): Promise<void> {
@@ -110,6 +113,22 @@ export class D1DatabaseAdapter implements IDatabaseService {
 
     deleteCustomerCascade(customerId: string): Promise<void> {
         return this.customers.deleteCustomerCascade(customerId);
+    }
+
+    getBinQuantityAdjustmentState(customerId: string, subscriptionId: string): Promise<BinQuantityAdjustmentState | null> {
+        return this.billingAdjustments.getBinQuantityAdjustmentState(customerId, subscriptionId);
+    }
+
+    getBillingAdjustmentByCorrelationKey(correlationKey: string): Promise<BillingAdjustmentAudit | null> {
+        return this.billingAdjustments.getBillingAdjustmentByCorrelationKey(correlationKey);
+    }
+
+    applyBinQuantityAdjustment(input: ApplyBinQuantityAdjustmentInput): Promise<BillingAdjustmentAudit> {
+        return this.billingAdjustments.applyBinQuantityAdjustment(input);
+    }
+
+    recordBinQuantityAdjustmentOutcome(input: RecordBillingAdjustmentOutcomeInput): Promise<BillingAdjustmentAudit> {
+        return this.billingAdjustments.recordBinQuantityAdjustmentOutcome(input);
     }
 
     getSubscriptionByCustomerId(customerId: string): Promise<Subscription | null> {
