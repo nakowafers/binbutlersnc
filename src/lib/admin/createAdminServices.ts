@@ -3,6 +3,7 @@ import { IPaymentService } from '@/lib/payment/types';
 import { Env } from '@/lib/types';
 import { AdminCustomerService } from './AdminCustomerService';
 import { AdminSettingsService } from './AdminSettingsService';
+import { BinQuantityAdjustmentService } from './BinQuantityAdjustmentService';
 
 const noopPaymentService: IPaymentService = {
     async createCheckoutSession() {
@@ -28,10 +29,15 @@ const noopPaymentService: IPaymentService = {
     },
 };
 
-export function createAdminCustomerService(env: Env): AdminCustomerService {
+export function createAdminCustomerService(env: Env, operatorId = 'admin'): AdminCustomerService {
     const db = createDatabase(env);
     const stripeConfigured = !!env.STRIPE_SECRET_KEY && !env.STRIPE_SECRET_KEY.includes('sk_test_...');
-    return new AdminCustomerService(db, stripeConfigured ? createPaymentService(env) : noopPaymentService, stripeConfigured);
+    const stripePaymentService = stripeConfigured ? createPaymentService(env) : null;
+    const paymentService = stripePaymentService || noopPaymentService;
+    const binQuantityService = stripePaymentService
+        ? new BinQuantityAdjustmentService(db, stripePaymentService, operatorId)
+        : undefined;
+    return new AdminCustomerService(db, paymentService, stripeConfigured, binQuantityService);
 }
 
 export function createAdminSettingsService(env: Env): AdminSettingsService {

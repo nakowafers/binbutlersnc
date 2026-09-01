@@ -106,6 +106,71 @@ export interface ICustomerRepository {
     deleteCustomerCascade(customerId: string): Promise<void>;
 }
 
+export type BillingAdjustmentOutcome = 'applied' | 'no_change' | 'failed' | 'rolled_back' | 'recovery_required';
+export type BillingAdjustmentRecoveryClassification =
+    | 'stripe_update_failed'
+    | 'stripe_rollback_failed'
+    | 'compare_and_set_conflict'
+    | 'invalid_state';
+
+export interface BinQuantityAdjustmentState {
+    customerId: string;
+    subscriptionId: string;
+    stripeSubscriptionId: string | null;
+    currentTotalBins: number | null;
+}
+
+export interface BillingAdjustmentAudit {
+    auditId: string;
+    correlationKey: string;
+    customerId: string;
+    subscriptionId: string;
+    stripeSubscriptionId: string | null;
+    stripeItemId: string;
+    stripePriceId: string;
+    beforeTotalBins: number;
+    targetTotalBins: number;
+    beforeExtraBinQuantity: number;
+    targetExtraBinQuantity: number;
+    operatorId: string;
+    reason: string;
+    requestedAt: string;
+    completedAt: string | null;
+    outcome: BillingAdjustmentOutcome;
+    recoveryClassification: BillingAdjustmentRecoveryClassification | null;
+    createdAt: string;
+}
+
+export interface ApplyBinQuantityAdjustmentInput {
+    auditId: string;
+    correlationKey: string;
+    customerId: string;
+    subscriptionId: string;
+    stripeSubscriptionId: string | null;
+    stripeItemId: string;
+    stripePriceId: string;
+    beforeTotalBins: number;
+    targetTotalBins: number;
+    beforeExtraBinQuantity: number;
+    targetExtraBinQuantity: number;
+    operatorId: string;
+    reason: string;
+    requestedAt: string;
+    completedAt?: string | null;
+}
+
+export interface RecordBillingAdjustmentOutcomeInput extends ApplyBinQuantityAdjustmentInput {
+    outcome: 'failed' | 'rolled_back' | 'recovery_required';
+    recoveryClassification: BillingAdjustmentRecoveryClassification;
+}
+
+export interface IBillingAdjustmentRepository {
+    getBinQuantityAdjustmentState(customerId: string, subscriptionId: string): Promise<BinQuantityAdjustmentState | null>;
+    getBillingAdjustmentByCorrelationKey(correlationKey: string): Promise<BillingAdjustmentAudit | null>;
+    applyBinQuantityAdjustment(input: ApplyBinQuantityAdjustmentInput): Promise<BillingAdjustmentAudit>;
+    recordBinQuantityAdjustmentOutcome(input: RecordBillingAdjustmentOutcomeInput): Promise<BillingAdjustmentAudit>;
+}
+
 // 3. Subscription & Interval Operations
 export interface ISubscriptionRepository {
     getSubscriptionByCustomerId(customerId: string): Promise<Subscription | null>;
@@ -237,4 +302,5 @@ export interface IDatabaseService extends
     ISettingsRepository, 
     ISalesRepRepository,
     IDispatchStopRepository,
-    IServiceCycleActionRepository {}
+    IServiceCycleActionRepository,
+    IBillingAdjustmentRepository {}
