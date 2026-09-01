@@ -15,15 +15,10 @@ function todayIso(): string {
 }
 
 function mapHref(stop: DispatchStop, apple: boolean): string {
-    if (stop.latitude !== null && stop.latitude !== undefined && stop.longitude !== null && stop.longitude !== undefined) {
-        const coords = `${stop.latitude},${stop.longitude}`;
-        return apple
-            ? `maps://?daddr=${coords}&dirflg=d`
-            : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(coords)}`;
-    }
+    const address = encodeURIComponent(stop.raw_address);
     return apple
-        ? `maps://?daddr=${encodeURIComponent(stop.raw_address)}&dirflg=d`
-        : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.raw_address)}`;
+        ? `maps://?daddr=${address}&dirflg=d`
+        : `https://www.google.com/maps/dir/?api=1&destination=${address}`;
 }
 
 function scentLabel(scent?: string | null): string {
@@ -124,10 +119,6 @@ function StopCard({ stop, index }: { stop: DispatchStop; index: number }) {
                     <AlertTriangle size={18} className="mt-0.5 shrink-0" />
                     <p className="break-words">{stop.service_notes}</p>
                 </div>
-            ) : null}
-
-            {(stop.latitude === null || stop.latitude === undefined || stop.longitude === null || stop.longitude === undefined) ? (
-                <p className="mt-3 text-sm font-semibold text-amber-700">Coordinates missing. Navigation will use the address.</p>
             ) : null}
 
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
