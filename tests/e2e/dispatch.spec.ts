@@ -41,6 +41,20 @@ test.describe('Admin Dispatch Route', () => {
         });
     });
 
+    test('uses the raw address for Apple Maps and Google Maps even when coordinates are present', async ({ page }) => {
+        const rawAddress = '1 Dispatch & Main St, Wilmington, NC';
+        const encodedAddress = encodeURIComponent(rawAddress);
+
+        runDb(`UPDATE dispatch_stops SET raw_address = '${rawAddress}' WHERE id = 'e2e_dispatch_1'`);
+
+        await page.goto(`/admin/dispatch?driver=E2EDRIVER&date=${today}`);
+
+        await expect(page.getByRole('link', { name: 'Apple Maps' }).first())
+            .toHaveAttribute('href', `maps://?daddr=${encodedAddress}&dirflg=d`);
+        await expect(page.getByRole('link', { name: 'Google Maps' }).first())
+            .toHaveAttribute('href', `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`);
+    });
+
     for (const width of [390, 430, 768, 1280]) {
         test(`route page is usable without horizontal overflow at ${width}px`, async ({ page }) => {
             await page.setViewportSize({ width, height: 900 });
