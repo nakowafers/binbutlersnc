@@ -9,8 +9,7 @@ import {
   X, 
   Phone, 
   MapPin, 
-  ArrowRight,
-  Award
+  ArrowRight
 } from "lucide-react";
 
 const NAV_LINKS = [
@@ -109,8 +108,8 @@ export function Header() {
 
               {/* Gold/Navy Base Ribbon */}
               <div className="absolute -bottom-3 sm:-bottom-4 bg-[#1C3D5A] text-white px-3 sm:px-5 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-[11px] md:text-xs font-black uppercase tracking-wider md:tracking-widest shadow-xl border-2 border-amber-400 flex items-center gap-1.5 whitespace-nowrap">
-                <Award className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />
-                <span>Greater Charlotte • 5-Star Rated</span>
+                <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />
+                <span>Greater Charlotte</span>
               </div>
             </div>
           </Link>

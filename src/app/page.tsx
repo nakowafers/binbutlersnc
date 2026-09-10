@@ -55,7 +55,7 @@ export default async function Home() {
               <span className="text-[#7AC142]">Sparkling Clean Trash Cans.</span>
             </h1>
             <p className="text-base md:text-lg text-slate-600 max-w-2xl mx-auto mb-8 font-medium text-pretty">
-              Join thousands of satisfied North Carolina homeowners enjoying fresh, sanitized, and deodorized bins.
+              Join satisfied North Carolina homeowners enjoying fresh, sanitized, and deodorized bins.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -353,7 +353,7 @@ export default async function Home() {
           <div className="container mx-auto px-4 text-center">
             <h2 className="text-4xl font-extrabold mb-6 text-balance">Ready to become a Bin Butler client?</h2>
             <p className="text-xl text-slate-300 mb-10 max-w-2xl mx-auto text-pretty">
-              Join thousands of satisfied customers and experience the joy of a clean, odor-free bin.
+              Experience the joy of a clean, odor-free bin with reliable curbside service.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/signup">
