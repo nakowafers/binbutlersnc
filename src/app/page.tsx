@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { calculatePricing, getSubscriptionDefinition, ONE_TIME_PRICE } from '@/lib/pricing';
 import { Header } from "@/components/Header";
 import { About } from "@/components/About";
+import { BeforeAfter } from "@/components/BeforeAfter";
 
 export const runtime = 'edge';
 import { Button } from '@/components/ui/button';
@@ -89,6 +90,8 @@ export default async function Home() {
             </div>
           </div>
         </section>
+
+        <BeforeAfter />
 
         {/* How It Works */}
         <section id="how-it-works" className="py-24 bg-white scroll-mt-24">

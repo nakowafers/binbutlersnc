@@ -165,3 +165,22 @@
   background-color: #F8FAFC !important;
   color: #7AC142 !important;
 }
+
+/* Before/After Slider: range input thumb sizing (Tailwind v4 has no config file for pseudo-elements) */
+.before-after-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 2rem;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.before-after-range::-moz-range-thumb {
+  width: 2rem;
+  height: 100%;
+  border: none;
+  cursor: ew-resize;
+}
+
+.before-after-range::-moz-range-track {
+  background: transparent;
+}
