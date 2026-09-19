@@ -4,6 +4,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { calculatePricing, getSubscriptionDefinition, ONE_TIME_PRICE } from '@/lib/pricing';
 import { Header } from "@/components/Header";
+import { About } from "@/components/About";
+import { BeforeAfter } from "@/components/BeforeAfter";
 
 export const runtime = 'edge';
 import { Button } from '@/components/ui/button';
@@ -43,12 +45,12 @@ export default async function Home() {
 
   return (
     <div className="flex flex-col min-h-screen font-sans bg-[#F8FAFC]">
-      {/* Header: Green Canvas with Top Navigation & 384px Titan Logo Medallion Overlap */}
+      {/* Header: Video-Backed Nav with Straddling Logo */}
       <Header />
 
       <main className="flex-grow">
-        {/* Hero Section Designed for Titan Logo Overlap */}
-        <section className="relative bg-[#F8FAFC] pt-36 sm:pt-48 md:pt-72 pb-24 text-center z-10 border-b border-slate-200">
+        {/* Hero Section */}
+        <section className="relative bg-[#F8FAFC] pt-16 sm:pt-20 md:pt-24 pb-24 text-center z-10 border-b border-slate-200">
           <div className="container mx-auto px-4 max-w-4xl">
             <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-[#1C3D5A] mb-4 tracking-tight leading-tight text-balance">
               We Clean. You Relax. <br />
@@ -89,6 +91,8 @@ export default async function Home() {
           </div>
         </section>
 
+        <BeforeAfter />
+
         {/* How It Works */}
         <section id="how-it-works" className="py-24 bg-white scroll-mt-24">
           <div className="container mx-auto px-4 text-center">
@@ -121,63 +125,24 @@ export default async function Home() {
                 <p className="text-slate-600">Your bins are left sanitized, disinfected and deodorized. You will experience the Bin Butlers difference!</p>
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* About Section */}
-        <section id="about" className="py-24 bg-[#F8FAFC] scroll-mt-24">
-          <div className="container mx-auto px-4">
-            <div className="grid lg:grid-cols-2 gap-16 items-center">
-              <div>
-                <h2 className="text-3xl md:text-4xl font-extrabold text-[#1C3D5A] mb-6 text-balance">
-                  We&apos;re Not Just Bin Cleaners, We Are <span className="text-[#7AC142]">Family First!</span>
-                </h2>
-                <p className="text-slate-600 mb-6 text-lg text-pretty">
-                  Drawing from our own experiences, we recognize the paramount importance of prioritizing family well-being. Understanding the prevalent threats posed by bacterial and fungal infections in, on, and around dirty bins, we wholeheartedly dedicate ourselves to ensuring the safety and health of every household we serve.
-                </p>
-                <div className="space-y-4 mb-10">
-                  <div className="flex gap-3">
-                    <CheckCircle2 className="text-[#7AC142] shrink-0" aria-hidden="true" />
-                    <p className="font-semibold text-[#1C3D5A]">200-degree steam cleaning at over 2000 psi</p>
-                  </div>
-                  <div className="flex gap-3">
-                    <CheckCircle2 className="text-[#7AC142] shrink-0" aria-hidden="true" />
-                    <p className="font-semibold text-[#1C3D5A]">Eliminates 99.9% of bacteria and viruses</p>
-                  </div>
-                  <div className="flex gap-3">
-                    <CheckCircle2 className="text-[#7AC142] shrink-0" aria-hidden="true" />
-                    <p className="font-semibold text-[#1C3D5A]">Specially formulated odor-eliminating spray</p>
-                  </div>
-                </div>
-                <Link href="#contact">
-                  <Button className="bg-[#1C3D5A] hover:bg-[#152e44] text-white rounded-xl h-12 px-8 transition-colors active:scale-95">
-                    Contact Us Today
-                  </Button>
-                </Link>
+            <div className="mt-16 flex flex-col sm:flex-row sm:flex-wrap items-center justify-center gap-6 sm:gap-10">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="text-[#7AC142] shrink-0" aria-hidden="true" />
+                <p className="font-semibold text-[#1C3D5A]">200-degree steam cleaning at over 2000 psi</p>
               </div>
-              <div className="relative">
-                <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl">
-                  <Image
-                    src="/assets/trash_bins_cleaning.png"
-                    alt="Family First Cleaning"
-                    fill
-                    sizes="(max-width: 1024px) 100vw, 50vw"
-                    className="object-cover"
-                  />
-                </div>
-                <div className="absolute -bottom-6 left-2 sm:-bottom-8 sm:-left-8 max-w-[calc(100%-1rem)] bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xl flex items-center gap-3 sm:gap-4">
-                  <div className="w-16 h-16 bg-[#7AC142] text-white rounded-2xl flex items-center justify-center shrink-0">
-                    <span className="text-2xl font-bold tabular-nums">100%</span>
-                  </div>
-                  <div>
-                    <p className="font-bold text-[#1C3D5A]">Satisfaction</p>
-                    <p className="text-sm text-slate-500">Guaranteed</p>
-                  </div>
-                </div>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="text-[#7AC142] shrink-0" aria-hidden="true" />
+                <p className="font-semibold text-[#1C3D5A]">Eliminates 99.9% of bacteria and viruses</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="text-[#7AC142] shrink-0" aria-hidden="true" />
+                <p className="font-semibold text-[#1C3D5A]">Specially formulated odor-eliminating spray</p>
               </div>
             </div>
           </div>
         </section>
+
+        <About />
 
         {/* Pricing */}
         <section id="pricing" className="py-24 bg-white scroll-mt-24">

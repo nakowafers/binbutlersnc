@@ -20,6 +20,9 @@
 # production
 /build
 
+# raw source media (not shipped; optimized derivatives live under public/)
+/source-assets
+
 # misc
 .DS_Store
 *.pem

@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { 
-  Menu, 
-  X, 
-  Phone, 
-  MapPin, 
+import {
+  Menu,
+  X,
+  Phone,
+  MapPin,
   ArrowRight
 } from "lucide-react";
 
@@ -34,91 +34,105 @@ export function Header() {
   }, [mobileMenuOpen]);
 
   return (
-    <div className="relative">
-      {/* Tier 1: Dark Navy Utility Ribbon */}
-      <div className="bg-[#1C3D5A] text-white text-xs py-2 px-4 border-b border-white/10 relative z-30">
-        <div className="container mx-auto max-w-6xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 font-semibold text-slate-200">
-              <MapPin className="w-3.5 h-3.5 text-[#7AC142]" aria-hidden="true" />
-              <span className="hidden sm:inline">Serving Charlotte, Huntersville, Matthews & Surrounding Areas</span>
-              <span className="sm:hidden">Serving Greater Charlotte Area</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-4 font-bold">
-            <a href="tel:9802408078" className="hover:text-[#7AC142] flex items-center gap-1 transition-colors focus-visible:ring-2 focus-visible:ring-[#7AC142] rounded-md min-h-[44px] items-center inline-flex">
-              <Phone className="w-3.5 h-3.5 text-[#7AC142]" aria-hidden="true" /> (980) 240-8078
-            </a>
+    <>
+      <header className="relative">
+        {/* Tier 1: Dark Navy Utility Ribbon */}
+        <div className="relative z-10 bg-[#1C3D5A] text-white text-xs py-2 px-4 border-b border-white/10">
+          <div className="container mx-auto max-w-6xl flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1 font-semibold text-slate-200">
+                <MapPin className="w-3.5 h-3.5 text-[#7AC142]" aria-hidden="true" />
+                <span className="hidden sm:inline">Serving Charlotte, Huntersville, Matthews & Surrounding Areas</span>
+                <span className="sm:hidden">Serving Greater Charlotte Area</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-4 font-bold">
+              <a href="tel:9802408078" className="hover:text-[#7AC142] flex items-center gap-1 transition-colors focus-visible:ring-2 focus-visible:ring-[#7AC142] rounded-md min-h-[44px] items-center inline-flex">
+                <Phone className="w-3.5 h-3.5 text-[#7AC142]" aria-hidden="true" /> (980) 240-8078
+              </a>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Tier 2: Pure #7AC142 Green Main Header Bar */}
-      <header className="relative bg-[#7AC142] text-white pt-3 sm:pt-4 pb-24 sm:pb-36 md:pb-56 shadow-2xl z-20">
-        <div className="container mx-auto px-4 max-w-6xl">
-          <div className="flex items-center justify-between h-14">
-            {/* Left Nav */}
-            <nav className="hidden md:flex items-center gap-1 font-extrabold text-sm text-white" aria-label="Main navigation">
-              {NAV_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="px-4 py-2 rounded-xl hover:bg-[#1C3D5A]/15 transition-colors focus-visible:ring-2 focus-visible:ring-white"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
+        {/* Tier 2: Solid Green Nav Bar */}
+        <div className="relative z-20 bg-[#7AC142] text-white shadow-lg">
+          <div className="container mx-auto px-4 max-w-6xl">
+            <div className="flex items-center justify-between h-14">
+              {/* Left Nav (desktop) — starts at lg so it never fights the straddling logo for width */}
+              <nav className="hidden lg:flex items-center gap-1 font-extrabold text-sm text-white" aria-label="Main navigation">
+                {NAV_LINKS.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="px-2 lg:px-4 py-2 rounded-xl hover:bg-[#1C3D5A]/15 transition-colors focus-visible:ring-2 focus-visible:ring-white"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </nav>
 
-            <span className="md:hidden font-black text-white text-sm uppercase tracking-wider">
-              Bin Butlers NC
-            </span>
-
-            {/* Right Top Buttons */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Link href="/signup">
-                <Button className="bg-[#1C3D5A] text-white hover:bg-[#152e44] font-black rounded-xl px-3 sm:px-6 h-11 text-xs uppercase tracking-wider shadow-lg hover:scale-105 transition-[transform,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-white">
-                  Schedule Clean <ArrowRight className="w-3.5 h-3.5 ml-1 text-[#7AC142]" aria-hidden="true" />
-                </Button>
-              </Link>
+              {/* Mobile/tablet menu toggle (left slot below lg) */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg text-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none min-h-[44px] min-w-[44px] flex items-center justify-center"
+                className="lg:hidden p-2 rounded-lg text-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none min-h-[44px] min-w-[44px] flex items-center justify-center"
                 aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={mobileMenuOpen}
               >
                 {mobileMenuOpen ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}
               </button>
+
+              {/* Right CTA — icon-only below sm so it can't collide with the centered logo on narrow phones */}
+              <Link href="/signup" aria-label="Schedule Clean">
+                <Button className="bg-[#1C3D5A] text-white hover:bg-[#152e44] font-black rounded-xl w-11 sm:w-auto px-0 sm:px-6 h-11 text-xs uppercase tracking-wider shadow-lg hover:scale-105 transition-[transform,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-white">
+                  <span className="hidden sm:inline">Schedule Clean</span>
+                  <ArrowRight className="w-4 h-4 sm:w-3.5 sm:h-3.5 sm:ml-1 text-[#7AC142]" aria-hidden="true" />
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
 
-        {/* Titan Logo Medallion in High-Contrast Navy Outer Bevel Ring & Gold Ribbon */}
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-0 translate-y-[38%] z-30 pointer-events-auto">
-          <Link href="/" className="group block rounded-full focus-visible:ring-4 focus-visible:ring-white focus-visible:outline-none" aria-label="Bin Butlers NC Home">
-            <div className="relative bg-white p-3.5 sm:p-6 md:p-14 rounded-full shadow-[0_35px_80px_-15px_rgba(28,61,90,0.4)] border-4 border-white ring-4 sm:ring-8 md:ring-10 ring-[#1C3D5A] flex flex-col items-center justify-center transition-transform group-hover:scale-105 duration-200">
-              <Image
-                src="/assets/logo.png"
-                alt="Bin Butlers NC Royal Crest"
-                width={1189}
-                height={1251}
-                className="h-20 sm:h-36 md:h-96 w-auto object-contain drop-shadow-xl"
-                priority
-              />
+        {/* Tier 3: Video Band */}
+        <div className="relative z-0 h-[280px] sm:h-[360px] md:h-[450px] overflow-hidden bg-[#7AC142]">
+          <video
+            className="absolute inset-0 h-full w-full object-cover motion-reduce:hidden"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            poster="/assets/header-bg-poster.jpg"
+            aria-hidden="true"
+          >
+            <source src="/assets/header-bg.webm" type="video/webm" />
+            <source src="/assets/header-bg.mp4" type="video/mp4" />
+          </video>
+          {/* Gradient tint: strong near the nav bar, light through the middle, darker at the base */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#7AC142]/70 via-[#7AC142]/20 to-[#1C3D5A]/30" />
+        </div>
 
-              {/* Gold/Navy Base Ribbon */}
-              <div className="absolute -bottom-3 sm:-bottom-4 bg-[#1C3D5A] text-white px-3 sm:px-5 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-[11px] md:text-xs font-black uppercase tracking-wider md:tracking-widest shadow-xl border-2 border-amber-400 flex items-center gap-1.5 whitespace-nowrap">
-                <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />
-                <span>Greater Charlotte</span>
-              </div>
-            </div>
+        {/* Logo: straddles the navy ribbon, nav bar, and video band. No backing shape. */}
+        <div className="pointer-events-none absolute inset-x-0 top-1 sm:top-2 z-40 flex justify-center">
+          <Link
+            href="/"
+            className="pointer-events-auto group block rounded-2xl focus-visible:ring-4 focus-visible:ring-white focus-visible:outline-none"
+            aria-label="Bin Butlers NC Home"
+          >
+            <Image
+              src="/assets/logo.png"
+              alt="Bin Butlers NC Royal Crest"
+              width={1197}
+              height={1260}
+              className="h-48 sm:h-28 md:h-40 lg:h-56 xl:h-64 w-auto object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.45)] transition-transform group-hover:scale-105 duration-200"
+              priority
+            />
           </Link>
         </div>
       </header>
 
       {/* Mobile Navigation Drawer (Elevated Full-Screen Overlay) */}
       {mobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 bg-[#1C3D5A]/95 backdrop-blur-md flex flex-col justify-between p-6 text-white md:hidden"
           role="dialog"
           aria-modal="true"
@@ -169,7 +183,6 @@ export function Header() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
-
