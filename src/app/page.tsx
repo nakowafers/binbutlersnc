@@ -45,12 +45,12 @@ export default async function Home() {
 
   return (
     <div className="flex flex-col min-h-screen font-sans bg-[#F8FAFC]">
-      {/* Header: Green Canvas with Top Navigation & 384px Titan Logo Medallion Overlap */}
+      {/* Header: Video-Backed Nav with Straddling Logo */}
       <Header />
 
       <main className="flex-grow">
-        {/* Hero Section Designed for Titan Logo Overlap */}
-        <section className="relative bg-[#F8FAFC] pt-36 sm:pt-48 md:pt-72 pb-24 text-center z-10 border-b border-slate-200">
+        {/* Hero Section */}
+        <section className="relative bg-[#F8FAFC] pt-16 sm:pt-20 md:pt-24 pb-24 text-center z-10 border-b border-slate-200">
           <div className="container mx-auto px-4 max-w-4xl">
             <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-[#1C3D5A] mb-4 tracking-tight leading-tight text-balance">
               We Clean. You Relax. <br />
