@@ -9,10 +9,20 @@ import {
     PRICING_VERSION_MISMATCH_CODE,
     PRICING_VERSION_MISMATCH_MESSAGE,
 } from '@/lib/checkout/pricingVersion';
+import { BUSINESS_CONFIG } from '@/lib/business-status';
 
 export const runtime = 'edge';
 
 export async function POST(request: Request) {
+    if (BUSINESS_CONFIG.signupsPaused) {
+        return new Response(JSON.stringify({
+            error: 'New signups and checkout sessions are temporarily paused.'
+        }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
     try {
         let body: unknown;
         try {
