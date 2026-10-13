@@ -59,12 +59,15 @@ vi.mock('stripe', () => {
     return { default: StripeMock };
 });
 
+import { setSignupsPausedForTesting } from '@/lib/business-status';
+
 describe('Checkout API - Integration Tests', () => {
     let simulator: DbSimulator;
     let mockEnv: any;
 
     beforeEach(() => {
         vi.clearAllMocks();
+        setSignupsPausedForTesting(false);
 
         mockCustomerList.mockResolvedValue({ data: [] });
 
@@ -84,6 +87,27 @@ describe('Checkout API - Integration Tests', () => {
         };
 
         (getRequestContext as any).mockReturnValue({ env: mockEnv });
+    });
+
+    it('rejects checkout with 503 when signups are paused during business hiatus', async () => {
+        setSignupsPausedForTesting(true);
+
+        const request = new Request('http://localhost/api/checkout', {
+            method: 'POST',
+            body: JSON.stringify(recurringCheckoutBody({
+                email: 'hiatus@example.com',
+            })),
+        });
+
+        const response = await POST(request);
+
+        expect(response.status).toBe(503);
+        const data = await response.json();
+        expect(data).toEqual({
+            error: 'New signups and checkout sessions are temporarily paused.',
+        });
+        expect(mockCreateSession).not.toHaveBeenCalled();
+        expect(simulator.db.prepare('SELECT * FROM leads WHERE email = ?').get('hiatus@example.com')).toBeUndefined();
     });
 
     it.each([

@@ -20,6 +20,7 @@ import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { normalizeSalesRepId } from "@/lib/sales-rep";
 import { calculatePricing, getCheckoutBillingDisclosure, getRecurringBillingPresentation, getSubscriptionDefinition, PRICING_VERSION } from "@/lib/pricing";
 import { PRICING_VERSION_MISMATCH_CODE } from '@/lib/checkout/pricingVersion';
+import { BUSINESS_CONFIG } from '@/lib/business-status';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -101,10 +102,56 @@ const signupSchema = z.object({
 type SignupFormValues = z.infer<typeof signupSchema>;
 
 export default function SignupPage() {
+    if (BUSINESS_CONFIG.signupsPaused) {
+        return <PausedSignupNotice />;
+    }
+
     return (
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#7AC142]" size={48} /></div>}>
             <SignupForm />
         </Suspense>
+    );
+}
+
+function PausedSignupNotice() {
+    return (
+        <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 flex flex-col items-center justify-center">
+            <Link href="/" className="mb-8">
+                <Image src="/assets/logo.png" alt="Bin Butlers NC" width={1189} height={1251} className="h-12 w-auto" priority />
+            </Link>
+
+            <Card className="w-full max-w-lg border-none shadow-xl rounded-2xl sm:rounded-[2rem] overflow-hidden text-center">
+                <CardHeader className="bg-[#1C3D5A] text-white p-6 sm:p-10">
+                    <CardTitle className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                        {BUSINESS_CONFIG.pauseTitle}
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 sm:p-10 space-y-6">
+                    <p className="text-slate-600 text-base sm:text-lg leading-relaxed font-medium">
+                        {BUSINESS_CONFIG.pauseMessage}
+                    </p>
+
+                    <div className="pt-2 flex flex-col items-center gap-4">
+                        <Link href="/" className="w-full">
+                            <Button
+                                size="lg"
+                                className="w-full bg-[#7AC142] hover:bg-[#68a638] text-white font-bold rounded-xl h-14 text-base shadow-lg shadow-lime-500/25 active:scale-95 transition-all"
+                            >
+                                Back to Home
+                            </Button>
+                        </Link>
+                    </div>
+                </CardContent>
+                <CardFooter className="p-6 bg-slate-50 border-t justify-center">
+                    <p className="text-sm text-slate-500">
+                        Already a customer?{' '}
+                        <Link href="/signin" className="text-[#1C3D5A] font-bold hover:underline">
+                            Sign in to your account
+                        </Link>
+                    </p>
+                </CardFooter>
+            </Card>
+        </div>
     );
 }
 
